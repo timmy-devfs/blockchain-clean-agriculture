@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/retail/order-placed",
+  "title": "OrderPlacedEvent",
+  "description": "Retailer đặt đơn hàng sau khi thanh toán cọc thành công. farm-service consume để tạo FarmOrder.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "const": "ORDER_PLACED" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["orderId", "retailerId", "farmId", "listingId", "quantity", "depositAmount", "placedAt"],
+      "properties": {
+        "orderId":        { "type": "string" },
+        "retailerId":     { "type": "string" },
+        "farmId":         { "type": "string" },
+        "listingId":      { "type": "string" },
+        "quantity":       { "type": "number" },
+        "unit":           { "type": "string" },
+        "depositAmount":  { "type": "number", "description": "Tiền cọc đã thanh toán (VND)" },
+        "totalAmount":    { "type": "number" },
+        "deliveryAddress":{ "type": "string" },
+        "note":           { "type": "string" },
+        "placedAt":       { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

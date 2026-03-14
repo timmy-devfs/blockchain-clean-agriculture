@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/farm/season-created",
+  "title": "SeasonCreatedEvent",
+  "description": "Phát sinh khi Farm Manager tạo mới một vụ mùa. blockchain-service consume để ghi lên VeChainThor.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid", "description": "UUID duy nhất cho mỗi event" },
+    "eventType": { "type": "string", "const": "SEASON_CREATED" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["seasonId", "farmId", "farmName", "cropType", "startDate", "status"],
+      "properties": {
+        "seasonId":    { "type": "string" },
+        "farmId":      { "type": "string" },
+        "farmName":    { "type": "string" },
+        "cropType":    { "type": "string", "description": "Loại cây trồng: lúa, rau, trái cây..." },
+        "startDate":   { "type": "string", "format": "date" },
+        "estimatedEndDate": { "type": "string", "format": "date" },
+        "area":        { "type": "number", "description": "Diện tích (hecta)" },
+        "province":    { "type": "string" },
+        "status":      { "type": "string", "const": "PREPARING" },
+        "description": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}
