@@ -1,0 +1,117 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Identity Service API
+  version: "1.0.0"
+  description: |
+    Quản lý xác thực và phân quyền toàn hệ thống BICAP.
+    JWT Access Token (15 phút) + Refresh Token (7 ngày).
+    /introspect được API Gateway gọi để validate mọi request.
+
+servers:
+  - url: http://localhost:8081
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập, refresh token, introspect
+  - name: User
+    description: Quản lý profile và Admin CRUD users
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:    { type: integer, example: 200 }
+        message: { type: string, example: "Success" }
+        data:    { type: object }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string, format: email }
+        password: { type: string, minLength: 6 }
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:  { type: string }
+        refreshToken: { type: string }
+        expiresIn:    { type: integer, description: "Giây" }
+        user:
+          type: object
+          properties:
+            userId: { type: string }
+            email:  { type: string }
+            role:   { type: string, enum: [ADMIN, FARM_MANAGER, RETAILER, SHIPPER] }
+
+paths:
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản mới
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, fullName, role]
+              properties:
+                email:    { type: string, format: email }
+                password: { type: string, minLength: 6 }
+                fullName: { type: string }
+                phone:    { type: string }
+                role:     { type: string, enum: [FARM_MANAGER, RETAILER, SHIPPER] }
+      responses:
+        "201": { description: "Đăng ký thành công" }
+        "400": { description: "Email đã tồn tại (ErrorCode 1001)" }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập — trả về accessToken + refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthResponse" }
+        "401": { description: "Sai mật khẩu (ErrorCode 1002)" }
+
+  /api/auth/introspect:
+    post:
+      tags: [Auth]
+      summary: Validate JWT — API Gateway gọi endpoint này
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          description: Kết quả kiểm tra token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:  { type: boolean }
+                  userId: { type: string }
+                  role:   { type: string }
+                  email:  { type: string }

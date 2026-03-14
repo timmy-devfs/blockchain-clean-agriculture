@@ -1,0 +1,54 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Shipping Service API
+  version: "1.0.0"
+  description: |
+    2 nhóm API tách biệt:
+    - Shipping Manager (web): CRUD chuyến hàng, tài xế, phương tiện
+    - Driver App (mobile): xem chuyến, pickup, deliver, cập nhật trạng thái
+
+servers:
+  - url: http://localhost:8084
+
+tags:
+  - name: Manager
+    description: Shipping Manager — quản lý chuyến hàng, tài xế, phương tiện
+  - name: Driver
+    description: Driver App — API dành riêng cho React Native
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  schemas:
+    ShipmentStatus:
+      type: string
+      enum: [ASSIGNED, PICKED_UP, IN_TRANSIT, DELAYED, DELIVERED, FAILED, CANCELLED]
+
+paths:
+  /api/shipping/shipments:
+    post:
+      tags: [Manager]
+      summary: Tạo chuyến hàng và assign driver + vehicle
+      security: [{ BearerAuth: [] }]
+      responses:
+        "201": { description: "Chuyến hàng tạo thành công" }
+
+  /api/shipping/driver/shipments:
+    get:
+      tags: [Driver]
+      summary: Xem danh sách chuyến hàng của driver đang login
+      security: [{ BearerAuth: [] }]
+      responses:
+        "200": { description: "Danh sách chuyến theo ngày" }
+        "403": { description: "Không phải role SHIPPER" }
+
+  /api/shipping/driver/shipments/{id}/pickup:
+    post:
+      tags: [Driver]
+      summary: Xác nhận nhận hàng tại farm (bắt buộc scan QR + chụp ảnh)
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "status = PICKED_UP, ShipmentUpdatedEvent published" }
