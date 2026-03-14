@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "BICAP System — Bảng mã lỗi chuẩn hóa toàn hệ thống",
+  "version": "1.0.0",
+  "domains": {
+    "1xxx_identity": {
+      "description": "identity-service — Authentication & User Management",
+      "codes": {
+        "1001": { "code": 1001, "httpStatus": 400, "message": "Email already exists",       "vi": "Email đã được sử dụng" },
+        "1002": { "code": 1002, "httpStatus": 401, "message": "Invalid credentials",        "vi": "Email hoặc mật khẩu không đúng" },
+        "1003": { "code": 1003, "httpStatus": 401, "message": "Token expired",              "vi": "Phiên đăng nhập đã hết hạn" },
+        "1004": { "code": 1004, "httpStatus": 401, "message": "Token invalid",              "vi": "Token không hợp lệ" },
+        "1005": { "code": 1005, "httpStatus": 401, "message": "Refresh token revoked",      "vi": "Refresh token đã bị thu hồi" },
+        "1006": { "code": 1006, "httpStatus": 400, "message": "Wrong current password",     "vi": "Mật khẩu hiện tại không đúng" },
+        "1007": { "code": 1007, "httpStatus": 403, "message": "Insufficient permissions",   "vi": "Không có quyền thực hiện hành động này" },
+        "1008": { "code": 1008, "httpStatus": 404, "message": "User not found",             "vi": "Người dùng không tồn tại" }
+      }
+    },
+    "2xxx_farm": {
+      "description": "farm-service — Farm, Season, Marketplace, Order",
+      "codes": {
+        "2001": { "code": 2001, "httpStatus": 403, "message": "Farm not approved",          "vi": "Trang trại chưa được phê duyệt" },
+        "2002": { "code": 2002, "httpStatus": 404, "message": "Farm not found",             "vi": "Trang trại không tồn tại" },
+        "2003": { "code": 2003, "httpStatus": 400, "message": "Season not harvestable",     "vi": "Vụ mùa chưa đủ điều kiện xuất" },
+        "2004": { "code": 2004, "httpStatus": 400, "message": "Season already exported",    "vi": "Vụ mùa đã được xuất" },
+        "2005": { "code": 2005, "httpStatus": 403, "message": "Package expired",            "vi": "Gói dịch vụ đã hết hạn" },
+        "2006": { "code": 2006, "httpStatus": 404, "message": "Season not found",           "vi": "Vụ mùa không tồn tại" },
+        "2007": { "code": 2007, "httpStatus": 400, "message": "Order already confirmed",    "vi": "Đơn hàng đã được xác nhận" },
+        "2008": { "code": 2008, "httpStatus": 400, "message": "Listing not available",      "vi": "Sản phẩm không còn khả dụng" }
+      }
+    },
+    "3xxx_retail": {
+      "description": "retailer-service — Order, QR, Delivery",
+      "codes": {
+        "3001": { "code": 3001, "httpStatus": 400, "message": "Order not cancellable",      "vi": "Đơn hàng không thể hủy ở trạng thái này" },
+        "3002": { "code": 3002, "httpStatus": 404, "message": "Order not found",            "vi": "Đơn hàng không tồn tại" },
+        "3003": { "code": 3003, "httpStatus": 400, "message": "QR code invalid",            "vi": "Mã QR không hợp lệ hoặc đã hết hạn" },
+        "3004": { "code": 3004, "httpStatus": 400, "message": "Order not in shipping",      "vi": "Đơn hàng chưa ở trạng thái vận chuyển" },
+        "3005": { "code": 3005, "httpStatus": 403, "message": "Retailer not approved",      "vi": "Nhà bán lẻ chưa được phê duyệt" },
+        "3006": { "code": 3006, "httpStatus": 409, "message": "Order already delivered",    "vi": "Đơn hàng đã được giao thành công" }
+      }
+    },
+    "4xxx_shipping": {
+      "description": "shipping-service — Shipment, Driver, Vehicle",
+      "codes": {
+        "4001": { "code": 4001, "httpStatus": 400, "message": "Shipment not cancellable",   "vi": "Chuyến hàng không thể hủy ở trạng thái này" },
+        "4002": { "code": 4002, "httpStatus": 404, "message": "Driver not found",           "vi": "Tài xế không tồn tại" },
+        "4003": { "code": 4003, "httpStatus": 400, "message": "Driver not available",       "vi": "Tài xế không còn rảnh" },
+        "4004": { "code": 4004, "httpStatus": 404, "message": "Vehicle not found",          "vi": "Phương tiện không tồn tại" },
+        "4005": { "code": 4005, "httpStatus": 403, "message": "Not shipment driver",        "vi": "Bạn không phải tài xế của chuyến hàng này" },
+        "4006": { "code": 4006, "httpStatus": 400, "message": "Invalid status transition",  "vi": "Không thể chuyển sang trạng thái này" }
+      }
+    },
+    "5xxx_payment": {
+      "description": "payment-service — VNPay, MoMo, Refund",
+      "codes": {
+        "5001": { "code": 5001, "httpStatus": 400, "message": "Invalid HMAC signature",     "vi": "Chữ ký xác thực không hợp lệ" },
+        "5002": { "code": 5002, "httpStatus": 400, "message": "Payment already processed",  "vi": "Giao dịch này đã được xử lý" },
+        "5003": { "code": 5003, "httpStatus": 400, "message": "Payment amount mismatch",    "vi": "Số tiền thanh toán không khớp" },
+        "5004": { "code": 5004, "httpStatus": 404, "message": "Payment not found",          "vi": "Giao dịch không tồn tại" },
+        "5005": { "code": 5005, "httpStatus": 400, "message": "Refund not allowed",         "vi": "Giao dịch này không thể hoàn tiền" }
+      }
+    },
+    "9xxx_system": {
+      "description": "Lỗi hệ thống — dùng chung mọi service",
+      "codes": {
+        "9001": { "code": 9001, "httpStatus": 500, "message": "Internal server error",      "vi": "Lỗi hệ thống, vui lòng thử lại" },
+        "9002": { "code": 9002, "httpStatus": 503, "message": "Service unavailable",        "vi": "Dịch vụ tạm thời không khả dụng" },
+        "9003": { "code": 9003, "httpStatus": 429, "message": "Rate limit exceeded",        "vi": "Quá nhiều yêu cầu, vui lòng thử lại sau" },
+        "9004": { "code": 9004, "httpStatus": 400, "message": "Invalid request format",     "vi": "Định dạng yêu cầu không hợp lệ" },
+        "9005": { "code": 9005, "httpStatus": 504, "message": "Upstream timeout",           "vi": "Dịch vụ phụ thuộc không phản hồi" }
+      }
+    }
+  }
+}
