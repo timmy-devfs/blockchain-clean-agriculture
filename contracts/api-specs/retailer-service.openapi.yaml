@@ -1,0 +1,59 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Retailer Service API
+  version: "1.0.0"
+  description: Tìm kiếm sản phẩm, đặt hàng, QR scan blockchain, xác nhận giao hàng.
+
+servers:
+  - url: http://localhost:8083
+
+tags:
+  - name: Marketplace
+    description: Tìm kiếm và xem chi tiết sản phẩm
+  - name: Order
+    description: Đặt hàng, hủy đơn, lịch sử
+  - name: QR
+    description: Scan QR truy xuất blockchain
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+
+paths:
+  /api/retail/marketplace/products:
+    get:
+      tags: [Marketplace]
+      summary: Tìm kiếm sản phẩm với bộ lọc — kết quả cache Redis 2 phút
+      parameters:
+        - { name: keyword,  in: query, schema: { type: string } }
+        - { name: province, in: query, schema: { type: string } }
+        - { name: priceMin, in: query, schema: { type: number } }
+        - { name: priceMax, in: query, schema: { type: number } }
+        - { name: page,     in: query, schema: { type: integer, default: 0 } }
+        - { name: size,     in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200": { description: "Danh sách sản phẩm (PageResponse)" }
+
+  /api/retail/orders:
+    post:
+      tags: [Order]
+      summary: Đặt hàng — gọi payment-service tạo deposit URL
+      security: [{ BearerAuth: [] }]
+      responses:
+        "201": { description: "Đơn tạo thành công — trả về paymentUrl" }
+
+  /api/retail/qr/scan:
+    post:
+      tags: [QR]
+      summary: Scan QR truy xuất blockchain — gọi blockchain-service /chain/trace
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qrCode: { type: string }
+      responses:
+        "200": { description: "TraceResult đầy đủ từ VeChainThor" }
+        "404": { description: "QR không tồn tại" }

@@ -1,0 +1,94 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Farm Service API
+  version: "1.0.0"
+  description: |
+    Quản lý Trang trại, Vụ mùa, Marketplace và Đơn hàng.
+    Service phức tạp nhất — là producer chính của Kafka events gửi đến blockchain-service.
+
+servers:
+  - url: http://localhost:8082
+    description: Local development
+
+tags:
+  - name: Farm
+    description: CRUD trang trại và business license
+  - name: Season
+    description: Vụ mùa — tạo, cập nhật, xuất — mỗi thao tác ghi blockchain
+  - name: Marketplace
+    description: Đăng bán sản phẩm và quản lý gói dịch vụ
+  - name: Order
+    description: Xử lý đơn hàng từ Retailer
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SeasonStatus:
+      type: string
+      enum: [PREPARING, ACTIVE, HARVESTED, EXPORTED]
+
+    Season:
+      type: object
+      properties:
+        seasonId:   { type: string }
+        farmId:     { type: string }
+        cropType:   { type: string }
+        startDate:  { type: string, format: date }
+        status:     { $ref: "#/components/schemas/SeasonStatus" }
+        txHash:     { type: string, description: "VeChain transaction hash — null khi đang ghi" }
+        qrCodeUrl:  { type: string, description: "URL ảnh QR — có sau khi EXPORTED" }
+
+paths:
+  /api/farm/farms:
+    post:
+      tags: [Farm]
+      summary: Đăng ký trang trại mới (isApproved = false, chờ Admin)
+      security: [{ BearerAuth: [] }]
+      responses:
+        "201": { description: "Tạo farm thành công — chờ Admin phê duyệt" }
+        "400": { description: "Dữ liệu không hợp lệ" }
+
+  /api/farm/seasons:
+    post:
+      tags: [Season]
+      summary: Tạo vụ mùa mới — publish SeasonCreatedEvent → Kafka → blockchain
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cropType, startDate]
+              properties:
+                cropType:         { type: string }
+                startDate:        { type: string, format: date }
+                estimatedEndDate: { type: string, format: date }
+                area:             { type: number }
+                description:      { type: string }
+      responses:
+        "201":
+          description: "Tạo thành công — txHash = null, đang ghi blockchain"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Season" }
+        "403": { description: "Farm chưa được phê duyệt (ErrorCode 2001)" }
+
+  /api/farm/seasons/{id}/export:
+    post:
+      tags: [Season]
+      summary: Xuất vụ mùa — publish SeasonExportedEvent → blockchain tạo QR Code
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: "Xuất thành công — QR Code đang được tạo" }
+        "400": { description: "Vụ mùa chưa HARVESTED (ErrorCode 2003)" }

@@ -1,0 +1,57 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Notification Service API
+  version: "1.0.0"
+  description: |
+    Hub thông báo realtime. Consume Kafka events → lookup device token Redis → Firebase FCM push.
+    5 loại Kafka consumer: Order, Shipment, IoT Alert, Payment, Broadcast Admin.
+
+servers:
+  - url: http://localhost:8085
+
+paths:
+  /api/notify/tokens:
+    post:
+      summary: Đăng ký device token Firebase (gọi khi app khởi động)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:    { type: string }
+                platform: { type: string, enum: [IOS, ANDROID, WEB] }
+      responses:
+        "200": { description: "Token đã được đăng ký" }
+
+  /api/notify/notifications:
+    get:
+      summary: Lịch sử thông báo của user
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: isRead, in: query, schema: { type: boolean } }
+        - { name: page,   in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "PageResponse<Notification>" }
+
+  /api/notify/broadcast:
+    post:
+      summary: "[ADMIN] Gửi broadcast theo role"
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetRole: { type: string, enum: [FARM_MANAGER, RETAILER, SHIPPER, ALL] }
+                title:   { type: string }
+                message: { type: string }
+      responses:
+        "200": { description: "Broadcast đã gửi" }
+        "403": { description: "Không phải ADMIN" }
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
