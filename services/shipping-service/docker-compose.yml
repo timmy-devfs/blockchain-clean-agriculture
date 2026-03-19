@@ -1,0 +1,43 @@
+version: '3.8'
+
+# Chạy lệnh: docker-compose up -d
+# Sẽ tự động tạo PostgreSQL và Kafka, không cần cài tay
+
+services:
+
+  # Database PostgreSQL
+  postgres:
+    image: postgres:15
+    container_name: shipping_postgres
+    environment:
+      POSTGRES_DB: shipping_db       # Tên database
+      POSTGRES_USER: postgres        # Tên đăng nhập
+      POSTGRES_PASSWORD: postgres    # Mật khẩu
+    ports:
+      - "5432:5432"                  # Cổng kết nối từ máy bạn
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Zookeeper (Kafka cần cái này để chạy)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: shipping_zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: shipping_kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+volumes:
+  postgres_data:
