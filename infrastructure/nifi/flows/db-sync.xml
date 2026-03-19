@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  BICAP NiFi Flow: db-sync
+  Mục đích: Đồng bộ dữ liệu farm_db → report_db lúc 01:00 AM hàng ngày
+  Sprint 5 (BIC-040): Implement đầy đủ tại đây
+  
+  Flow:
+    GenerateFlowFile (cron: 0 0 1 * * ?)
+      → ExecuteSQL (SELECT * FROM farm_db.dbo.farming_seasons WHERE DATE = YESTERDAY)
+      → ConvertRecord (JSON → CSV hoặc giữ JSON)
+      → PutDatabaseRecord (INSERT INTO report_db.dbo.season_report_sync)
+      → LogAttribute (rows synced)
+-->
+<template encoding-version="1.0">
+  <description>BICAP DB Sync — Daily sync from farm_db to report_db at 01:00 AM</description>
+  <name>BICAP_DB_Sync_Daily</name>
+  <snippet>
+    <processors>
+      <id>cron-trigger-001</id>
+      <name>GenerateFlowFile_Daily_01AM</name>
+      <type>org.apache.nifi.processors.standard.GenerateFlowFile</type>
+      <config>
+        <property>
+          <name>scheduling-strategy</name>
+          <value>CRON_DRIVEN</value>
+        </property>
+        <property>
+          <name>scheduling-period</name>
+          <value>0 0 1 * * ?</value>
+        </property>
+      </config>
+    </processors>
+  </snippet>
+</template>
