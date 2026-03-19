@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  BICAP NiFi Flow: farm-to-blockchain
+  Mục đích: Monitor Kafka topic bicap.season.created → Verify blockchain write (txHash != null)
+  Sprint 5 (BIC-040): Implement đầy đủ tại đây
+  
+  Flow:
+    ConsumeKafka (bicap.season.created)
+      → Wait 30s (blockchain write time)
+      → InvokeHTTP GET http://blockchain-service:8090/api/chain/trace/{seasonId}
+      → RouteOnAttribute (txHash != null → SUCCESS, null → ALERT)
+      → PutEmail / LogAttribute (khi ALERT)
+-->
+<template encoding-version="1.0">
+  <description>BICAP Farm Season to Blockchain Verification — Monitor Kafka and verify blockchain txHash</description>
+  <name>BICAP_Farm_To_Blockchain</name>
+  <snippet>
+    <processors>
+      <id>kafka-consumer-001</id>
+      <name>ConsumeKafka_SeasonCreated</name>
+      <type>org.apache.nifi.processors.kafka.pubsub.ConsumeKafka_2_6</type>
+      <config>
+        <property>
+          <name>bootstrap.servers</name>
+          <value>kafka:29092</value>
+        </property>
+        <property>
+          <name>topic</name>
+          <value>bicap.season.created</value>
+        </property>
+        <property>
+          <name>group.id</name>
+          <value>nifi-blockchain-monitor</value>
+        </property>
+      </config>
+    </processors>
+  </snippet>
+</template>
