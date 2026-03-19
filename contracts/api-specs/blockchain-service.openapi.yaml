@@ -1,0 +1,82 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Blockchain Service API
+  version: "1.0.0"
+  description: |
+    NodeJS/TypeScript service duy nhất.
+    Ghi dữ liệu lên VeChainThor (FarmTrace.sol + ProductCertification.sol).
+    Consume Kafka: season.created, season.updated, season.exported.
+
+servers:
+  - url: http://localhost:8090
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:  { type: string, example: "ok" }
+                  service: { type: string, example: "blockchain-service" }
+
+  /api/chain/trace/{seasonId}:
+    get:
+      summary: Lấy đầy đủ trace data từ VeChainThor (không cần auth — public)
+      parameters:
+        - { name: seasonId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Season data + history từ blockchain
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  seasonId:   { type: string }
+                  farmId:     { type: string }
+                  cropType:   { type: string }
+                  txHash:     { type: string }
+                  history:    { type: array, items: { type: object } }
+
+  /api/chain/qr/{seasonId}:
+    get:
+      summary: Lấy QR Code PNG của season (sau khi EXPORTED)
+      parameters:
+        - { name: seasonId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: QR Code image
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+
+  /api/chain/contracts/deploy:
+    post:
+      summary: "[ADMIN] Deploy Smart Contract lên VeChainThor"
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contractName: { type: string, enum: [FarmTrace, ProductCertification] }
+      responses:
+        "200":
+          description: Deploy thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  contractAddress: { type: string }
+                  txHash:          { type: string }
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/iot/iot-alert",
+  "title": "IoTAlertEvent",
+  "description": "Phát sinh khi sensor vượt ngưỡng an toàn. notification-service consume để push cảnh báo Farm Manager.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "const": "IOT_ALERT" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["alertId", "farmId", "sensorId", "sensorType", "value", "threshold", "severity"],
+      "properties": {
+        "alertId":     { "type": "string" },
+        "farmId":      { "type": "string" },
+        "sensorId":    { "type": "string" },
+        "sensorType":  { "type": "string", "enum": ["TEMPERATURE", "HUMIDITY", "PH"] },
+        "value":       { "type": "number", "description": "Giá trị đo được" },
+        "unit":        { "type": "string", "examples": ["°C", "%", "pH"] },
+        "threshold": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        },
+        "severity":    { "type": "string", "enum": ["WARNING", "CRITICAL"] },
+        "message":     { "type": "string", "description": "Mô tả cảnh báo cho người dùng" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

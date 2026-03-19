@@ -1,0 +1,45 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Payment Service API
+  version: "1.0.0"
+  description: Xử lý thanh toán VNPay/MoMo sandbox với HMAC signature verification.
+
+servers:
+  - url: http://localhost:8086
+
+paths:
+  /api/pay/payments:
+    post:
+      summary: Tạo URL thanh toán VNPay hoặc MoMo sandbox
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, amount, gateway, type]
+              properties:
+                orderId: { type: string }
+                amount:  { type: number }
+                gateway: { type: string, enum: [VNPAY, MOMO] }
+                type:    { type: string, enum: [DEPOSIT, PACKAGE, FULL_PAYMENT] }
+      responses:
+        "200":
+          description: URL thanh toán
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paymentUrl: { type: string }
+
+  /api/pay/payments/callback:
+    post:
+      summary: Nhận callback từ VNPay/MoMo — verify HMAC — publish PaymentSuccessEvent
+      responses:
+        "200": { description: "Thanh toán hợp lệ — PaymentSuccessEvent published" }
+        "400": { description: "HMAC không hợp lệ (ErrorCode 5001)" }
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

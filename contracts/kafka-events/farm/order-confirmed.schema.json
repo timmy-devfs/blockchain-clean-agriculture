@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/farm/order-confirmed",
+  "title": "OrderConfirmedEvent",
+  "description": "Farm xác nhận đơn hàng từ Retailer. shipping-service consume để tự động tạo Shipment.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "const": "ORDER_CONFIRMED" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["orderId", "farmId", "retailerId", "listingId", "quantity", "totalAmount", "confirmedAt"],
+      "properties": {
+        "orderId":      { "type": "string" },
+        "farmId":       { "type": "string" },
+        "retailerId":   { "type": "string" },
+        "listingId":    { "type": "string" },
+        "quantity":     { "type": "number" },
+        "unit":         { "type": "string" },
+        "totalAmount":  { "type": "number", "description": "VND" },
+        "deliveryAddress": { "type": "string" },
+        "confirmedAt":  { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  BICAP NiFi Flow: iot-to-redis
+  Mục đích: Poll IoT device API mỗi 5 phút → POST batch data → iot-service
+  Sprint 5 (BIC-040): Implement đầy đủ tại đây
+  
+  Flow:
+    GenerateFlowFile (trigger 5 phút)
+      → InvokeHTTP GET http://iot-device/api/sensors
+      → ValidateRecord (check schema)
+      → InvokeHTTP POST http://iot-service:8087/api/iot/sensors/data
+      → LogAttribute (success/failure)
+-->
+<template encoding-version="1.0">
+  <description>BICAP IoT Sensor Data Sync — Poll device API every 5 minutes and push to iot-service</description>
+  <name>BICAP_IoT_To_Redis</name>
+  <snippet>
+    <processors>
+      <id>iot-trigger-001</id>
+      <name>GenerateFlowFile_5min_Trigger</name>
+      <type>org.apache.nifi.processors.standard.GenerateFlowFile</type>
+      <config>
+        <property>
+          <name>scheduling-period</name>
+          <value>5 min</value>
+        </property>
+      </config>
+    </processors>
+  </snippet>
+</template>
