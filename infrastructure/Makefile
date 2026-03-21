@@ -56,8 +56,8 @@ verify:
 	docker exec bicap-kafka kafka-topics --bootstrap-server localhost:9092 --list
 	@echo ━━ Checking Redis...
 	docker exec bicap-redis redis-cli ping
-	@echo ━━ Checking SQL Server...
-	docker exec bicap-sqlserver /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "YourStrong!Passw0rd" -Q "SELECT name FROM sys.databases WHERE name LIKE '%_db'"
+	@echo ━━ Checking MySQL...
+	docker exec bicap-mysql mysql -u root -p12123 -e "SHOW DATABASES LIKE '%_db';"
 	@echo ━━ All checks done!
 
 ## Hiển thị danh sách lệnh
