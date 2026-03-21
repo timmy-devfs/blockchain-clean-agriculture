@@ -15,7 +15,8 @@ public class UserResponse {
     private String        email;
     private String        fullName;
     private String        phone;
-    private User.Role     role;
+    @io.swagger.v3.oas.annotations.media.Schema(implementation = String.class, example = "ADMIN")
+    private User.Role role;
     private Boolean       isActive;
     private String        avatarUrl;
     private LocalDateTime createdAt;

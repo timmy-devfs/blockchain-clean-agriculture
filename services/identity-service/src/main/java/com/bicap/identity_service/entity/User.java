@@ -26,6 +26,7 @@ public class User {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @io.swagger.v3.oas.annotations.media.Schema(type = "string", allowableValues = {"ADMIN", "FARM_MANAGER", "RETAILER", "SHIPPER"})
     @jakarta.persistence.Convert(converter = com.bicap.identity_service.converter.UserRoleConverter.class)
     @Column(name = "role_id", columnDefinition = "INT", nullable = false)
     private Role role;
