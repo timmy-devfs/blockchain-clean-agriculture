@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -55,6 +56,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(
                         ErrorCode.INSUFFICIENT_PERM.getCode(),
                         ErrorCode.INSUFFICIENT_PERM.getMessage()));
+    }
+
+    // ── Static resource not found (404) ───────────────────────
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity
+                .status(404)
+                .body(ApiResponse.error(404, "Resource not found"));
     }
 
     // ── Generic fallback ──────────────────────────────────────

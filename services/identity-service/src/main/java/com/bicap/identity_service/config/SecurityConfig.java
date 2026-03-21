@@ -25,7 +25,11 @@ public class SecurityConfig {
             "/api/auth/introspect",         // API Gateway gọi
             "/actuator/**",
             "/swagger-ui/**",
-            "/v3/api-docs/**"
+            "/swagger-ui.html",
+            "/v3/api-docs",
+            "/v3/api-docs/**",
+            "/swagger-resources/**",
+            "/webjars/**"
     };
 
     @Bean
