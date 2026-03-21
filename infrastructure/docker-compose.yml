@@ -16,7 +16,7 @@ volumes:
   zookeeper-data:
   zookeeper-log:
   redis-data:
-  sqlserver-data:
+  mysql-data:
   nifi-data:
   nifi-logs:
   prometheus-data:
@@ -97,26 +97,30 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── SQL SERVER ────────────────────────────────────────────────
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: bicap-sqlserver
+# ── MYSQL ─────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: bicap-mysql
     networks: [bicap-network]
     ports:
-      - "1433:1433"
+      - "3306:3306"
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong!Passw0rd"
-      MSSQL_PID: "Developer"
-      MSSQL_AGENT_ENABLED: "true"
+      MYSQL_ROOT_PASSWORD: 12123
+      MYSQL_USER: bicap_user
+      MYSQL_PASSWORD: 12123
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
-      - sqlserver-data:/var/opt/mssql
-      - ./sqlserver/init.sql:/init.sql:ro
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa",
-             "-P", "YourStrong!Passw0rd", "-Q", "SELECT 1"]
-      interval: 15s
-      timeout: 10s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbicap2025"]
+      interval: 10s
+      timeout: 5s
       retries: 10
       start_period: 30s
     restart: unless-stopped

@@ -15,7 +15,7 @@ volumes:
   zookeeper-data:
   zookeeper-log:
   redis-data:
-  sqlserver-data:
+  mysql-data:
   nifi-data:
   nifi-logs:
   prometheus-data:
@@ -95,24 +95,27 @@ services:
           cpus: "0.5"
     logging: *default-logging
 
-  sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: bicap-sqlserver
+  mysql:
+    image: mysql:8.0
+    container_name: bicap-mysql
     <<: *default-restart
     networks: [bicap-network]
     ports:
-      - "127.0.0.1:1433:1433"    # Chỉ localhost — không expose ra ngoài
+      - "127.0.0.1:3306:3306"
     environment:
-      ACCEPT_EULA: "Y"
-      SA_PASSWORD: ${DB_PASSWORD:-YourStrong!Passw0rd}
-      MSSQL_PID: "Developer"
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-12123}
+      MYSQL_USER: ${DB_USERNAME:-bicap_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-12123}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
-      - sqlserver-data:/var/opt/mssql
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     deploy:
       resources:
         limits:
-          memory: 2g
-          cpus: "1.5"
+          memory: 1g
+          cpus: "1.0"
     logging: *default-logging
 
   nifi:
