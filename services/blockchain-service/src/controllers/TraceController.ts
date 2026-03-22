@@ -6,15 +6,21 @@ import { generateQRCode, generateQRBase64 } from '../services/QRCodeService';
 const router = Router();
 const logger = createLogger('TraceController');
 
-// GET /api/chain/trace/:seasonId
-// Acceptance Criteria: đúng season data + history từ blockchain
+// Chuyển BigInt → string khi JSON.stringify
+// VeChain/ethers trả về BigInt cho uint256, Express không serialize được
+function replacer(_key: string, value: unknown) {
+  return typeof value === 'bigint' ? value.toString() : value;
+}
+
 router.get('/trace/:seasonId', async (req: Request, res: Response) => {
   const { seasonId } = req.params;
   if (!seasonId) return res.status(400).json({ error: 'seasonId is required' });
 
   try {
     const data = await getSeasonTrace(seasonId);
-    return res.status(200).json({ code: 200, message: 'Success', data });
+    // Dùng replacer để handle BigInt trong response
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).send(JSON.stringify({ code: 200, message: 'Success', data }, replacer));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error(`/trace error: ${msg}`);
@@ -22,8 +28,6 @@ router.get('/trace/:seasonId', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/chain/qr/:seasonId
-// Acceptance Criteria: Content-Type=image/png, QR scan được
 router.get('/qr/:seasonId', async (req: Request, res: Response) => {
   const { seasonId }                                     = req.params;
   const { farmId = '', txHash = '', format = 'png' } = req.query as Record<string, string>;
@@ -43,7 +47,6 @@ router.get('/qr/:seasonId', async (req: Request, res: Response) => {
       return res.status(200).json({ code: 200, data: { seasonId, base64Image: base64 } });
     }
 
-    // PNG binary — Content-Type=image/png ✅
     const result = await generateQRCode(qrData);
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Disposition', `inline; filename="qr-${seasonId}.png"`);
