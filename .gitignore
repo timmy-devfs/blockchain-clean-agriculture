@@ -1,4 +1,4 @@
-# ── Java / Maven ──────────────────────────────────────────────
+﻿# -- Java / Maven --
 target/
 *.class
 *.jar
@@ -7,7 +7,7 @@ target/
 .mvn/
 !.mvn/wrapper/maven-wrapper.jar
 
-# ── NodeJS / Blockchain Service ───────────────────────────────
+# -- NodeJS / Blockchain Service --
 node_modules/
 npm-debug.log*
 yarn-error.log*
@@ -15,34 +15,44 @@ dist/
 .next/
 out/
 
-# ── React Native / Expo ───────────────────────────────────────
+# -- React Native / Expo --
 .expo/
 android/
 ios/
 *.apk
 *.ipa
 
-# ── Environment (QUAN TRỌNG — không được commit) ─────────────
+# -- Environment (do not commit) --
 .env
+.env.*
 .env.local
 .env.*.local
 .env.production
+!.env.example
 
-# ── IDE ───────────────────────────────────────────────────────
+# -- IDE --
 .idea/
 .vscode/
 *.iml
 .DS_Store
 Thumbs.db
 
-# ── Docker ────────────────────────────────────────────────────
+# -- Docker --
 docker-compose.override.yml
 
-# ── Logs ──────────────────────────────────────────────────────
+# -- Logs --
 logs/
 *.log
 
-# ── Test / Coverage ───────────────────────────────────────────
+# -- Test / Coverage --
 coverage/
 .nyc_output/
 test-results/
+
+# -- Local accidental nested repos/folders --
+blockchain-clean-agriculture/
+
+# -- Service-specific generated artifacts --
+services/farm-service/node_modules/
+services/farm-service/dist/
+services/farm-service/.env
