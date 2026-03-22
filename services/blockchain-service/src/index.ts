@@ -1,39 +1,67 @@
-import 'dotenv/config';
-import express, { Request, Response } from 'express';
-import cors from 'cors';
-import { VeChainConfig } from './config/VeChainConfig';
-import { KafkaConfig } from './config/KafkaConfig';
+import express from 'express';
+import dotenv from 'dotenv';
+import { createLogger }             from './utils/logger';
+import { connectVeChain }           from './config/VeChainConfig';
+import { initKafka }                from './config/KafkaConfig';
+import { initSmartContractService } from './services/SmartContractService';
+import { deployContracts, getContractsStatus } from './controllers/ContractController'; // BICAP-020
+//import { traceRouter }              from './controllers/TraceController';               // BICAP-021
 
-const app = express();
-const PORT = parseInt(process.env.PORT ?? '8090', 10);
+dotenv.config();
+const logger = createLogger('BlockchainService');
+const app    = express();
+const PORT   = 8090;
 
-app.use(cors());
 app.use(express.json());
 
-// GET /health
-app.get('/health', (_req: Request, res: Response) => {
+// ── Health Check ──────────────────────────────────────────────
+app.get('/health', (_req, res) => {
   res.status(200).json({
-    status: 'ok',
-    service: 'blockchain-service',
+    status:    'ok',
+    service:   'blockchain-service',
+    timestamp: new Date().toISOString(),
   });
 });
 
-// Bootstrap
-async function bootstrap(): Promise<void> {
-  await VeChainConfig.getInstance().connect();
+// ── BICAP-020: Contract endpoints ─────────────────────────────
+// GET  /api/chain/contracts/status  → địa chỉ 2 contracts
+// POST /api/chain/contracts/deploy  → deploy (ADMIN only → 403 nếu không phải ADMIN)
+app.get('/api/chain/contracts/status', getContractsStatus);
+app.post('/api/chain/contracts/deploy', deployContracts);
 
-  const kafka = KafkaConfig.getInstance();
-  await kafka.connect();
-  //await kafka.startConsumers();
+// ── BICAP-021: Trace + QR endpoints ──────────────────────────
+//app.use('/api/chain', traceRouter);
 
-  app.listen(PORT, () => {
-    console.log(`[blockchain-service] Server running on port ${PORT}`);
-  });
+// ── Bootstrap ─────────────────────────────────────────────────
+async function bootstrap() {
+  try {
+    // Kết nối VeChain
+    const thorClient = await connectVeChain();
+    logger.info('VeChain Testnet connected successfully');
+    console.log("");
+
+    // Khởi tạo SmartContractService với địa chỉ từ .env
+    initSmartContractService(
+      thorClient,
+      process.env.FARM_TRACE_CONTRACT_ADDRESS    ?? '0xYourFarmTraceAddress',
+      process.env.PRODUCT_CERT_CONTRACT_ADDRESS  ?? '0xYourProductCertAddress'
+    );
+
+    // Khởi tạo Kafka consumers
+    await initKafka();
+    logger.info('Kafka consumer group registered: blockchain-service');
+    console.log("");
+
+    app.listen(PORT, () => {
+      logger.info(`Blockchain service running on port ${PORT}`);
+      logger.info(`Status  : http://localhost:${PORT}/api/chain/contracts/status`);
+      logger.info(`Trace   : http://localhost:${PORT}/api/chain/trace/:seasonId`);
+      logger.info(`QR Code : http://localhost:${PORT}/api/chain/qr/:seasonId`);
+    });
+  } catch (err) {
+    logger.error('Bootstrap failed', err);
+    process.exit(1);
+  }
 }
 
-process.on('SIGTERM', async () => { await KafkaConfig.getInstance().disconnect(); process.exit(0); });
-process.on('SIGINT',  async () => { await KafkaConfig.getInstance().disconnect(); process.exit(0); });
-
 bootstrap();
-
-export default app;
