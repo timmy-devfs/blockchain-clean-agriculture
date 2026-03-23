@@ -53,5 +53,5 @@ kafka-topics \
   --list | grep "bicap\."
 
 echo ""
-echo "  ✅  All BICAP topics ready!"
+echo "  All BICAP topics ready!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

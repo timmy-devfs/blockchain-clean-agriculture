@@ -4,8 +4,6 @@
 # Dừng: make down
 # ════════════════════════════════════════════════════════════════
 
-version: "3.9"
-
 networks:
   bicap-network:
     driver: bridge
@@ -70,7 +68,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka-data:/var/lib/kafka/data
-      - ./kafka/create-topics.sh:/opt/kafka/create-topics.sh:ro
+      - ./infrastructure/kafka/create-topics.sh:/opt/kafka/create-topics.sh:ro
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 15s
@@ -89,7 +87,7 @@ services:
     command: redis-server /usr/local/etc/redis/redis.conf
     volumes:
       - redis-data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -112,7 +110,7 @@ services:
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./infrastructure/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     command: >
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
@@ -139,7 +137,7 @@ services:
     volumes:
       - nifi-data:/opt/nifi/nifi-current/conf
       - nifi-logs:/opt/nifi/nifi-current/logs
-      - ./nifi/flows:/opt/nifi/nifi-current/flow-templates
+      - ./infrastructure/nifi/flows:/opt/nifi/nifi-current/flow-templates
     healthcheck:
       test: ["CMD", "curl", "-kf", "https://localhost:8443/nifi"]
       interval: 30s
@@ -156,7 +154,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -177,18 +175,19 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana:/etc/grafana/provisioning
+      - ./infrastructure/monitoring/grafana:/etc/grafana/provisioning
     depends_on:
       - prometheus
     restart: unless-stopped
 
-  # ── NGINX (DEV) ───────────────────────────────────────────────
+# ── NGINX — Layer 1: SSL + reverse proxy ──────────────────────
   nginx:
     image: nginx:1.25-alpine
     container_name: bicap-nginx
     networks: [bicap-network]
     ports:
       - "80:80"
+      - "443:443"    # sẵn sàng cho SSL sau
     volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     restart: unless-stopped
