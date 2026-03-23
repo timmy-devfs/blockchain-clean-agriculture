@@ -195,7 +195,7 @@ identity:
 # ── Gateway config ─────────────────────────────────────────────
 gateway:
   jwt-cache-ttl-seconds: 300
-  rate-limit:`
+  rate-limit:
     anonymous-per-minute: 100
     authenticated-per-minute: 500
 
