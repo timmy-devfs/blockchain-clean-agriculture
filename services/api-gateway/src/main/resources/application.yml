@@ -196,8 +196,9 @@ identity:
 gateway:
   jwt-cache-ttl-seconds: 300
   rate-limit:
-    anonymous-per-minute: 100
+    anonymous-per-minute: 100      # 101+ req/phút → 429
     authenticated-per-minute: 500
+    # exclude-paths: /actuator/health, /actuator/info   # Tùy chọn: bỏ qua rate limit cho path
 
 # ── Actuator ──────────────────────────────────────────────────
 management:
