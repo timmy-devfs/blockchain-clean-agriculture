@@ -4,43 +4,31 @@ import { createLogger } from '../utils/logger';
 
 const logger = createLogger('QRCodeService');
 
-export interface QRData {
-  seasonId:   string;
-  farmId:     string;
-  txHash:     string;
-  exportDate: string;
-}
-
 export interface QRResult {
   qrCodeUrl:   string;
   imageBuffer: Buffer;
   qrHash:      string;
 }
 
-const BASE_URL = process.env.QR_BASE_URL ?? 'https://bicap.vn/trace';
-
 /**
  * generate — Tạo QR Code PNG buffer
- * Acceptance Criteria: Content-Type=image/png, QR scan được
+ * Dùng chuỗi URL để điện thoại nhận diện được link
  */
-export async function generateQRCode(data: QRData): Promise<QRResult> {
-  const qrString = `${BASE_URL}/${data.seasonId}?farmId=${data.farmId}&txHash=${data.txHash}&v=1.0`;
-  const qrHash   = createHash('sha256').update(qrString, 'utf8').digest('hex');
+export async function generateQRCode(url: string): Promise<QRResult> {
+  const qrHash = createHash('sha256').update(url, 'utf8').digest('hex');
 
-  logger.info(`Generating QR for season: ${data.seasonId}`);
+  logger.info(`Generating QR for URL: ${url}`);
 
-  const imageBuffer = await QRCode.toBuffer(qrString, {
-    type:                 'png',
-    width:                512,  // 512px — đủ để camera điện thoại scan
-    margin:               2,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#1E3A5F', light: '#FFFFFF' },
+  const imageBuffer = await QRCode.toBuffer(url, {
+    type: 'png',
+    width: 512,
+    margin: 4,               // Tăng lên 4 để tạo viền trắng, giúp quét được trên nền tối
+    errorCorrectionLevel: 'H'  // Mức độ sửa lỗi cao nhất
+    // Đã gỡ bỏ phần color để dùng Đen/Trắng mặc định
   });
 
-  logger.info(`QR generated — hash: ${qrHash.slice(0, 16)}...`);
-
   return {
-    qrCodeUrl:   `${BASE_URL}/${data.seasonId}`,
+    qrCodeUrl: url,
     imageBuffer,
     qrHash,
   };
@@ -49,11 +37,10 @@ export async function generateQRCode(data: QRData): Promise<QRResult> {
 /**
  * generateBase64 — Tạo QR Code dạng base64
  */
-export async function generateQRBase64(data: QRData): Promise<string> {
-  const qrString = `${BASE_URL}/${data.seasonId}?farmId=${data.farmId}&txHash=${data.txHash}&v=1.0`;
-  return QRCode.toDataURL(qrString, {
-    width: 512, margin: 2,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#1E3A5F', light: '#FFFFFF' },
+export async function generateQRBase64(url: string): Promise<string> {
+  return QRCode.toDataURL(url, {
+    width: 512,
+    margin: 4,
+    errorCorrectionLevel: 'H',
   });
 }

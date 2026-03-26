@@ -27,71 +27,82 @@ app.use('/api/chain', traceRouter);
 // TEST ENDPOINTS — XÓA KHI KHÔNG CẦN TEST
 // ================================================================
 
-// Dùng timestamp làm seasonId để tránh trùng mỗi lần test
+// GET /test-season-created — Đúng schema season-created.schema.json
 app.get('/test-season-created', async (_req, res) => {
-  const seasonId = `S${Date.now()}`; // VD: S1742630583000 — unique mỗi lần
-  const payload  = {
-    eventId:     'test-001',
-    seasonId,
-    farmId:      'FARM01',
-    initialData: 'Lua Jasmine - Tay Ninh',
-    timestamp:   new Date().toISOString(),
+  const seasonId = `S${Date.now()}`;
+  const event = {
+    eventId:   crypto.randomUUID(),
+    eventType: 'SEASON_CREATED',
+    timestamp: new Date().toISOString(),
+    version:   '1.0',
+    payload: {
+      seasonId,
+      farmId:           'FARM01',
+      farmName:         'Trang trại Tân Bình',
+      cropType:         'Lúa ST25',
+      startDate:        '2026-01-01',
+      estimatedEndDate: '2026-04-30',
+      area:             5.5,
+      province:         'Tây Ninh',
+      status:           'PREPARING',
+      description:      'Vụ lúa mùa khô 2026, giống ST25 chất lượng cao',
+    },
   };
   try {
-    await sendTestMessage('bicap.season.created', payload);
-    return res.status(200).json({
-      status:   'ok',
-      message:  'SeasonCreated message sent',
-      seasonId, // Trả về seasonId để dùng cho test tiếp theo
-      payload,
-    });
+    await sendTestMessage('bicap.season.created', event);
+    return res.status(200).json({ status: 'ok', seasonId, event });
   } catch (err) {
     return res.status(500).json({ error: (err as Error).message });
   }
 });
 
-// POST /test-season-created với seasonId tùy chọn
-app.post('/test-season-created', async (req, res) => {
-  const { seasonId = `S${Date.now()}`, farmId = 'FARM01', initialData = 'Lua Jasmine' } =
-    req.body as { seasonId?: string; farmId?: string; initialData?: string };
-  const payload = { eventId: 'test-001', seasonId, farmId, initialData, timestamp: new Date().toISOString() };
-  try {
-    await sendTestMessage('bicap.season.created', payload);
-    return res.status(200).json({ status: 'ok', seasonId, payload });
-  } catch (err) {
-    return res.status(500).json({ error: (err as Error).message });
-  }
-});
-
+// GET /test-season-updated?seasonId=xxx — Đúng schema season-updated.schema.json
 app.get('/test-season-updated', async (req, res) => {
   const seasonId = (req.query.seasonId as string) ?? 'S001';
-  const payload  = {
-    eventId:    'test-002',
-    seasonId,
-    updateData: 'Bon phan lan 1 - 2024-02-01',
-    timestamp:  new Date().toISOString(),
+  const event = {
+    eventId:   crypto.randomUUID(),
+    eventType: 'SEASON_UPDATED',
+    timestamp: new Date().toISOString(),
+    version:   '1.0',
+    payload: {
+      seasonId,
+      farmId:    'FARM01',
+      status:    'ACTIVE',
+      note:      'Bón phân lần 1, cây phát triển tốt',
+      imageUrls: [],
+      updatedAt: new Date().toISOString(),
+      updatedBy: 'user-farm-manager-01',
+    },
   };
   try {
-    await sendTestMessage('bicap.season.updated', payload);
-    return res.status(200).json({ status: 'ok', payload });
+    await sendTestMessage('bicap.season.updated', event);
+    return res.status(200).json({ status: 'ok', seasonId, event });
   } catch (err) {
     return res.status(500).json({ error: (err as Error).message });
   }
 });
 
+// GET /test-season-exported?seasonId=xxx — Đúng schema season-exported.schema.json
 app.get('/test-season-exported', async (req, res) => {
   const seasonId = (req.query.seasonId as string) ?? 'S001';
-  const payload  = {
-    eventId:      'test-003',
-    seasonId,
-    farmId:       'FARM01',
-    exportDate:   new Date().toISOString().split('T')[0],
-    seasonTxHash: '0x' + '0'.repeat(64),
-    timestamp:    new Date().toISOString(),
+  const event = {
+    eventId:   crypto.randomUUID(),
+    eventType: 'SEASON_EXPORTED',
+    timestamp: new Date().toISOString(),
+    version:   '1.0',
+    payload: {
+      seasonId,
+      farmId:      'FARM01',
+      cropType:    'Lúa ST25',
+      exportedAt:  new Date().toISOString(),
+      totalYield:  1500,
+      unit:        'kg',
+      certifiedBy: 'admin-user-01',
+    },
   };
   try {
-    await sendTestMessage('bicap.season.exported', payload);
-    return res.status(200).json({ status: 'ok', payload });
+    await sendTestMessage('bicap.season.exported', event);
+    return res.status(200).json({ status: 'ok', seasonId, event });
   } catch (err) {
     return res.status(500).json({ error: (err as Error).message });
   }
@@ -118,7 +129,6 @@ async function bootstrap() {
     app.listen(PORT, () => {
       logger.info(`Blockchain service running on port ${PORT}`);
       logger.info(`[TEST] GET  http://localhost:${PORT}/test-season-created`);
-      logger.info(`[TEST] POST http://localhost:${PORT}/test-season-created  body: {seasonId, farmId}`);
       logger.info(`[TEST] GET  http://localhost:${PORT}/test-season-updated?seasonId=xxx`);
       logger.info(`[TEST] GET  http://localhost:${PORT}/test-season-exported?seasonId=xxx`);
       logger.info(`Trace  : http://localhost:${PORT}/api/chain/trace/:seasonId`);

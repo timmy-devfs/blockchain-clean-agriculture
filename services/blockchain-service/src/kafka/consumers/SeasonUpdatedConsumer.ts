@@ -8,18 +8,31 @@ const logger           = createLogger('SeasonUpdatedConsumer');
 const FARM_SERVICE_URL = process.env.FARM_SERVICE_URL ?? 'http://localhost:8082';
 const INTERNAL_KEY     = process.env.INTERNAL_API_KEY ?? '';
 
+/**
+ * Schema chuẩn: season-updated.schema.json
+ * {
+ *   eventId, eventType: "SEASON_UPDATED", timestamp, version: "1.0",
+ *   payload: {
+ *     seasonId, farmId, status, note?, imageUrls?, updatedAt, updatedBy
+ *   }
+ * }
+ */
 interface SeasonUpdatedEvent {
-  eventId:     string;
-  seasonId:    string;
-  updateData?: string;
-  timestamp:   string;
+  eventId:   string;
+  eventType: 'SEASON_UPDATED';
+  timestamp: string;
+  version:   string;
+  payload: {
+    seasonId:   string;
+    farmId:     string;
+    status:     'PREPARING' | 'ACTIVE' | 'HARVESTED';
+    note?:      string;
+    imageUrls?: string[];
+    updatedAt:  string;
+    updatedBy:  string;
+  };
 }
 
-/**
- * SeasonUpdatedConsumer
- * Nhận event → FarmTrace.updateSeason() → callback txHash
- * Acceptance Criteria: history[] tăng thêm 1
- */
 export async function handleSeasonUpdated(payload: EachMessagePayload): Promise<void> {
   const raw = payload.message.value?.toString() ?? '{}';
 
@@ -31,16 +44,25 @@ export async function handleSeasonUpdated(payload: EachMessagePayload): Promise<
     return;
   }
 
-  const { seasonId, updateData = '' } = event;
-  logger.info(`Processing SeasonUpdated: seasonId=${seasonId}`);
+  const { seasonId, farmId, status, note, imageUrls, updatedAt, updatedBy } = event.payload;
 
-  if (!process.env.FARM_TRACE_CONTRACT_ADDRESS ||
-      process.env.FARM_TRACE_CONTRACT_ADDRESS === '0xYourFarmTraceAddress') {
+  logger.info(`Processing SeasonUpdated: seasonId=${seasonId}, status=${status}, updatedBy=${updatedBy}`);
+
+  if (!process.env.FARM_TRACE_CONTRACT_ADDRESS) {
     logger.warn('FARM_TRACE_CONTRACT_ADDRESS not set — skipping');
     return;
   }
 
-  // Retry 3 lần với backoff ✅
+  // Gộp thông tin cập nhật vào updateData (FarmTrace.updateSeason chỉ nhận 1 string)
+  const updateData = JSON.stringify({
+    status,
+    note:      note ?? '',
+    imageUrls: imageUrls ?? [],
+    updatedAt,
+    updatedBy,
+  });
+
+  // Retry 3 lần với backoff ✅ (history[] tăng thêm 1)
   const txHash = await retry(
     () => callUpdateSeason(seasonId, updateData),
     { maxAttempts: 3, baseDelayMs: 1_000, label: `updateSeason(${seasonId})` }
@@ -48,6 +70,7 @@ export async function handleSeasonUpdated(payload: EachMessagePayload): Promise<
 
   logger.info(`✅ updateSeason confirmed — txHash: ${txHash} (history[]+1)`);
 
+  // Callback về farm-service
   try {
     await axios.put(
       `${FARM_SERVICE_URL}/api/farm/seasons/${seasonId}/blockchain`,

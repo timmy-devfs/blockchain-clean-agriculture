@@ -9,18 +9,79 @@ const NODE_URL     = process.env.VECHAIN_TESTNET_URL
   ?? 'https://sync-testnet.vechain.org';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
+// Convert BigInt → number/string an toàn
+const toNum = (v: unknown): number => Number(v ?? 0);
+const toStr = (v: unknown): string => String(v ?? '');
+
+// Parse initialData JSON — SeasonCreatedConsumer ghi JSON vào đây
+interface InitialDataJSON {
+  farmName?:        string;
+  cropType?:        string;
+  startDate?:       string;
+  estimatedEndDate?: string;
+  province?:        string;
+  description?:     string;
+}
+
+function parseInitialData(raw: string): InitialDataJSON {
+  try {
+    return JSON.parse(raw) as InitialDataJSON;
+  } catch {
+    // Fallback: trả về raw string trong cropType (data cũ trước khi sửa schema)
+    return { cropType: raw };
+  }
+}
+
+// Parse updateData JSON — SeasonUpdatedConsumer ghi JSON vào đây
+interface UpdateDataJSON {
+  status?:     string;
+  note?:       string;
+  imageUrls?:  string[];
+  updatedAt?:  string;
+  updatedBy?:  string;
+}
+
+function parseUpdateData(raw: string): UpdateDataJSON {
+  try {
+    return JSON.parse(raw) as UpdateDataJSON;
+  } catch {
+    return { note: raw };
+  }
+}
+
 export interface TraceResult {
-  seasonId:   string;
-  verified:   boolean;
-  seasonInfo: {
-    seasonId:    string;
-    farmId:      string;
-    initialData: string;
-    createdAt:   string;
-    status:      string;
+  seasonId:  string;
+  verified:  boolean;
+  farmInfo: {
+    farmId:   string;
+    farmName: string;
+    province: string;
   };
-  timeline: Array<{ data: string; timestamp: string }>;
-  certification: { verified: boolean; certData?: string };
+  seasonInfo: {
+    seasonId:         string;
+    cropType:         string;
+    startDate:        string;
+    estimatedEndDate: string;
+    description:      string;
+    createdAt:        string;
+    status:           string;
+  };
+  timeline: Array<{
+    status:     string;
+    note:       string;
+    imageUrls:  string[];
+    updatedAt:  string;
+    updatedBy:  string;
+    timestamp:  string;
+  }>;
+  certification: {
+    verified:    boolean;
+    cropType?:   string;
+    exportedAt?: string;
+    totalYield?: number;
+    unit?:       string;
+    qrHash?:     string;
+  };
   explorerUrl: string;
 }
 
@@ -31,97 +92,125 @@ export async function getSeasonTrace(seasonId: string): Promise<TraceResult> {
   if (!farmAddr) return _buildStub(seasonId, 'Contract not deployed');
 
   try {
-    // Dùng mapping public thay vì getSeason()
-    // FarmTrace.sol có: mapping(string => SeasonRecord) public seasons;
-    // Khi mapping public → Solidity tự tạo getter: seasons(string key) → SeasonRecord
-    const abi = [
-      {
-        name: 'seasons',
-        type: 'function',
-        inputs: [{ name: '', type: 'string' }],
-        outputs: [
-          { name: 'seasonId',    type: 'string'  },
-          { name: 'farmId',      type: 'string'  },
-          { name: 'initialData', type: 'string'  },
-          { name: 'createdAt',   type: 'uint256' },
-          // updateHistory KHÔNG được trả về bởi auto-getter của mapping
-          // (Solidity không trả về dynamic array trong mapping getter)
-        ],
-        stateMutability: 'view',
-      },
-    ];
+    // Dùng mapping getter seasons(key) để đọc basic fields
+    const mappingAbi = [{
+      name: 'seasons',
+      type: 'function',
+      inputs:  [{ name: '', type: 'string' }],
+      outputs: [
+        { name: 'seasonId',    type: 'string'  },
+        { name: 'farmId',      type: 'string'  },
+        { name: 'initialData', type: 'string'  },
+        { name: 'createdAt',   type: 'uint256' },
+      ],
+      stateMutability: 'view',
+    }];
 
-    const iface = new ethers.Interface(abi);
-    const data  = iface.encodeFunctionData('seasons', [seasonId]);
-
-    const res = await axios.post(`${NODE_URL}/accounts/*`, {
+    const iface  = new ethers.Interface(mappingAbi);
+    const data   = iface.encodeFunctionData('seasons', [seasonId]);
+    const res    = await axios.post(`${NODE_URL}/accounts/*`, {
       clauses: [{ to: farmAddr, value: '0x0', data }],
       caller:  ZERO_ADDRESS,
     });
 
     const output = res.data[0]?.data as string;
-    logger.info(`Raw output from blockchain: ${output?.slice(0, 100)}...`);
-
-    if (!output || output === '0x') {
-      return _buildStub(seasonId, 'No data returned');
-    }
+    if (!output || output === '0x') return _buildStub(seasonId, 'No data returned');
 
     const decoded = iface.decodeFunctionResult('seasons', output);
-    logger.info(`Decoded: ${JSON.stringify(decoded, (_k, v) => typeof v === "bigint" ? v.toString() : v)}`);
+    logger.info(`Decoded: ${JSON.stringify(decoded, (_k, v) => typeof v === 'bigint' ? v.toString() : v)}`);
 
-    const sid         = String(decoded[0] ?? '');
-    const farmId      = String(decoded[1] ?? '');
-    const initialData = String(decoded[2] ?? '');
-    const createdAt   = Number(decoded[3] ?? 0);
+    const sid         = toStr(decoded[0]);
+    const farmId      = toStr(decoded[1]);
+    const initialDataRaw = toStr(decoded[2]);
+    const createdAt   = toNum(decoded[3]); // BigInt → number
 
-    if (!sid) {
+    if (!sid || sid.trim() === '') {
       return _buildStub(seasonId, `Season ${seasonId} not found on blockchain`);
     }
 
-    // Đọc updateHistory riêng qua getSeason()
+    // Parse initialData JSON (ghi bởi SeasonCreatedConsumer)
+    const info = parseInitialData(initialDataRaw);
+
+    // Lấy updateHistory
     const timeline = await _getUpdateHistory(seasonId, farmAddr);
 
+    // Xác định status từ timeline entry cuối cùng
+    const lastStatus = timeline.length > 0
+      ? timeline[timeline.length - 1].status
+      : 'PREPARING';
+
     // Đọc certification
-    let cert = { verified: false, certData: '' };
+    let cert = { verified: false, cropType: '', exportedAt: '', totalYield: 0, unit: 'kg', qrHash: '' };
     const certAddr = process.env.PRODUCT_CERT_CONTRACT_ADDRESS ?? '';
     if (certAddr) {
       try {
         const certAbi = [{
           name: 'verifyCertification',
           type: 'function',
-          inputs: [{ name: '_seasonId', type: 'string' }],
-          outputs: [
-            { name: '', type: 'bool'   },
-            { name: '', type: 'string' },
-          ],
+          inputs:  [{ name: '_seasonId', type: 'string' }],
+          outputs: [{ name: '', type: 'bool' }, { name: '', type: 'string' }],
           stateMutability: 'view',
         }];
-        const certIface = new ethers.Interface(certAbi);
-        const certData  = certIface.encodeFunctionData('verifyCertification', [seasonId]);
-        const certRes   = await axios.post(`${NODE_URL}/accounts/*`, {
+        const certIface  = new ethers.Interface(certAbi);
+        const certData   = certIface.encodeFunctionData('verifyCertification', [seasonId]);
+        const certRes    = await axios.post(`${NODE_URL}/accounts/*`, {
           clauses: [{ to: certAddr, value: '0x0', data: certData }],
           caller:  ZERO_ADDRESS,
         });
         const certOutput = certRes.data[0]?.data as string;
         if (certOutput && certOutput !== '0x') {
-          const certDecoded = certIface.decodeFunctionResult('verifyCertification', certOutput);
-          cert = { verified: Boolean(certDecoded[0]), certData: String(certDecoded[1] ?? '') };
+          const c = certIface.decodeFunctionResult('verifyCertification', certOutput);
+          if (Boolean(c[0])) {
+            // Parse certData JSON (ghi bởi SeasonExportedConsumer)
+            try {
+              const certJSON = JSON.parse(toStr(c[1])) as {
+                qrHash?: string; cropType?: string; exportedAt?: string;
+                totalYield?: number; unit?: string;
+              };
+              cert = {
+                verified:    true,
+                cropType:    certJSON.cropType    ?? '',
+                exportedAt:  certJSON.exportedAt  ?? '',
+                totalYield:  certJSON.totalYield  ?? 0,
+                unit:        certJSON.unit         ?? 'kg',
+                qrHash:      certJSON.qrHash       ?? '',
+              };
+            } catch {
+              cert.verified = true;
+            }
+          }
         }
-      } catch { /* no cert */ }
+      } catch { /* no cert yet */ }
     }
+
+    const finalStatus = cert.verified ? 'EXPORTED' : lastStatus;
 
     return {
       seasonId,
       verified: true,
-      seasonInfo: {
-        seasonId:    sid,
+      farmInfo: {
         farmId,
-        initialData,
-        createdAt:   createdAt > 0 ? new Date(createdAt * 1000).toISOString() : '',
-        status:      cert.verified ? 'EXPORTED' : (timeline.length > 0 ? 'ACTIVE' : 'PREPARING'),
+        farmName: info.farmName  ?? farmId,
+        province: info.province  ?? '',
+      },
+      seasonInfo: {
+        seasonId:         sid,
+        cropType:         info.cropType         ?? '',
+        startDate:        info.startDate         ?? '',
+        estimatedEndDate: info.estimatedEndDate  ?? '',
+        description:      info.description       ?? '',
+        createdAt:        createdAt > 0 ? new Date(createdAt * 1000).toISOString() : '',
+        status:           finalStatus,
       },
       timeline,
-      certification: { verified: cert.verified, certData: cert.certData || undefined },
+      certification: {
+        verified:   cert.verified,
+        cropType:   cert.cropType   || undefined,
+        exportedAt: cert.exportedAt || undefined,
+        totalYield: cert.totalYield || undefined,
+        unit:       cert.unit       || undefined,
+        qrHash:     cert.qrHash     || undefined,
+      },
       explorerUrl: 'https://explore-testnet.vechain.org',
     };
 
@@ -132,21 +221,19 @@ export async function getSeasonTrace(seasonId: string): Promise<TraceResult> {
   }
 }
 
-async function _getUpdateHistory(seasonId: string, farmAddr: string): Promise<Array<{ data: string; timestamp: string }>> {
+async function _getUpdateHistory(seasonId: string, farmAddr: string): Promise<TraceResult['timeline']> {
   try {
-    // Gọi getSeason() để lấy updateHistory
     const abi = [{
       name: 'getSeason',
       type: 'function',
-      inputs: [{ name: '_seasonId', type: 'string' }],
+      inputs:  [{ name: '_seasonId', type: 'string' }],
       outputs: [{
-        name: '',
-        type: 'tuple',
+        name: '', type: 'tuple',
         components: [
-          { name: 'seasonId',    type: 'string'  },
-          { name: 'farmId',      type: 'string'  },
-          { name: 'initialData', type: 'string'  },
-          { name: 'createdAt',   type: 'uint256' },
+          { name: 'seasonId',      type: 'string'  },
+          { name: 'farmId',        type: 'string'  },
+          { name: 'initialData',   type: 'string'  },
+          { name: 'createdAt',     type: 'uint256' },
           { name: 'updateHistory', type: 'tuple[]', components: [
             { name: 'data',      type: 'string'  },
             { name: 'timestamp', type: 'uint256' },
@@ -166,21 +253,29 @@ async function _getUpdateHistory(seasonId: string, farmAddr: string): Promise<Ar
     const output = res.data[0]?.data as string;
     if (!output || output === '0x') return [];
 
-    const decoded = iface.decodeFunctionResult('getSeason', output);
-    // decoded[0] là tuple, updateHistory là field index 4
+    const decoded  = iface.decodeFunctionResult('getSeason', output);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const record  = decoded[0] as any;
+    const record   = decoded[0] as any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const history = Array.isArray(record?.updateHistory) ? record.updateHistory as any[]
-      : Array.isArray(record?.[4]) ? record[4] as any[] : [];
+    const history: any[] = Array.isArray(record?.updateHistory) ? record.updateHistory
+      : Array.isArray(record?.[4]) ? record[4] : [];
 
-    return history.map((entry: {data?: string; timestamp?: bigint} | [string, bigint]) => {
-      const d = Array.isArray(entry) ? entry[0] : entry.data ?? '';
-      const t = Array.isArray(entry) ? entry[1] : entry.timestamp ?? 0n;
-      return { data: String(d), timestamp: new Date(Number(t) * 1000).toISOString() };
+    return history.map(entry => {
+      const rawData  = toStr(Array.isArray(entry) ? entry[0] : entry?.data);
+      const rawTime  = toNum(Array.isArray(entry) ? entry[1] : entry?.timestamp);
+      // Parse updateData JSON (ghi bởi SeasonUpdatedConsumer)
+      const upd = parseUpdateData(rawData);
+      return {
+        status:    upd.status    ?? 'ACTIVE',
+        note:      upd.note      ?? rawData,
+        imageUrls: upd.imageUrls ?? [],
+        updatedAt: upd.updatedAt ?? '',
+        updatedBy: upd.updatedBy ?? '',
+        timestamp: new Date(rawTime * 1000).toISOString(),
+      };
     });
   } catch {
-    return []; // Nếu lỗi thì trả history rỗng, không crash
+    return [];
   }
 }
 
@@ -189,7 +284,8 @@ function _buildStub(seasonId: string, reason: string): TraceResult {
   return {
     seasonId,
     verified:   false,
-    seasonInfo: { seasonId, farmId: '', initialData: `[${reason}]`, createdAt: '', status: 'NOT_FOUND' },
+    farmInfo:   { farmId: '', farmName: '', province: '' },
+    seasonInfo: { seasonId, cropType: '', startDate: '', estimatedEndDate: '', description: `[${reason}]`, createdAt: '', status: 'NOT_FOUND' },
     timeline:      [],
     certification: { verified: false },
     explorerUrl:   'https://explore-testnet.vechain.org',
