@@ -14,8 +14,8 @@ CREATE DATABASE IF NOT EXISTS farm_db
 CREATE DATABASE IF NOT EXISTS retailer_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE DATABASE IF NOT EXISTS shipping_db
-  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- CREATE DATABASE IF NOT EXISTS shipping_db
+--   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE DATABASE IF NOT EXISTS notification_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

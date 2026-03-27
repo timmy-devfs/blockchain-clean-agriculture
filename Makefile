@@ -1,8 +1,3 @@
-# ════════════════════════════════════════════════════════════════
-# BICAP SYSTEM — Makefile
-# Yêu cầu: Docker Desktop đang chạy
-# ════════════════════════════════════════════════════════════════
-
 .PHONY: up down build logs clean ps topics verify help
 
 ## Khởi động toàn bộ infrastructure
@@ -23,7 +18,7 @@ up:
 down:
 	docker-compose down
 
-## Tắt và xóa toàn bộ volumes (reset hoàn toàn)
+## Tắt và xóa toàn bộ volumes
 clean:
 	docker-compose down -v --remove-orphans
 	@echo   All volumes deleted
@@ -32,7 +27,7 @@ clean:
 build:
 	docker-compose build --no-cache
 
-## Xem logs realtime (Ctrl+C để thoát)
+## Xem logs realtime
 logs:
 	docker-compose logs -f
 
@@ -44,7 +39,7 @@ logs-%:
 ps:
 	docker-compose ps
 
-## Tạo 9 Kafka topics (idempotent — chạy lại được)
+## Tạo 9 Kafka topics
 topics:
 	@echo Creating BICAP Kafka topics...
 	docker exec bicap-kafka bash /opt/kafka/create-topics.sh

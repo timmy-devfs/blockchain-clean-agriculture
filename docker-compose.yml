@@ -1,8 +1,3 @@
-# ════════════════════════════════════════════════════════════════
-# BICAP SYSTEM — Docker Compose (Local Development)
-# Chạy: make up
-# Dừng: make down
-# ════════════════════════════════════════════════════════════════
 
 networks:
   bicap-network:
@@ -15,6 +10,7 @@ volumes:
   zookeeper-log:
   redis-data:
   mysql-data:
+  postgres-shipping-data:
   nifi-data:
   nifi-logs:
   prometheus-data:
@@ -116,11 +112,26 @@ services:
       --collation-server=utf8mb4_unicode_ci
       --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbicap2025"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p12123"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    restart: unless-stopped
+
+# ── POSTGRES (Shipping Service) ─────────────────────────────────
+  postgres-shipping:
+    image: postgres:15-alpine
+    container_name: bicap-postgres-shipping
+    networks: [bicap-network]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: shipping_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres-shipping-data:/var/lib/postgresql/data
     restart: unless-stopped
 
   # ── NIFI ──────────────────────────────────────────────────────

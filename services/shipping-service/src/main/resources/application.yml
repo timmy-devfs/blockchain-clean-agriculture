@@ -7,9 +7,9 @@ spring:
 
   # Kết nối PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/shipping_db?TimeZone=UTC
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://${SHIPPING_DB_HOST:127.0.0.1}:${SHIPPING_DB_PORT:5432}/${SHIPPING_DB_NAME:shipping_db}
+    username: ${SHIPPING_DB_USER:postgres}
+    password: ${SHIPPING_DB_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -23,7 +23,7 @@ spring:
 
   # Kafka
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: shipping-service-group
       auto-offset-reset: earliest

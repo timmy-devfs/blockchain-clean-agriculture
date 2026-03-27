@@ -16,9 +16,9 @@ spring:
 
   # ── MySQL ────────────────────────────────────────────────────
   datasource:
-    url: jdbc:mysql://localhost:3306/identity_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
-    username: bicap_user
-    password: 12123
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${IDENTITY_DB_NAME:identity_db}?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root} 
+    password: ${DB_PASSWORD:12123}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10
