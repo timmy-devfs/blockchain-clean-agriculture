@@ -56,3 +56,4 @@ blockchain-clean-agriculture/
 services/farm-service/node_modules/
 services/farm-service/dist/
 services/farm-service/.env
+# chore: update gitignore
