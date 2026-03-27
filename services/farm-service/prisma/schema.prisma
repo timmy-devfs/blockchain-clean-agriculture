@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum SeasonStatus {
+  PREPARING
+  ACTIVE
+  HARVESTED
+  EXPORTED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Farm {
+  id              String                       @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  ownerId         String
+  address         String?
+  province        String?
+  area            Float?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  businessLicense BusinessLicense?
+  farmingSeasons  FarmingSeason[]
+  marketplaceList MarketplaceListing[]
+  orders          FarmOrder[]
+  contracts       FarmContract[]
+  subscriptions   ServicePackageSubscription[]
+}
+
+model BusinessLicense {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  farmId        String   @unique @db.ObjectId
+  licenseNumber String   @unique
+  issuedBy      String?
+  issuedAt      DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  farm          Farm     @relation(fields: [farmId], references: [id])
+}
+
+model FarmingSeason {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  farmId            String             @db.ObjectId
+  productCategoryId String?            @db.ObjectId
+  cropType          String
+  startDate         DateTime
+  estimatedEndDate  DateTime?
+  status            SeasonStatus       @default(PREPARING)
+  totalYield        Float?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  farm              Farm               @relation(fields: [farmId], references: [id])
+  category          ProductCategory?   @relation(fields: [productCategoryId], references: [id])
+  seasonUpdates     SeasonUpdate[]
+  listings          MarketplaceListing[]
+  orders            FarmOrder[]
+}
+
+model SeasonUpdate {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  seasonId  String       @db.ObjectId
+  status    SeasonStatus
+  note      String?
+  imageUrls Json?
+  updatedBy String
+  updatedAt DateTime     @default(now())
+  season    FarmingSeason @relation(fields: [seasonId], references: [id])
+}
+
+model MarketplaceListing {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  farmId      String       @db.ObjectId
+  seasonId    String       @db.ObjectId
+  title       String
+  description String?
+  quantity    Float
+  unitPrice   Float
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  farm        Farm         @relation(fields: [farmId], references: [id])
+  season      FarmingSeason @relation(fields: [seasonId], references: [id])
+  orders      FarmOrder[]
+}
+
+model FarmOrder {
+  id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  farmId          String            @db.ObjectId
+  seasonId        String            @db.ObjectId
+  listingId       String            @db.ObjectId
+  retailerId      String
+  quantity        Float
+  totalAmount     Float
+  status          OrderStatus       @default(PENDING)
+  deliveryAddress String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  confirmedAt     DateTime?
+  farm            Farm              @relation(fields: [farmId], references: [id])
+  season          FarmingSeason     @relation(fields: [seasonId], references: [id])
+  listing         MarketplaceListing @relation(fields: [listingId], references: [id])
+}
+
+model FarmContract {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  farmId       String   @db.ObjectId
+  partnerId    String
+  contractCode String   @unique
+  startsAt     DateTime
+  endsAt       DateTime?
+  terms        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  farm         Farm     @relation(fields: [farmId], references: [id])
+}
+
+model ServicePackageSubscription {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  farmId      String   @db.ObjectId
+  packageName String
+  startsAt    DateTime
+  endsAt      DateTime?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  farm        Farm     @relation(fields: [farmId], references: [id])
+}
+
+model ProductCategory {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  name        String         @unique
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  seasons     FarmingSeason[]
+}
