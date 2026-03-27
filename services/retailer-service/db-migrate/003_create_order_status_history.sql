@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS order_status_history (
+  id VARCHAR(36) PRIMARY KEY,
+  order_id VARCHAR(36) NOT NULL,
+  from_status ENUM('PENDING_PAYMENT','PLACED','CONFIRMED','SHIPPING','DELIVERED','CANCELLED') NULL,
+  to_status ENUM('PENDING_PAYMENT','PLACED','CONFIRMED','SHIPPING','DELIVERED','CANCELLED') NOT NULL,
+  changed_by VARCHAR(255) NULL,
+  note VARCHAR(500) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_order_status_history_order FOREIGN KEY (order_id) REFERENCES retail_orders(id) ON DELETE CASCADE,
+  INDEX idx_order_status_history_order_id (order_id)
+);

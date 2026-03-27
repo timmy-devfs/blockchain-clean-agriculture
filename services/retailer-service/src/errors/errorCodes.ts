@@ -1,0 +1,12 @@
+export const errorCodes = {
+  RETAILER_NOT_FOUND: { code: 3001, message: "Retailer not found", status: 404 },
+  ORDER_NOT_FOUND: { code: 3002, message: "Order not found", status: 404 },
+  INVALID_ORDER_STATUS_FLOW: { code: 3003, message: "Invalid order status transition", status: 400 },
+  UNAUTHORIZED: { code: 3004, message: "Unauthorized", status: 401 },
+  QR_SCAN_FAILED: { code: 3005, message: "QR scan failed", status: 422 },
+  DOWNSTREAM_SERVICE_ERROR: { code: 3006, message: "Downstream service error", status: 502 },
+  INVALID_REQUEST: { code: 3007, message: "Invalid request payload", status: 400 },
+  DELIVERY_CONFIRMATION_FAILED: { code: 3008, message: "Delivery confirmation failed", status: 409 }
+} as const;
+
+export type ErrorCodeKey = keyof typeof errorCodes;
