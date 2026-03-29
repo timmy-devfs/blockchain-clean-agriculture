@@ -19,6 +19,9 @@ public interface UserRepository extends JpaRepository<User, String> {
     Page<User> findByRole(User.Role role, Pageable pageable);
     Page<User> findByIsActive(Boolean isActive, Pageable pageable);
 
+    // BIC-006: filter theo cả role và isActive
+    Page<User> findByRoleAndIsActive(User.Role role, Boolean isActive, Pageable pageable);
+
     @Query("SELECT u FROM User u WHERE " +
            "LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(u.email)    LIKE LOWER(CONCAT('%', :keyword, '%'))")
