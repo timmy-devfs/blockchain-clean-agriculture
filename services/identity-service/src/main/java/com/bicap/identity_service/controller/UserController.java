@@ -1,0 +1,149 @@
+package com.bicap.identity_service.controller;
+
+import com.bicap.identity_service.common.ApiResponse;
+import com.bicap.identity_service.dto.request.*;
+import com.bicap.identity_service.dto.response.*;
+import com.bicap.identity_service.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+@Tag(name = "User", description = "User profile & Admin user management")
+public class UserController {
+
+    private final UserService userService;
+
+    // ════════════════════════════════════════════════════════
+    // USER SELF-SERVICE
+    // ════════════════════════════════════════════════════════
+
+    /**
+     * GET /api/auth/me
+     * Gateway forward X-User-Id header sau khi validate JWT
+     */
+    @GetMapping("/me")
+    @Operation(summary = "Lấy thông tin user hiện tại (đọc X-User-Id từ Gateway)")
+    public ApiResponse<UserResponse> getMe(
+            @RequestHeader("X-User-Id") String userId) {
+
+        return ApiResponse.success(userService.getMe(userId));
+    }
+
+    /**
+     * PUT /api/auth/profile
+     * Cập nhật fullName, phone, avatarUrl — KHÔNG đổi email/role
+     */
+    @PutMapping("/profile")
+    @Operation(summary = "Cập nhật profile (fullName, phone, avatar)")
+    public ApiResponse<UserResponse> updateProfile(
+            @RequestHeader("X-User-Id") String userId,
+            @Valid @RequestBody UpdateProfileRequest request) {
+
+        return ApiResponse.success(userService.updateProfile(userId, request));
+    }
+
+    /**
+     * PUT /api/auth/change-password
+     * Xác nhận currentPassword trước khi đổi
+     */
+    @PutMapping("/change-password")
+    @Operation(summary = "Đổi mật khẩu — cần xác nhận mật khẩu hiện tại")
+    public ApiResponse<Void> changePassword(
+            @RequestHeader("X-User-Id") String userId,
+            @Valid @RequestBody ChangePasswordRequest request) {
+
+        userService.changePassword(userId, request);
+        return ApiResponse.<Void>builder()
+                .code(200)
+                .message("Password changed successfully")
+                .build();
+    }
+
+    // ════════════════════════════════════════════════════════
+    // ADMIN MANAGEMENT
+    // ════════════════════════════════════════════════════════
+
+    /**
+     * GET /api/auth/admin/users
+     * Chỉ ADMIN — Gateway forward X-User-Role
+     */
+    @GetMapping("/admin/users")
+    @Operation(summary = "[ADMIN] Danh sách users với filter và phân trang")
+    public ApiResponse<PageResponse<UserResponse>> getUsers(
+            @RequestHeader("X-User-Role") String callerRole,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        checkAdminRole(callerRole);
+        return ApiResponse.success(userService.getUsers(role, isActive, page, size));
+    }
+
+    /**
+     * POST /api/auth/admin/users
+     * Tạo tài khoản ADMIN mới
+     */
+    @PostMapping("/admin/users")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "[ADMIN] Tạo tài khoản admin mới")
+    public ApiResponse<UserResponse> adminCreateUser(
+            @RequestHeader("X-User-Role") String callerRole,
+            @Valid @RequestBody AdminCreateUserRequest request) {
+
+        checkAdminRole(callerRole);
+        UserResponse result = userService.adminCreateUser(request);
+        return ApiResponse.<UserResponse>builder()
+                .code(201)
+                .message("User created successfully")
+                .data(result)
+                .build();
+    }
+
+    /**
+     * PUT /api/auth/admin/users/{id}
+     * Đổi role hoặc toggle isActive
+     */
+    @PutMapping("/admin/users/{id}")
+    @Operation(summary = "[ADMIN] Cập nhật role hoặc isActive của user")
+    public ApiResponse<UserResponse> adminUpdateUser(
+            @RequestHeader("X-User-Role") String callerRole,
+            @PathVariable String id,
+            @Valid @RequestBody AdminUpdateUserRequest request) {
+
+        checkAdminRole(callerRole);
+        return ApiResponse.success(userService.adminUpdateUser(id, request));
+    }
+
+    /**
+     * DELETE /api/auth/admin/users/{id}
+     * Soft delete: isActive = false, KHÔNG xóa record
+     */
+    @DeleteMapping("/admin/users/{id}")
+    @Operation(summary = "[ADMIN] Soft delete user (isActive=false)")
+    public ApiResponse<Void> adminDeleteUser(
+            @RequestHeader("X-User-Role") String callerRole,
+            @PathVariable String id) {
+
+        checkAdminRole(callerRole);
+        userService.adminDeleteUser(id);
+        return ApiResponse.<Void>builder()
+                .code(200)
+                .message("User deactivated successfully")
+                .build();
+    }
+
+    // ── Helper: kiểm tra role ADMIN ───────────────────────────
+    private void checkAdminRole(String role) {
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            throw new com.bicap.identity_service.exception.AppException(
+                    com.bicap.identity_service.exception.ErrorCode.INSUFFICIENT_PERM);
+        }
+    }
+}

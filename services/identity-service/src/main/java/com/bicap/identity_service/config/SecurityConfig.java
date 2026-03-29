@@ -12,10 +12,17 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private final GatewayHeaderFilter gatewayHeaderFilter;
+
+    public SecurityConfig(GatewayHeaderFilter gatewayHeaderFilter) {
+        this.gatewayHeaderFilter = gatewayHeaderFilter;
+    }
 
     // ── Public endpoints — không cần JWT ──────────────────────
     private static final String[] PUBLIC_ENDPOINTS = {
@@ -30,6 +37,8 @@ public class SecurityConfig {
             "/v3/api-docs/**",
             "/swagger-resources/**",
             "/webjars/**"
+            // /api/auth/me, /api/auth/profile, /api/auth/admin/** — KHÔNG public
+        // Gateway forward X-User-Id/X-User-Role header, identity-service đọc header để xác định user & role, không dùng JWT ở đây
     };
 
     @Bean
@@ -59,7 +68,11 @@ public class SecurityConfig {
                                     ApiResponse.error(1004, "Unauthorized — Token required")
                             );
                         })
-                );
+                )
+
+                .addFilterBefore(
+                        gatewayHeaderFilter,
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
