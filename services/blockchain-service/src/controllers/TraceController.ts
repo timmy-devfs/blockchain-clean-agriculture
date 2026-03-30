@@ -1,59 +1,60 @@
 import { Router, Request, Response } from 'express';
-import { createLogger }    from '../utils/logger';
-import { getSeasonTrace }  from '../services/TraceabilityService';
-import { generateQRCode, generateQRBase64 } from '../services/QRCodeService';
+import { createLogger } from '../utils/logger';
+import { getSeasonTrace } from '../services/TraceabilityService';
+import { generateQRCode, generateQRBase64 } from '../services/QrCodeService';
 
 const router = Router();
 const logger = createLogger('TraceController');
 
-// GET /api/chain/trace/:seasonId
-// Acceptance Criteria: đúng season data + history từ blockchain
+// Xử lý BigInt cho JSON response
+function replacer(_key: string, value: unknown) {
+  return typeof value === 'bigint' ? value.toString() : value;
+}
+
+// Endpoint trả về dữ liệu Blockchain
 router.get('/trace/:seasonId', async (req: Request, res: Response) => {
   const { seasonId } = req.params;
-  if (!seasonId) return res.status(400).json({ error: 'seasonId is required' });
-
   try {
     const data = await getSeasonTrace(seasonId);
-    return res.status(200).json({ code: 200, message: 'Success', data });
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).send(JSON.stringify({ code: 200, data }, replacer));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error(`/trace error: ${msg}`);
-    return res.status(500).json({ error: 'Trace failed', message: msg });
+    logger.error(`/trace error: ${err}`);
+    return res.status(500).json({ error: 'Trace failed' });
   }
 });
 
-// GET /api/chain/qr/:seasonId
-// Acceptance Criteria: Content-Type=image/png, QR scan được
+// Endpoint trả về mã QR
 router.get('/qr/:seasonId', async (req: Request, res: Response) => {
-  const { seasonId }                                     = req.params;
-  const { farmId = '', txHash = '', format = 'png' } = req.query as Record<string, string>;
+  const { seasonId } = req.params;
+  const { format = 'png' } = req.query as Record<string, string>;
 
   if (!seasonId) return res.status(400).json({ error: 'seasonId is required' });
 
-  const qrData = {
-    seasonId,
-    farmId,
-    txHash:     txHash || `0x${'0'.repeat(64)}`,
-    exportDate: new Date().toISOString().split('T')[0],
-  };
+  // Lấy cấu hình từ .env
+  const MY_IP = process.env.MY_IP || '127.0.0.1';
+  const PORT = process.env.PORT || '8090';
+  
+  // TẠO URL TRUY XUẤT (Nội dung mã QR)
+  const qrUrl = `http://${MY_IP}:${PORT}/api/chain/trace/${seasonId}`;
 
   try {
     if (format === 'base64') {
-      const base64 = await generateQRBase64(qrData);
+      const base64 = await generateQRBase64(qrUrl);
       return res.status(200).json({ code: 200, data: { seasonId, base64Image: base64 } });
     }
 
-    // PNG binary — Content-Type=image/png ✅
-    const result = await generateQRCode(qrData);
+    // Gọi Service với tham số là chuỗi URL
+    const result = await generateQRCode(qrUrl);
+
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Disposition', `inline; filename="qr-${seasonId}.png"`);
-    res.setHeader('X-QR-Hash', result.qrHash);
+    res.setHeader('X-QR-Target-URL', qrUrl);
+    
     return res.status(200).send(result.imageBuffer);
 
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.error(`/qr error: ${msg}`);
-    return res.status(500).json({ error: 'QR generation failed', message: msg });
+    logger.error(`/qr error: ${err}`);
+    return res.status(500).json({ error: 'QR generation failed' });
   }
 });
 

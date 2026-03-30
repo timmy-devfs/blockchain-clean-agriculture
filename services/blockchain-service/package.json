@@ -4,6 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build":   "tsc",
+    "predev": "npx kill-port 8090",
     "dev":     "cross-env NODE_NO_WARNINGS=1 ts-node-dev --respawn --transpile-only src/index.ts",
     "start":   "node dist/index.js",
     "compile": "npx hardhat compile",
