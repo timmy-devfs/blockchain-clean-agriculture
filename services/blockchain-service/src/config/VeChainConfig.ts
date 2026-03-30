@@ -1,46 +1,36 @@
 import { ThorClient } from '@vechain/sdk-network';
+import { createLogger } from '../utils/logger';
 
-export class VeChainConfig {
-  private static _instance: VeChainConfig;
-  private _client: ThorClient | null = null;
-  private _connected = false;
+const logger = createLogger('VeChainConfig');
 
-  readonly nodeUrl = process.env.VECHAIN_NODE_URL ?? 'https://testnet.veblocks.net';
-  readonly network = process.env.VECHAIN_NETWORK  ?? 'testnet';
-  readonly privateKey = process.env.VECHAIN_PRIVATE_KEY ?? '';
+export async function connectVeChain(): Promise<ThorClient> {
+  const rpcUrl = process.env.VECHAIN_TESTNET_RPC || 'https://testnet.vechain.org';
+  
+  // Khởi tạo client
+  const thorClient = ThorClient.at(rpcUrl);
 
-  private constructor() {}
+  try {
+    // Lấy best block (compressed - nhẹ hơn, đủ để test kết nối)
+    const bestBlock = await thorClient.blocks.getBestBlockCompressed();
 
-  static getInstance(): VeChainConfig {
-    if (!VeChainConfig._instance) {
-      VeChainConfig._instance = new VeChainConfig();
+    if (bestBlock === null) {
+      logger.warn('Best block is null - node may not be fully synced or RPC issue');
+      // Không throw error ngay, vẫn return client (có thể retry sau)
+      // Hoặc throw new Error('VeChain node returned null best block');
+    } else {
+      logger.info(`VeChain Testnet connected successfully`);
+      logger.info(`Best block number: ${bestBlock.number}`);
+      logger.info(`Best block ID: ${bestBlock.id}`);
+      logger.info(`Best block timestamp: ${new Date(bestBlock.timestamp * 1000).toISOString()}`);
     }
-    return VeChainConfig._instance;
+
+    return thorClient;
+  } catch (err: any) {
+    logger.error('Failed to connect to VeChain Testnet', {
+      message: err.message,
+      stack: err.stack,
+      rpcUrl,
+    });
+    throw new Error(`VeChain connection failed: ${err.message}`);
   }
-
-  async connect(): Promise<void> {
-    if (this._connected) return;
-
-    try {
-      this._client = ThorClient.at(this.nodeUrl);
-
-      // Verify kết nối bằng cách đọc block mới nhất
-      const best = await this._client.blocks.getBestBlockCompressed();
-      if (!best) throw new Error('Cannot fetch best block');
-
-      this._connected = true;
-      console.log(`[VeChainConfig] VeChain connected — block #${best.number} (${this.network})`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[VeChainConfig] Connection failed: ${msg}`);
-    }
-  }
-
-  getClient(): ThorClient {
-    if (!this._client) throw new Error('ThorClient not initialized');
-    return this._client;
-  }
-
-  isConnected(): boolean { return this._connected; }
-  isReadOnly():  boolean { return !this.privateKey; }
 }
