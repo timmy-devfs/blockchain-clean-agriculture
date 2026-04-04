@@ -2,3 +2,7 @@ packages:
   - "packages/*"
   - "web-*"
   - "mobile-*"
+allowBuilds:
+  canvas: true
+  sharp: true
+  unrs-resolver: true

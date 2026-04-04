@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from "axios";
 import { tokenStorage } from "./tokenStorage";
 import type { ApiResponse, AuthTokens } from "@bicap/types";
 
@@ -23,7 +23,7 @@ axiosInstance.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error: any) => Promise.reject(error)
 );
 
 // ─── Flag ngăn refresh loop khi refresh token cũng lỗi ────────────────────
@@ -43,7 +43,7 @@ const processQueue = (error: unknown, token: string | null = null) => {
 
 // ─── Response interceptor: tự động refresh khi nhận 401 ───────────────────
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as CustomAxiosRequestConfig | undefined;
 
