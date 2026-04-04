@@ -1,6 +1,11 @@
-import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { tokenStorage } from "./tokenStorage";
 import type { ApiResponse, AuthTokens } from "@bicap/types";
+
+// Mở rộng InternalAxiosRequestConfig để thêm cờ _retry hỗ trợ việc refresh token.
+interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
 
 // ─── Tạo axios instance trỏ đến API Gateway ───────────────────────────────
 const axiosInstance: AxiosInstance = axios.create({
@@ -39,11 +44,11 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // ─── Response interceptor: tự động refresh khi nhận 401 ───────────────────
 axiosInstance.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: AxiosError) => {
+    const originalRequest = error.config as CustomAxiosRequestConfig | undefined;
 
-    // Chỉ xử lý 401 và chưa retry
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // Chỉ xử lý 401 và chưa retry, kiểm tra originalRequest tồn tại
+    if (!originalRequest || error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
@@ -63,7 +68,9 @@ axiosInstance.interceptors.response.use(
     const refreshToken = tokenStorage.getRefreshToken();
     if (!refreshToken) {
       tokenStorage.clearTokens();
-      window.location.href = "/login";
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
       return Promise.reject(error);
     }
 
@@ -84,7 +91,9 @@ axiosInstance.interceptors.response.use(
     } catch (refreshError) {
       processQueue(refreshError, null);
       tokenStorage.clearTokens();
-      window.location.href = "/login";
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
