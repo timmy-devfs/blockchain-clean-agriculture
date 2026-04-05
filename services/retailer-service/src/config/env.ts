@@ -15,6 +15,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().default("redis://localhost:6379"),
   FARM_SERVICE_BASE_URL: z.string().default("http://localhost:8082"),
   BLOCKCHAIN_SERVICE_BASE_URL: z.string().default("http://localhost:8090"),
+  PAYMENT_SERVICE_BASE_URL: z.string().default("http://localhost:8086"),
   JWT_SECRET: z.string().min(6).default("retailer-secret")
 });
 

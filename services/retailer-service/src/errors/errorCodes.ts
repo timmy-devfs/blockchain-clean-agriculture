@@ -9,7 +9,10 @@ export const errorCodes = {
   DELIVERY_CONFIRMATION_FAILED: { code: 3008, message: "Delivery confirmation failed", status: 409 },
   PRODUCT_NOT_FOUND: { code: 3009, message: "Product not found", status: 404 },
   FARM_NOT_FOUND: { code: 3010, message: "Farm not found", status: 404 },
-  MARKETPLACE_UNAVAILABLE: { code: 3011, message: "Marketplace service unavailable", status: 503 }
+  MARKETPLACE_UNAVAILABLE: { code: 3011, message: "Marketplace service unavailable", status: 503 },
+  PAYMENT_SERVICE_ERROR: { code: 3012, message: "Payment service error", status: 502 },
+  ORDER_CANCELLATION_NOT_ALLOWED: { code: 3013, message: "Order cancellation is not allowed", status: 400 },
+  INVALID_EVENT_PAYLOAD: { code: 3014, message: "Invalid event payload", status: 400 }
 } as const;
 
 export type ErrorCodeKey = keyof typeof errorCodes;
