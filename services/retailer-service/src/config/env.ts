@@ -6,7 +6,8 @@ config();
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3007),
-  DATABASE_URL: z.string().min(1),
+  MONGODB_URI: z.string().min(1),
+  MONGODB_DB_NAME: z.string().default("retailer-service"),
   KAFKA_CLIENT_ID: z.string().default("retailer-service"),
   KAFKA_BROKERS: z.string().default("localhost:9092"),
   KAFKA_GROUP_ID: z.string().default("retailer-service-group"),

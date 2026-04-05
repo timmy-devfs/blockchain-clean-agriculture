@@ -6,7 +6,10 @@ export const errorCodes = {
   QR_SCAN_FAILED: { code: 3005, message: "QR scan failed", status: 422 },
   DOWNSTREAM_SERVICE_ERROR: { code: 3006, message: "Downstream service error", status: 502 },
   INVALID_REQUEST: { code: 3007, message: "Invalid request payload", status: 400 },
-  DELIVERY_CONFIRMATION_FAILED: { code: 3008, message: "Delivery confirmation failed", status: 409 }
+  DELIVERY_CONFIRMATION_FAILED: { code: 3008, message: "Delivery confirmation failed", status: 409 },
+  PRODUCT_NOT_FOUND: { code: 3009, message: "Product not found", status: 404 },
+  FARM_NOT_FOUND: { code: 3010, message: "Farm not found", status: 404 },
+  MARKETPLACE_UNAVAILABLE: { code: 3011, message: "Marketplace service unavailable", status: 503 }
 } as const;
 
 export type ErrorCodeKey = keyof typeof errorCodes;
