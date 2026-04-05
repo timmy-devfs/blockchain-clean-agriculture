@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { Collection, Filter } from "mongodb";
+import { AxiosError } from "axios";
 import { z } from "zod";
 import { OrderStatus, canTransition } from "../constants/orderStatus";
 import { kafkaTopics } from "../constants/kafkaTopics";
@@ -411,8 +412,17 @@ export const orderService = {
         amount: order.depositAmount,
         reason: "Retailer cancelled order"
       });
-    } catch {
-      throw new AppError("PAYMENT_SERVICE_ERROR", "refund request failed");
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      const status = axiosError.response?.status;
+
+      // Some environments may not expose refund endpoint yet.
+      // We still cancel the order to keep flow unblocked.
+      if (status !== undefined && status < 500) {
+        console.warn("Refund endpoint not available yet, continue cancellation:", status);
+      } else {
+        throw new AppError("PAYMENT_SERVICE_ERROR", "refund request failed");
+      }
     }
 
     return moveStatus(
@@ -434,6 +444,7 @@ export const orderService = {
   },
 
   async handleShipmentUpdatedEvent(payload: unknown): Promise<RetailOrder> {
+    const { orders } = await getCollections();
     const schema = z.object({
       payload: z.object({
         orderId: z.string().min(1),
@@ -442,8 +453,25 @@ export const orderService = {
       })
     });
     const parsed = schema.parse(payload);
+    const order = await orders.findOne({ _id: parsed.payload.orderId });
+    if (!order) {
+      throw new AppError("ORDER_NOT_FOUND");
+    }
 
     if (parsed.payload.status === "DELIVERED") {
+      if (order.status === OrderStatus.DELIVERED) {
+        if (parsed.payload.shipmentId && order.shipmentId !== parsed.payload.shipmentId) {
+          await orders.updateOne(
+            { _id: order._id },
+            { $set: { shipmentId: parsed.payload.shipmentId, updatedAt: new Date() } }
+          );
+        }
+        return mapOrder({
+          ...order,
+          shipmentId: parsed.payload.shipmentId ?? order.shipmentId
+        });
+      }
+
       const delivered = await moveStatus(
         parsed.payload.orderId,
         OrderStatus.DELIVERED,
@@ -453,6 +481,19 @@ export const orderService = {
       );
       await publishOrderDelivered(delivered);
       return delivered;
+    }
+
+    if (order.status === OrderStatus.SHIPPING) {
+      if (parsed.payload.shipmentId && order.shipmentId !== parsed.payload.shipmentId) {
+        await orders.updateOne(
+          { _id: order._id },
+          { $set: { shipmentId: parsed.payload.shipmentId, updatedAt: new Date() } }
+        );
+      }
+      return mapOrder({
+        ...order,
+        shipmentId: parsed.payload.shipmentId ?? order.shipmentId
+      });
     }
 
     return moveStatus(
