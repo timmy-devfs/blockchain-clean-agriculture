@@ -33,6 +33,11 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
+shipping:
+  kafka:
+    topic:
+      shipment-updated: bicap.shipment.updated
+
 # Cho phép gọi /actuator/health để kiểm tra service
 management:
   endpoints:
