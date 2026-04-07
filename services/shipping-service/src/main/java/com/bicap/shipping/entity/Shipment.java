@@ -31,6 +31,7 @@ public class Shipment {
     private Long vehicleId;     // ID xe được dùng
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "VARCHAR(50)")
     private ShipmentStatus status;  // Trạng thái hiện tại của chuyến hàng
 
     private String pickupAddress;   // Địa chỉ lấy hàng

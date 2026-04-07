@@ -13,4 +13,7 @@ SET driver_id = (SELECT d.id FROM drivers d ORDER BY d.id LIMIT 1),
 WHERE s.driver_id IS NULL
   AND EXISTS (SELECT 1 FROM drivers)
   AND EXISTS (SELECT 1 FROM vehicles)
-  AND s.id = (SELECT s2.id FROM shipments s2 ORDER BY s2.id LIMIT 1);
+  AND s.id = (
+      SELECT t.id
+      FROM (SELECT s2.id FROM shipments s2 ORDER BY s2.id LIMIT 1) t
+  );

@@ -24,6 +24,7 @@ public class ShipmentStatusHistory {
     private Long shipmentId;    // Thuộc chuyến hàng nào
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "VARCHAR(50)")
     private ShipmentStatus status;  // Trạng thái tại thời điểm này
 
     private LocalDateTime changedAt; // Thời điểm thay đổi

@@ -21,6 +21,7 @@ public class Vehicle {
     private String licensePlate;  // Biển số xe
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "VARCHAR(50)")
     private VehicleType type;     // Loại xe (TRUCK, VAN, MOTORBIKE, REFRIGERATED_TRUCK)
 
     private Double capacity;      // Tải trọng tối đa (kg)

@@ -3,7 +3,7 @@ version: '3.8'
 # Chạy lệnh: docker-compose up -d
 # Sẽ tự động tạo PostgreSQL và Kafka, không cần cài tay
 
-services:
+services:notepad pom.xml
 
   # Database PostgreSQL
   postgres:
