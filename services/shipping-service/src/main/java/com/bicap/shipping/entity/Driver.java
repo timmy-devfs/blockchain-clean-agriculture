@@ -17,10 +17,6 @@ public class Driver {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Trùng với user đăng nhập (header X-User-Id) khi Gateway forward JWT */
-    @Column(name = "user_id")
-    private Long userId;
-
     private String fullName;    // Họ tên tài xế
 
     private String phone;       // Số điện thoại
