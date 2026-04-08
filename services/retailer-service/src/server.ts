@@ -2,6 +2,7 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { connectConsumer } from "./config/kafka.consumer.config";
 import { connectProducer } from "./config/kafka.producer.config";
+import { closeMongo, connectMongo } from "./config/mongodb";
 import { redisClient } from "./config/redis.config";
 
 async function withTimeout<T>(label: string, fn: () => Promise<T>, ms = 3000): Promise<void> {
@@ -18,6 +19,8 @@ async function withTimeout<T>(label: string, fn: () => Promise<T>, ms = 3000): P
 }
 
 async function bootstrap(): Promise<void> {
+  await withTimeout("MongoDB", connectMongo);
+
   if (env.INIT_INFRA_ON_BOOT) {
     await withTimeout("Kafka producer", connectProducer);
     await withTimeout("Kafka consumer", connectConsumer);
@@ -30,3 +33,16 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap();
+
+async function shutdown(): Promise<void> {
+  await closeMongo();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => {
+  void shutdown();
+});
+
+process.on("SIGTERM", () => {
+  void shutdown();
+});

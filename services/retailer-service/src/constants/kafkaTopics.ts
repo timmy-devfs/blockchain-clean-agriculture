@@ -1,5 +1,7 @@
 export const kafkaTopics = {
-  ORDER_CREATED: "retailer.order.created",
-  ORDER_STATUS_UPDATED: "retailer.order.status.updated",
-  ORDER_DELIVERED: "retailer.order.delivered"
+  ORDER_PLACED: "bicap.order.placed",
+  ORDER_DELIVERED: "bicap.order.delivered",
+  PAYMENT_SUCCESS: "bicap.payment.success",
+  ORDER_CONFIRMED: "bicap.order.confirmed",
+  SHIPMENT_UPDATED: "bicap.shipment.updated"
 } as const;
