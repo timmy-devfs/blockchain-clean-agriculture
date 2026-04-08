@@ -16,8 +16,9 @@
     "declaration": true,
     "sourceMap": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "types": ["hardhat/types", "mocha", "chai", "node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["src/node_modules", "dist", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

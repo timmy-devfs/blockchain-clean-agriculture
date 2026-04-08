@@ -1,0 +1,193 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP SYSTEM — Docker Compose (Local Development)
+# Chạy: make up
+# Dừng: make down
+# ════════════════════════════════════════════════════════════════
+
+networks:
+  bicap-network:
+    driver: bridge
+    name: bicap-network
+
+volumes:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
+  redis-data:
+  mysql-data:
+  nifi-data:
+  nifi-logs:
+  prometheus-data:
+  grafana-data:
+
+services:
+
+  # ── ZOOKEEPER ─────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: bicap-zookeeper
+    networks: [bicap-network]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── KAFKA ─────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: bicap-kafka
+    networks: [bicap-network]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"       # External (từ host machine)
+      - "29092:29092"     # Internal (giữa các containers)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ./infrastructure/kafka/create-topics.sh:/opt/kafka/create-topics.sh:ro
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── REDIS ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: bicap-redis
+    networks: [bicap-network]
+    ports:
+      - "6379:6379"
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis-data:/data
+      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+# ── MYSQL ─────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: bicap-mysql
+    networks: [bicap-network]
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 12123
+      MYSQL_USER: bicap_user
+      MYSQL_PASSWORD: 12123
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infrastructure/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbicap2025"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── NIFI ──────────────────────────────────────────────────────
+  nifi:
+    image: apache/nifi:1.23.0
+    container_name: bicap-nifi
+    networks: [bicap-network]
+    ports:
+      - "8443:8443"
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: admin
+      SINGLE_USER_CREDENTIALS_PASSWORD: adminadminadmin
+      NIFI_WEB_HTTPS_PORT: 8443
+    volumes:
+      - nifi-data:/opt/nifi/nifi-current/conf
+      - nifi-logs:/opt/nifi/nifi-current/logs
+      - ./infrastructure/nifi/flows:/opt/nifi/nifi-current/flow-templates
+    healthcheck:
+      test: ["CMD", "curl", "-kf", "https://localhost:8443/nifi"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ── PROMETHEUS ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: bicap-prometheus
+    networks: [bicap-network]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+
+  # ── GRAFANA ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: bicap-grafana
+    networks: [bicap-network]
+    ports:
+      - "3100:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+# ── NGINX — Layer 1: SSL + reverse proxy ──────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: bicap-nginx
+    networks: [bicap-network]
+    ports:
+      - "80:80"
+      - "443:443"    # sẵn sàng cho SSL sau
+    volumes:
+      - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    restart: unless-stopped

@@ -1,0 +1,77 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP — Identity Service Configuration
+# ════════════════════════════════════════════════════════════════
+
+server:
+  port: 8081
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: identity-service
+
+  profiles:
+    active: dev
+
+  # ── MySQL ────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:mysql://localhost:3306/identity_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: bicap_user
+    password: 12123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      pool-name: IdentityHikariPool
+
+  # ── JPA ─────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: validate        # Flyway quản lý schema — JPA chỉ validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+  # ── Flyway ──────────────────────────────────────────────────
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+# ── JWT ─────────────────────────────────────────────────────
+jwt:
+  secret: bicap-super-secret-jwt-key-2025-change-in-production-min-256-bits
+  access-token-expiry: 900000       # 15 phút = 900,000 ms
+  refresh-token-expiry: 604800000   # 7 ngày  = 604,800,000 ms
+
+# ── Actuator ────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
+# ── Logging ─────────────────────────────────────────────────
+logging:
+  level:
+    com.bicap.identity: DEBUG
+    org.springframework.security: INFO
+    org.flywaydb: INFO
+
+# ── SpringDoc Swagger ────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  packages-to-scan: com.bicap.identity_service.controller
+  show-actuator: false
+  use-management-port: false
