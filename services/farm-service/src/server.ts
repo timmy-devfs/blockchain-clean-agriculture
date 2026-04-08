@@ -22,6 +22,7 @@ const start = async (): Promise<void> => {
     if (!env.REDIS_OPTIONAL) {
       throw error;
     }
+    await disconnectRedis();
     console.warn("[farm-service] Redis unavailable, starting in degraded mode");
   }
 
