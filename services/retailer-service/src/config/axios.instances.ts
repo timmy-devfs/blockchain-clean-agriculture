@@ -10,3 +10,8 @@ export const chainAxios = axios.create({
   baseURL: env.BLOCKCHAIN_SERVICE_BASE_URL,
   timeout: 5000
 });
+
+export const paymentAxios = axios.create({
+  baseURL: env.PAYMENT_SERVICE_BASE_URL,
+  timeout: 5000
+});
