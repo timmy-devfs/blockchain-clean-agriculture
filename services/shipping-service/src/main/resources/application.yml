@@ -7,7 +7,7 @@ spring:
 
   # Kết nối PostgreSQL
   datasource:
-    url: jdbc:postgresql://localhost:5432/shipping_db?options=-c%20TimeZone%3DUTC
+    url: jdbc:postgresql://localhost:5432/shipping_db?TimeZone=UTC
     username: postgres
     password: postgres
 
