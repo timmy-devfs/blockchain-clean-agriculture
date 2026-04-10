@@ -1,0 +1,186 @@
+docker desktop: make up, make topics tạo kafka
+
+##
+  1.1 Reset trạng thái hệ thống (Idempotency)
+  Xóa user admin để đăng ký lại từ đầu
+  docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email='admin@bicap.io';"
+  docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email='farm@bicap.io';"
+
+  Xóa toàn bộ Cache trong Redis
+  docker exec bicap-redis redis-cli FLUSHALL
+  
+  netstat -ano | findstr :8080
+  taskkill /F /PID <Number_PID>
+
+  http://localhost:{PORT}/swagger-ui/index.html
+
+  
+## BIC-004 — [IDENTITY] Khởi tạo identity-service (Entity, Migration, Security)
+
+### BIC-004.1 — Build identity-service
+
+```bat
+cd services\identity-service && mvn clean compile && mvn spring-boot:run
+cd services\shipping-service && mvn clean compile && mvn spring-boot:run
+cd services\report-service && mvn clean compile && mvn spring-boot:run
+cd services\api-gateway && mvn clean compile && mvn spring-boot:run
+cd services\farm-service && pnpm install && pnpm run prisma:generate && pnpm run db:migrate && pnpm run dev
+cd services\retailer-service && pnpm install && pnpm run dev
+// cd services\retailer-service && pnpm install && pnpm run prisma:generate && pnpm run prisma:push && pnpm run dev
+
+```
+
+### BIC-004.3 — Health check DB + app 
+
+```bat
+curl http://localhost:8081/actuator/health
+curl http://localhost:8080/actuator/health
+curl http://localhost/nginx-health
+
+```
+
+---
+
+## BIC-005 — [IDENTITY] Auth API (Register, Login, Refresh Token, Introspect)
+
+
+### BIC-005.1 — Register 1 user demo
+
+```bat
+curl -X POST http://localhost:8081/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+```
+
+Expected: code `201`, message `Registered successfully`.
+
+### BIC-005.2 — Login để lấy accessToken + refreshToken
+
+```bat
+curl -X POST http://localhost:8081/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+```
+
+Expected: trả về `accessToken` + `refreshToken`.
+
+### BIC-005.3 — Introspect token (copy accessToken từ bước login, paste vào)
+
+```bat
+curl -X POST http://localhost:8081/api/auth/introspect -H "Content-Type: application/json" -d "{\"token\":\"ACCESS_TOKEN\"}"
+```
+
+Expected: `valid: true` + có `userId/email/role`.
+
+### BIC-005.4 — Introspect token sai
+
+```bat
+curl -X POST http://localhost:8081/api/auth/introspect -H "Content-Type: application/json" -d "{\"token\":\"this.is.fake.token\"}"
+```
+
+Expected: `valid: false`.
+
+### BIC-005.5 — Refresh token (rotate)
+
+```bat
+curl -X POST http://localhost:8081/api/auth/refresh-token -H "Content-Type: application/json" -d "{\"refreshToken\":\"PASTE_REFRESH_TOKEN_HERE\"}"
+```
+
+Expected: trả về cặp token mới.
+
+---
+## BIC-006 — [IDENTITY] User Profile & Admin CRUD
+
+> Các endpoint `/api/auth/me|profile|change-password|admin/**` cần header `X-User-Id`/`X-User-Role`.
+> Khi đi qua Gateway (BIC-011/012), Gateway sẽ gắn các header này sau khi introspect JWT.
+
+### BIC-006.1 — (Demo nhanh) Gọi trực tiếp identity-service với header giả lập ADMIN
+
+```bat
+curl "http://localhost:8081/api/auth/admin/users?page=0&size=10" -H "X-User-Id: demo-admin-id" -H "X-User-Role: ADMIN"
+```
+
+Expected: trả về danh sách (hoặc trang rỗng nếu chưa có data) nhưng không bị `INSUFFICIENT_PERM`.
+
+---
+
+### BIC-011/012.2 — Gateway actuator health
+
+```bat
+curl http://localhost:8080/actuator/health
+```
+
+### BIC-012.3 — Gateway health dashboard (ping 10 services)
+
+```bat
+curl http://localhost:8080/api/gateway/health
+```
+
+Expected: `gateway: UP` và map `services` (service nào chưa chạy sẽ `DOWN`).
+
+### BIC-011/012.4 — Login qua Gateway (route đến identity-service)
+
+```bat
+curl -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+```
+
+Expected: giống login trực tiếp, chứng minh Gateway route đúng.
+
+### BIC-011/012.5 — Test Nginx layer 1 → Gateway → identity-service
+
+Nginx health:
+
+```bat
+curl http://localhost/nginx-health
+```
+
+Login qua Nginx (đi vào `/api/**`):
+
+```bat
+curl -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+```
+
+### BIC-011/012.6 — Test route bảo vệ (farm route) với/không token
+
+Không token ⇒ phải 401:
+
+```bat
+curl -v http://localhost:8080/api/farm/farms
+```
+
+Có token ⇒ không bị 401 (nếu farm-service chưa chạy có thể 503/fallback là đúng):
+
+```bat
+curl -v http://localhost:8080/api/farm/farms -H "Authorization: Bearer PASTE_ACCESS_TOKEN_HERE"
+```
+### BIC-012.7 — Test Redis JWT cache (đúng flow: route bảo vệ, không phải introspect path)
+
+> `POST /api/auth/introspect` là whitelist nên không đi qua cache branch của `AuthenticationFilter`.
+> Để thấy `Cache MISS/HIT`, hãy gọi route bảo vệ có `Authorization` (ví dụ `/api/farm/farms`).
+
+Set token:
+
+```bat
+set TOKEN=PASTE_ACCESS_TOKEN_HERE
+```
+
+Lần 1 (kỳ vọng **Cache MISS**):
+
+hiện timeout:
+curl -w "\nTime: %{time_total}s\n" -H "Authorization: Bearer %TOKEN%" "http://localhost:8080/api/farm/farms"
+
+```bat
+curl -v http://localhost:8080/api/farm/farms -H "Authorization: Bearer %TOKEN%"
+```
+
+Lần 2 cùng token (kỳ vọng **Cache HIT**):
+
+```bat
+curl -v http://localhost:8080/api/farm/farms -H "Authorization: Bearer %TOKEN%"
+```
+
+Kiểm tra key cache trong Redis:
+
+```bat
+docker exec bicap-redis redis-cli keys "jwt:*"
+```
+
+CHỐNG TẤN CÔNG (RATE LIMITING)
+Rate limit 101+ req/phút -> 429 Kỳ vọng: Lệnh sẽ in ra liên tục mã 200. Sau khoảng 100 request, hệ thống sẽ kích hoạt Token Bucket và chuyển sang in mã 429 (Too Many Requests).
+for /L %i in (1,1,110) do curl -s -o /dev/null -w "%{http_code} " http://localhost:8080/api/gateway/health

@@ -7,7 +7,9 @@ up:
 	@echo   Infrastructure started
 	@echo   Kafka    : localhost:9092
 	@echo   Redis    : localhost:6379
-	@echo   SQL Svr  : localhost:1433
+	@echo   MySQL    : localhost:3306
+	@echo   Mongo    : localhost:27017
+	@echo   Postgres : localhost:5432 (shipping_db, report_db)
 	@echo   NiFi     : https://localhost:8443
 	@echo   Grafana  : http://localhost:3100  (admin/admin)
 	@echo   Prometheus: http://localhost:9090
@@ -53,6 +55,12 @@ verify:
 	docker exec bicap-redis redis-cli ping
 	@echo ━━ Checking MySQL...
 	docker exec bicap-mysql mysql -u root -p12123 -e "SHOW DATABASES LIKE '%_db';"
+	@echo ━━ Checking Mongo...
+	docker exec bicap-mongo mongosh --quiet --eval "db.adminCommand('ping')"
+	@echo ━━ Checking Postgres (shipping + report)...
+	docker exec bicap-postgres pg_isready -U postgres -d shipping_db
+	@echo ━━ Checking Postgres (report)...
+	docker exec bicap-postgres pg_isready -U postgres -d report_db
 	@echo ━━ All checks done
 
 ## Hiển thị danh sách lệnh

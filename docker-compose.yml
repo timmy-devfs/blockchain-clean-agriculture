@@ -10,7 +10,8 @@ volumes:
   zookeeper-log:
   redis-data:
   mysql-data:
-  postgres-shipping-data:
+  mongo-data:
+  postgres-data:
   nifi-data:
   nifi-logs:
   prometheus-data:
@@ -119,19 +120,44 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-# ── POSTGRES (Shipping Service) ─────────────────────────────────
-  postgres-shipping:
+# ── MONGO (Farm/Retailer/IoT/Payment) ────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: bicap-mongo
+    networks: [bicap-network]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+# ── POSTGRES (Shipping + Report) ───────────────────────────────
+  postgres:
     image: postgres:15-alpine
-    container_name: bicap-postgres-shipping
+    container_name: bicap-postgres
     networks: [bicap-network]
     ports:
       - "5432:5432"
     environment:
+      # Default DB (init script sẽ tạo thêm report_db)
       POSTGRES_DB: shipping_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - postgres-shipping-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d shipping_db && pg_isready -U postgres -d report_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   # ── NIFI ──────────────────────────────────────────────────────
