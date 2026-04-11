@@ -1,24 +1,6 @@
 version: '3.8'
 
 services:
-
-  notification-service:
-    build: . # Hoặc image: your-image-name
-    container_name: notification-service
-    ports:
-      - "8085:8085"
-    depends_on:
-      - mysql
-      - kafka-broker
-      - redis
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/notification_db
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:29092
-      SPRING_DATA_REDIS_HOST: redis-cache
-      FIREBASE_SERVICE_ACCOUNT_PATH: /app/resources/service-account.json
-    volumes:
-      - ./src/main/resources/service-account.json:/app/resources/service-account.json
-
   mysql:
     image: mysql:8.0
     container_name: mysql-db
@@ -29,6 +11,14 @@ services:
       MYSQL_DATABASE: notification_db
     volumes:
       - mysql_data:/var/lib/mysql
+    # Thêm Healthcheck để đảm bảo MySQL đã sẵn sàng thực sự
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u", "root", "-p123123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notification-net
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -36,6 +26,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - notification-net
 
   kafka-broker:
     image: confluentinc/cp-kafka:7.5.0
@@ -52,13 +44,48 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - notification-net
 
   redis:
     image: redis:latest
     container_name: redis-cache
     ports:
       - "6379:6379"
+    networks:
+      - notification-net
+
+  notification-service:
+    build: .
+    container_name: notification-service
+    ports:
+      - "8085:8085"
+    # Quan trọng: Chỉ start khi MySQL đã "Healthy"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka-broker:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: always # Tự động khởi động lại nếu bị lỗi kết nối tạm thời
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/notification_db?allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 123123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka-broker:29092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/resources/service-account.json
+    volumes:
+      - ./src/main/resources/service-account.json:/app/resources/service-account.json
+    networks:
+      - notification-net
+
+networks:
+  notification-net:
+    driver: bridge
 
 volumes:
   mysql_data:
