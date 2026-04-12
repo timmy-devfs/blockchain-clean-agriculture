@@ -1,7 +1,6 @@
-import { Farm, FarmingSeason, Prisma, SeasonUpdate } from "@prisma/client";
+import { Farm, FarmingSeason, Prisma, SeasonStatus, SeasonUpdate } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { prisma } from "../../database/prisma";
-import { SeasonStatus } from "../constants/enums";
 import { mapSeasonToListItem } from "../mappers/season.mapper";
 import {
   CreateSeasonInput,

@@ -31,14 +31,14 @@ const start = async (): Promise<void> => {
   });
 };
 
-const shutdown = async (): Promise<void> => {
+const shutdown = async (exitCode = 0): Promise<void> => {
   await Promise.allSettled([
     disconnectPrisma(),
     disconnectKafkaProducer(),
     disconnectKafkaConsumer(),
     disconnectRedis()
   ]);
-  process.exit(0);
+  process.exit(exitCode);
 };
 
 process.on("SIGINT", shutdown);
@@ -46,5 +46,5 @@ process.on("SIGTERM", shutdown);
 
 start().catch(async (error) => {
   console.error("[farm-service] Startup failed", error);
-  await shutdown();
+  await shutdown(1);
 });
