@@ -1,0 +1,70 @@
+BIC-027 TEST (NGAN GON)
+
+TEST DATA
+USER_FARM=user_test_001
+USER_RETAILER=user_test_002
+TOKEN_FARM=fcm_test_token_user_test_001_android
+TOKEN_RETAILER=fcm_test_token_user_test_002_ios
+
+0) RUN STACK
+cd /d D:\Haustudy\XayDungPhanMemOOP\blockchain-clean-agriculture\services\notification-service
+docker compose up --build -d
+
+1) FIREBASE CONFIG OK
+docker logs notification-service | findstr /i "Firebase is not initialized"
+Expected: khong co dong nao
+
+2) POST /tokens -> DB + REDIS
+curl -X POST "http://localhost:8085/tokens" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"token\":\"fcm_test_token_user_test_001_android\",\"platform\":\"ANDROID\"}"
+
+docker compose exec mysql mysql -uroot -p123123 -D notification_db -e "SELECT user_id,token,platform FROM device_tokens WHERE user_id='user_test_001';"
+docker exec -it redis-cache redis-cli SMEMBERS tokens:user_test_001
+
+3) DELETE /tokens/{token} -> SREM + DB DELETE
+curl -X DELETE "http://localhost:8085/tokens/fcm_test_token_user_test_001_android" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER"
+
+docker compose exec mysql mysql -uroot -p123123 -D notification_db -e "SELECT COUNT(*) AS cnt FROM device_tokens WHERE user_id='user_test_001' AND token='fcm_test_token_user_test_001_android';"
+docker exec -it redis-cache redis-cli SMEMBERS tokens:user_test_001
+
+4) REGISTER TOKEN TEST EVENT
+curl -X POST "http://localhost:8085/tokens" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"token\":\"fcm_test_token_user_test_001_android\",\"platform\":\"ANDROID\"}"
+curl -X POST "http://localhost:8085/tokens" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"token\":\"fcm_test_token_user_test_001_android\",\"platform\":\"ANDROID\"}"
+
+curl -X POST "http://localhost:8085/tokens" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"token\":\"dsjiSWXzWBJ9DbrHLyXDlv:APA91bGq8mEvbGgYTynYIqlwtSp4lmD_mEl5brbV78Kf2lluG263m-kFU-Ruvd7rfuAgRgb4jEqlpyGyfG2qOUBhqR8TouCy76gcfTLB7SVtsWBrpqYcs-E\",\"platform\":\"ANDROID\"}"
+
+docker exec -it redis-cache redis-cli SMEMBERS tokens:user_test_001
+docker exec -it redis-cache redis-cli SMEMBERS tokens:user_test_002
+
+5) ORDER EVENT -> FCM sent
+echo {"eventType":"ORDER_PLACED","payload":{"orderId":"order-1001","farmId":"user_test_001"}} | docker compose exec -T kafka-broker sh -lc "kafka-console-producer --broker-list kafka-broker:29092 --topic bicap.order.placed"
+docker logs notification-service | findstr /i "FCM sent"
+
+6) IOT ALERT -> dung farmId
+echo {"eventType":"IOT_ALERT","payload":{"alertId":"alert-1","farmId":"user_test_001","sensorType":"TEMP","value":"42"}} | docker compose exec -T kafka-broker sh -lc "kafka-console-producer --broker-list kafka-broker:29092 --topic bicap.iot.alert"
+docker logs notification-service | findstr /i "FCM sent"
+
+7) SHIPMENT UPDATED -> farm + retailer
+echo {"eventType":"SHIPMENT_UPDATED","payload":{"orderId":"order-1001","status":"IN_TRANSIT","farmId":"user_test_001","retailerId":"user_test_002"}} | docker compose exec -T kafka-broker sh -lc "kafka-console-producer --broker-list kafka-broker:29092 --topic bicap.shipment.updated"
+docker logs notification-service | findstr /i "FCM sent"
+
+8) FCMPushClient.sendMulticast OK
+docker logs notification-service | findstr /i "Failed to send multicast FCM"
+Expected: khong co dong loi, co dong "FCM sent. type=multicast"
