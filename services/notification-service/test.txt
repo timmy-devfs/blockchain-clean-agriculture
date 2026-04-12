@@ -6,6 +6,8 @@ USER_RETAILER=user_test_002
 TOKEN_FARM=fcm_test_token_user_test_001_android
 TOKEN_RETAILER=fcm_test_token_user_test_002_ios
 
+docker-compose down -v
+
 0) RUN STACK
 cd /d D:\Haustudy\XayDungPhanMemOOP\blockchain-clean-agriculture\services\notification-service
 docker compose up --build -d
@@ -68,3 +70,55 @@ docker logs notification-service | findstr /i "FCM sent"
 8) FCMPushClient.sendMulticast OK
 docker logs notification-service | findstr /i "Failed to send multicast FCM"
 Expected: khong co dong loi, co dong "FCM sent. type=multicast"
+
+
+
+### BIC-028
+---BƯỚC 0: Khởi tạo dữ liệu mẫu (Seed Data)
+
+1) Đăng ký Device Token cho 2 User
+# Token cho FARM
+curl -X POST "http://localhost:8085/tokens" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: user_test_001" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"token\":\"fcm_test_token_user_test_001_android\",\"platform\":\"ANDROID\"}"
+  
+docker exec -it redis-cache redis-cli SMEMBERS tokens:user_test_001
+
+2) Tạo thông báo mẫu trực tiếp vào Database
+# lệnh xóa
+docker exec -it mysql-db mysql -u root -p123123 -e "USE notification_db; DELETE FROM notifications WHERE user_id = 'user_test_001';"
+
+# lệnh tạo
+docker exec -it mysql-db mysql -u root -p123123 -e "USE notification_db; INSERT INTO notifications (user_id, title, body, is_read, created_at) VALUES ('user_test_001', 'Don hang moi', 'Ban co don hang #001', false, NOW()), ('user_test_001', 'Canh bao IoT', 'Nhiet do cao', false, NOW()), ('user_test_001', 'He thong', 'Chao mung', true, NOW());"
+
+---BƯỚC 1: Kiểm thử các API
+1) Test bảo mật: Lấy thông báo của chính mình
+curl -X GET "http://localhost:8085/notifications" -H "X-User-Id: user_test_001"
+
+2) Test Filter: Chỉ lấy thông báo chưa đọc
+curl -X GET "http://localhost:8085/notifications?isRead=false" -H "X-User-Id: user_test_001"
+
+3) Test Count: Kiểm tra số lượng tin chưa đọc
+curl -X GET "http://localhost:8085/notifications/unread-count" -H "X-User-Id: user_test_001"
+
+4) Test Ownership (403 Forbidden): Xóa/Sửa thông báo của người khác
+(Giả sử ID 99 là của user_test_002, nhưng bạn đang đăng nhập là user_test_001)
+
+curl -i -X DELETE "http://localhost:8085/notifications/99" -H "X-User-Id: user_test_001"
+# Kỳ vọng: Trả về 403 Forbidden
+
+5) Test Role Admin: Gửi Broadcast (FARM_MANAGER)
+curl -i -X POST "http://localhost:8085/notifications/broadcast" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Role: ADMIN" ^
+  -d "{\"targetRole\": \"FARM_MANAGER\", \"title\": \"BICAP Alert\", \"body\": \"Cap nhat nong san sach moi\"}"
+
+6) Test Role User (403 Forbidden): Thử gửi Broadcast
+curl -i -X POST "http://localhost:8085/notifications/broadcast" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Role: USER" ^
+  -d "{\"targetRole\": \"FARM_MANAGER\"}"
+# Kỳ vọng: Trả về 403 Forbidden
+

@@ -18,14 +18,27 @@ public class SecurityConfig {
         this.gatewayHeaderFilter = gatewayHeaderFilter;
     }
 
+    // @Bean
+    // public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    //     http.csrf(csrf -> csrf.disable())
+    //             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    //             .authorizeHttpRequests(auth -> auth
+    //                     .requestMatchers("/actuator/health").permitAll()
+    //                     .anyRequest().authenticated())
+    //             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);
+    //     return http.build();
+    // }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health").permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/actuator/health").permitAll()
+                // THÊM DÒNG NÀY ĐỂ MỞ CỬA CHO CURL TEST
+                .requestMatchers("/notifications/**", "/tokens/**").permitAll() 
+                .anyRequest().authenticated())
+            .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

@@ -36,5 +36,22 @@ public class TokenCacheService {
     private String keyForUser(String userId) {
         return "tokens:" + userId;
     }
+
+    //BIC-028
+    public void addTokenWithRole(String userId, String token, String role) {
+        // 1. Lưu theo User (như cũ)
+        addToken(userId, token);
+        
+        // 2. Lưu theo Role (để Broadcast)
+        String roleKey = "tokens:role:" + role;
+        redisTemplate.opsForSet().add(roleKey, token);
+        redisTemplate.expire(roleKey, TOKEN_TTL);
+    }
+
+    public Set<String> getTokensByRole(String role) {
+        String roleKey = "tokens:role:" + role;
+        Set<String> tokens = redisTemplate.opsForSet().members(roleKey);
+        return tokens == null ? Collections.emptySet() : tokens;
+    }
 }
 
