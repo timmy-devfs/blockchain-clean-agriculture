@@ -50,22 +50,26 @@ export const ingestSensorBatch = async (
   });
 
   if (redis.status === "ready") {
-    const pipeline = redis.pipeline();
-    for (const record of records) {
-      const serialized = JSON.stringify({
-        farmId: record.farmId,
-        sensorId: record.sensorId,
-        type: record.type,
-        value: record.value,
-        unit: record.unit,
-        isAlert: record.isAlert,
-        createdAt: record.createdAt.toISOString()
-      });
-      pipeline.lpush(buildHistoryKey(record.farmId, record.sensorId, record.type), serialized);
-      pipeline.ltrim(buildHistoryKey(record.farmId, record.sensorId, record.type), 0, HISTORY_LIMIT_24H - 1);
-      pipeline.set(buildLatestKey(record.farmId, record.type), serialized);
+    try {
+      const pipeline = redis.pipeline();
+      for (const record of records) {
+        const serialized = JSON.stringify({
+          farmId: record.farmId,
+          sensorId: record.sensorId,
+          type: record.type,
+          value: record.value,
+          unit: record.unit,
+          isAlert: record.isAlert,
+          createdAt: record.createdAt.toISOString()
+        });
+        pipeline.lpush(buildHistoryKey(record.farmId, record.sensorId, record.type), serialized);
+        pipeline.ltrim(buildHistoryKey(record.farmId, record.sensorId, record.type), 0, HISTORY_LIMIT_24H - 1);
+        pipeline.set(buildLatestKey(record.farmId, record.type), serialized);
+      }
+      await pipeline.exec();
+    } catch (error) {
+      console.warn("[iot-service] Failed to update redis time-series cache", error);
     }
-    await pipeline.exec();
   }
 
   const alerts = records.filter((record) => record.isAlert);
@@ -156,11 +160,51 @@ export const getHistory = async (query: HistoryQueryInput): Promise<{
     ? `iot:history:${query.farmId}:${query.sensorId ?? "*"}:${query.type}`
     : `iot:history:${query.farmId}:${query.sensorId ?? "*"}:*`;
 
-  if (redis.status === "ready") {
+  const fromTime = new Date(Date.now() - query.hours * 60 * 60 * 1000);
+
+  const getHistoryFromDb = async () => {
+    const dbItems = await prisma.sensorReading.findMany({
+      where: {
+        farmId: query.farmId,
+        sensorId: query.sensorId,
+        type: query.type,
+        createdAt: { gte: fromTime }
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit
+    });
+
+    return {
+      farmId: query.farmId,
+      hours: query.hours,
+      limit,
+      total: dbItems.length,
+      items: dbItems.map((item) => ({
+        farmId: item.farmId,
+        sensorId: item.sensorId,
+        type: item.type,
+        value: item.value,
+        unit: item.unit,
+        isAlert: item.isAlert,
+        createdAt: item.createdAt.toISOString()
+      }))
+    };
+  };
+
+  if (redis.status !== "ready") {
+    return getHistoryFromDb();
+  }
+
+  try {
     const keys = await redis.keys(basePattern);
+    if (keys.length === 0) {
+      return getHistoryFromDb();
+    }
+
     const chunks = await Promise.all(keys.map((key) => redis.lrange(key, 0, limit - 1)));
     const merged = chunks
-      .flatMap((items) => items.map((item) => JSON.parse(item)))
+      .flatMap((items) => items.map((item) => JSON.parse(item) as { createdAt: string }))
+      .filter((item) => new Date(item.createdAt).getTime() >= fromTime.getTime())
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, limit);
 
@@ -169,37 +213,20 @@ export const getHistory = async (query: HistoryQueryInput): Promise<{
       hours: query.hours,
       limit,
       total: merged.length,
-      items: merged
+      items: merged as Array<{
+        farmId: string;
+        sensorId: string;
+        type: SensorType;
+        value: number;
+        unit: string;
+        isAlert: boolean;
+        createdAt: string;
+      }>
     };
+  } catch (error) {
+    console.warn("[iot-service] Failed to read history from redis cache, fallback to DB", error);
+    return getHistoryFromDb();
   }
-
-  const fromTime = new Date(Date.now() - query.hours * 60 * 60 * 1000);
-  const dbItems = await prisma.sensorReading.findMany({
-    where: {
-      farmId: query.farmId,
-      sensorId: query.sensorId,
-      type: query.type,
-      createdAt: { gte: fromTime }
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit
-  });
-
-  return {
-    farmId: query.farmId,
-    hours: query.hours,
-    limit,
-    total: dbItems.length,
-    items: dbItems.map((item) => ({
-      farmId: item.farmId,
-      sensorId: item.sensorId,
-      type: item.type,
-      value: item.value,
-      unit: item.unit,
-      isAlert: item.isAlert,
-      createdAt: item.createdAt.toISOString()
-    }))
-  };
 };
 
 export const getDashboard = async (query: DashboardQueryInput): Promise<{
