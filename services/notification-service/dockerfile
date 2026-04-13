@@ -1,0 +1,21 @@
+# Giai đoạn 1: Build
+FROM maven:3.8.5-openjdk-17 AS build
+WORKDIR /app
+# Copy toàn bộ code vào để build
+COPY . .
+RUN mvn clean package -DskipTests
+
+# Giai đoạn 2: Run
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+
+# Copy file jar từ giai đoạn build
+COPY --from=build /app/target/*.jar app.jar
+
+# Tạo thư mục chứa config và copy file service-account.json
+RUN mkdir -p /app/resources
+COPY src/main/resources/service-account.json /app/resources/service-account.json
+
+EXPOSE 8085
+# Chạy ứng dụng với đường dẫn file config rõ ràng
+ENTRYPOINT ["java", "-jar", "app.jar"]
