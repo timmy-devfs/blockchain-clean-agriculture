@@ -1,8 +1,8 @@
-package com.bicap.guest.controller;
+package com.bicap.guest_service.controller;
 
-import com.bicap.guest.dto.*;
-import com.bicap.guest.entity.Article;
-import com.bicap.guest.repository.ArticleRepository;
+import com.bicap.guest_service.dto.*;
+import com.bicap.guest_service.entity.Article;
+import com.bicap.guest_service.repository.ArticleRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

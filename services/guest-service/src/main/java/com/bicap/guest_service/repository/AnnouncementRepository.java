@@ -1,6 +1,6 @@
-package com.bicap.guest.repository;
+package com.bicap.guest_service.repository;
 
-import com.bicap.guest.entity.Announcement;
+import com.bicap.guest_service.entity.Announcement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

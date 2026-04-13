@@ -1,7 +1,7 @@
-package com.bicap.guest.controller;
+package com.bicap.guest_service.controller;
 
-import com.bicap.guest.dto.ApiResponse;
-import com.bicap.guest.redis.PublicProductCache;
+import com.bicap.guest_service.dto.ApiResponse;
+import com.bicap.guest_service.redis.PublicProductCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

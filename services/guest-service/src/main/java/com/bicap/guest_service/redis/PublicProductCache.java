@@ -1,4 +1,4 @@
-package com.bicap.guest.redis;
+package com.bicap.guest_service.redis;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

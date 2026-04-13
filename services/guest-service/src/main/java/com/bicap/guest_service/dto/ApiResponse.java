@@ -1,4 +1,4 @@
-package com.bicap.guest.dto;
+package com.bicap.guest_service.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;

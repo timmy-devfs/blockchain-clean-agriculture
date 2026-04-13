@@ -1,6 +1,6 @@
-package com.bicap.guest.controller;
+package com.bicap.guest_service.controller;
 
-import com.bicap.guest.dto.ApiResponse;
+import com.bicap.guest_service.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;

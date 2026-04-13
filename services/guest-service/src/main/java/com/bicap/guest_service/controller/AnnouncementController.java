@@ -1,8 +1,8 @@
-package com.bicap.guest.controller;
+package com.bicap.guest_service.controller;
 
-import com.bicap.guest.dto.AnnouncementResponse;
-import com.bicap.guest.dto.ApiResponse;
-import com.bicap.guest.repository.AnnouncementRepository;
+import com.bicap.guest_service.dto.AnnouncementResponse;
+import com.bicap.guest_service.dto.ApiResponse;
+import com.bicap.guest_service.repository.AnnouncementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

@@ -1,4 +1,4 @@
-package com.bicap.guest.config;
+package com.bicap.guest_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,4 +1,4 @@
-package com.bicap.guest.dto;
+package com.bicap.guest_service.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

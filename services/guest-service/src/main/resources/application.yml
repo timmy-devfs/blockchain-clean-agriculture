@@ -1,0 +1,71 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP — Guest Service (port 8089)
+# Public APIs — không cần JWT
+# ════════════════════════════════════════════════════════════════
+
+server:
+  port: 8089
+
+spring:
+  application:
+    name: guest-service
+
+  # ── MySQL ─────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:mysql://localhost:3306/guest_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    username: bicap_user
+    password: 12123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: GuestHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  # ── JPA ───────────────────────────────────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  # ── Flyway ────────────────────────────────────────────────────
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  # ── Redis ─────────────────────────────────────────────────────
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+# ── Upstream Services ─────────────────────────────────────────
+services:
+  farm:
+    url: http://localhost:8082
+  blockchain:
+    url: http://localhost:8090
+
+# ── Cache TTL ─────────────────────────────────────────────────
+cache:
+  public-products-ttl-seconds: 600   # 10 phút
+
+# ── Actuator ──────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  level:
+    com.bicap.guest: DEBUG
