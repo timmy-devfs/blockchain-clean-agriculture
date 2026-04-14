@@ -1,0 +1,409 @@
+
+# ═══════════════════════════════════════════════════════════════════
+# BICAP — retailer-service | API Test Plan (VS Code REST Client)
+# Senior QA Automation Engineer — Role: Integration Tester
+#
+# Gateway Routes:
+#   /api/retail/**  → http://localhost:8083  (marketplace & orders)
+#   /api/v1/**      → http://localhost:8083  (retailers — Direct, KHÔNG qua gateway)
+#
+# QUAN TRỌNG: retailer.route.ts được mount tại /api/v1 (app.ts line 17)
+# nhưng gateway chỉ proxy /api/retail/** → 8083.
+# Các route /retailers và /api/v1/... PHẢI test TRỰC TIẾP trên port 8083
+# hoặc cần cấu hình thêm route trong API Gateway.
+# ═══════════════════════════════════════════════════════════════════
+
+@baseUrl = http://localhost:8080
+@directUrl = http://localhost:8083
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI4YTM1ZTZiNi02OGI5LTQ3MWUtODJmNC1kM2E1ZTg0YzliNWUiLCJlbWFpbCI6ImZhcm0xQGJpY2FwLmlvIiwicm9sZSI6IkZBUk1fTUFOQUdFUiIsInR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzU3NTY3MjEsImV4cCI6MTc3NTc1NzYyMX0.VTZhTWyUe0TV2bqt4LcTQPWsxvW9CGOiNldWo0
+
+# Các ID dùng chung (cập nhật sau khi chạy các TC tạo mới)
+@retailerId = REPLACE_AFTER_CREATE
+@orderId = REPLACE_AFTER_CREATE
+@retailOrderId = REPLACE_AFTER_CREATE
+
+# ID lấy từ farm-service (chạy test-farm-service.http trước, copy giá trị vào đây)
+@farmId = REPLACE_WITH_FARM_ID
+@listingId = REPLACE_WITH_LISTING_ID
+
+
+# ═══════════════════════════════════════════════════════════════════
+# ⚠️  LƯU Ý VỀ ROUTING:
+# - /api/v1/retailers  → KHÔNG đi qua gateway (gateway route là /api/retail/**)
+#   → Dùng @directUrl để test trực tiếp vào port 8083
+# - /api/retail/marketplace/** và /api/retail/orders/** → đi qua @baseUrl
+# ═══════════════════════════════════════════════════════════════════
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 1: RETAILER MANAGEMENT
+# Mounted tại /api/v1 → phải gọi trực tiếp vào port 8083
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-R01 | HAPPY PATH | Tạo retailer mới
+# Mô tả   : Tạo một nhà bán lẻ với đầy đủ thông tin
+# Schema  : createRetailerSchema — name (required), email (required), phone, address (optional)
+# Expected: HTTP 201 Created — retailer object với id được tự động tạo (UUID)
+POST {{directUrl}}/api/v1/retailers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Siêu Thị Rau Sạch Hà Nội",
+  "email": "contact@rausach-hn.vn",
+  "phone": "0901234567",
+  "address": "45 Đường Láng Hạ, Quận Đống Đa, Hà Nội"
+}
+
+###
+# TC-R02 | SAD PATH | Tạo retailer — Email không hợp lệ
+# Mô tả   : Zod validate email format — gửi email sai định dạng
+# Expected: HTTP 400 Bad Request / error object từ AppError "INVALID_REQUEST"
+POST {{directUrl}}/api/v1/retailers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Cửa Hàng ABC",
+  "email": "not-a-valid-email"
+}
+
+###
+# TC-R03 | SAD PATH | Tạo retailer — Thiếu name (required)
+# Expected: HTTP 400 Bad Request — name là required string
+POST {{directUrl}}/api/v1/retailers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "valid@email.com"
+}
+
+###
+# TC-R04 | HAPPY PATH | Tìm kiếm retailer theo keyword
+# Mô tả   : Search retailer theo tên, email hoặc số điện thoại (regex case-insensitive)
+# Expected: HTTP 200 OK — array các retailer objects phù hợp
+GET {{directUrl}}/api/v1/retailers/search?keyword=Siêu Thị
+Authorization: Bearer {{token}}
+
+###
+# TC-R05 | HAPPY PATH | Tìm kiếm retailer — Không có keyword (lấy tất cả)
+# Expected: HTTP 200 OK — toàn bộ danh sách retailer, sort createdAt DESC
+GET {{directUrl}}/api/v1/retailers/search
+Authorization: Bearer {{token}}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 2: RETAIL ORDERS (retailOrder.service.ts — MongoDB)
+# Mounted tại /api/v1 trên service, cần gọi trực tiếp
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-RO01 | HAPPY PATH | Tạo retail order đơn giản
+# Mô tả   : Retailer tạo đơn hàng mua sản phẩm từ farm
+# Schema  : createOrderSchema (trong retailOrder.service.ts)
+#           retailerId, productName, quantity, totalAmount (required), qrCode (optional)
+# Expected: HTTP 201 Created — order object với status=PENDING_PAYMENT
+POST {{directUrl}}/api/v1/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "{{retailerId}}",
+  "productName": "Dâu Tây Đà Lạt Hữu Cơ",
+  "quantity": 50,
+  "totalAmount": 4250000
+}
+
+###
+# TC-RO02 | SAD PATH | Tạo retail order — retailerId không tồn tại
+# Expected: HTTP 400/404 — AppError "RETAILER_NOT_FOUND"
+POST {{directUrl}}/api/v1/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "non-existent-retailer-id",
+  "productName": "Thanh Long",
+  "quantity": 100,
+  "totalAmount": 2000000
+}
+
+###
+# TC-RO03 | SAD PATH | Tạo retail order — Thiếu quantity (required, phải là int positive)
+# Expected: HTTP 400 Bad Request — INVALID_REQUEST (Zod validation)
+POST {{directUrl}}/api/v1/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "{{retailerId}}",
+  "productName": "Xoài Cát Hòa Lộc"
+}
+
+###
+# TC-RO04 | HAPPY PATH | Cập nhật trạng thái retail order (flow: PENDING_PAYMENT → PLACED)
+# Mô tả   : Cập nhật trạng thái theo workflow:
+#           PENDING_PAYMENT → PLACED | CANCELLED
+#           PLACED → CONFIRMED | CANCELLED
+#           CONFIRMED → SHIPPING | CANCELLED
+#           SHIPPING → DELIVERED | CANCELLED
+# Schema  : updateStatusSchema — status (required enum OrderStatus), changedBy, note (optional)
+# Expected: HTTP 200 OK — order object với status mới
+PATCH {{directUrl}}/api/v1/orders/{{retailOrderId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "PLACED",
+  "changedBy": "payment-system",
+  "note": "Đã thanh toán thành công qua VNPay"
+}
+
+###
+# TC-RO05 | SAD PATH | Cập nhật trạng thái — Chuyển status không hợp lệ trong workflow
+# Mô tả   : Thử chuyển PENDING_PAYMENT → DELIVERED (vi phạm canTransition logic)
+# Expected: HTTP 400/422 — AppError "INVALID_ORDER_STATUS_FLOW"
+PATCH {{directUrl}}/api/v1/orders/{{retailOrderId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "DELIVERED",
+  "changedBy": "admin"
+}
+
+###
+# TC-RO06 | SAD PATH | Cập nhật trạng thái — status enum không hợp lệ
+# Expected: HTTP 400 Bad Request — INVALID_REQUEST (ZodError)
+PATCH {{directUrl}}/api/v1/orders/{{retailOrderId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "NOT_A_REAL_STATUS"
+}
+
+###
+# TC-RO07 | HAPPY PATH | Scan QR code để xác nhận đơn hàng
+# Mô tả   : Scan mã QR trên sản phẩm, gọi blockchain-service để verify
+# Schema  : scanQrSchema — qrCode (required, min 1)
+# Expected: HTTP 200 OK — order object với status=CONFIRMED
+POST {{directUrl}}/api/v1/orders/{{retailOrderId}}/qr-scan
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "qrCode": "BICAP-QR-2025-STRAWBERRY-001-DALAT"
+}
+
+###
+# TC-RO08 | SAD PATH | Scan QR — qrCode rỗng
+# Expected: HTTP 400 Bad Request — qrCode must be at least 1 char
+POST {{directUrl}}/api/v1/orders/{{retailOrderId}}/qr-scan
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "qrCode": ""
+}
+
+###
+# TC-RO09 | HAPPY PATH | Xác nhận đã nhận hàng (Confirm Delivery)
+# Mô tả   : Retailer xác nhận đã nhận hàng — order phải ở status SHIPPING
+# Schema  : confirmDeliverySchema — changedBy (optional)
+# Expected: HTTP 200 OK — order object với status=DELIVERED
+POST {{directUrl}}/api/v1/orders/{{retailOrderId}}/confirm-delivery
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "changedBy": "retailer-staff-001"
+}
+
+###
+# TC-RO10 | SAD PATH | Confirm Delivery — Order chưa ở trạng thái SHIPPING
+# Mô tả   : Thử confirm delivery khi order vẫn đang ở PLACED
+# Expected: HTTP 400/422 — AppError "DELIVERY_CONFIRMATION_FAILED"
+POST {{directUrl}}/api/v1/orders/{{retailOrderId}}/confirm-delivery
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "changedBy": "retailer-staff-001"
+}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 3: MARKETPLACE (Public — Xem sản phẩm từ retailer side)
+# Mounted tại /api/retail → đi qua API Gateway
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-MP01 | HAPPY PATH | Tìm kiếm sản phẩm trên marketplace (Public)
+# Mô tả   : Không cần auth — bất kỳ ai cũng có thể xem marketplace
+# Query params: keyword, farmId, province, cropType, page, limit (tùy implementation)
+# Expected: HTTP 200 OK — paginated list của các farm listings
+GET {{baseUrl}}/api/retail/marketplace/products?keyword=Dâu Tây&page=1&limit=10
+
+###
+# TC-MP02 | HAPPY PATH | Xem chi tiết sản phẩm
+# Mô tả   : Xem thông tin chi tiết một sản phẩm theo listing ID
+# Expected: HTTP 200 OK — product detail object (từ farm-service listing)
+GET {{baseUrl}}/api/retail/marketplace/products/{{listingId}}
+
+###
+# TC-MP03 | SAD PATH | Xem chi tiết sản phẩm — ID không tồn tại
+# Expected: HTTP 404 Not Found (hoặc AppError từ marketplace.service)
+GET {{baseUrl}}/api/retail/marketplace/products/non-existent-listing-id
+
+###
+# TC-MP04 | HAPPY PATH | Xem profile công khai của một nông trại
+# Mô tả   : Retailer xem thông tin farm (được approve) để đánh giá nhà cung cấp
+# Expected: HTTP 200 OK — farm profile object (tên, địa chỉ, seasons, listings)
+GET {{baseUrl}}/api/retail/marketplace/farms/{{farmId}}
+
+###
+# TC-MP05 | SAD PATH | Xem farm profile — farmId không tồn tại
+# Expected: HTTP 404 Not Found
+GET {{baseUrl}}/api/retail/marketplace/farms/non-existent-farm-id
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 4: ORDERS (order.service.ts — Luồng đặt hàng chính thức)
+# Mounted tại /api/retail → đi qua API Gateway
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-O01 | HAPPY PATH | Tạo đơn hàng chính thức (tích hợp payment-service)
+# Mô tả   : Retailer đặt hàng → tự động tạo payment request → nhận paymentUrl
+# Schema  : createOrderSchema — retailerId, farmId, listingId, productName, quantity,
+#           totalAmount, depositAmount (required); unit, deliveryAddress, note, gateway (optional)
+# Expected: HTTP 201 Created — { order: RetailOrder, paymentUrl: string }
+POST {{baseUrl}}/api/retail/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "{{retailerId}}",
+  "farmId": "farm-dalat-001",
+  "listingId": "listing-strawberry-001",
+  "productName": "Dâu Tây Đà Lạt Hữu Cơ",
+  "quantity": 100,
+  "unit": "kg",
+  "totalAmount": 8500000,
+  "depositAmount": 2550000,
+  "deliveryAddress": "45 Đường Láng Hạ, Quận Đống Đa, Hà Nội",
+  "note": "Giao hàng giờ hành chính, liên hệ trước 30 phút",
+  "gateway": "VNPAY"
+}
+
+###
+# TC-O02 | SAD PATH | Tạo đơn hàng — Thiếu depositAmount (required)
+# Expected: HTTP 400 Bad Request — Zod validation error
+POST {{baseUrl}}/api/retail/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "{{retailerId}}",
+  "farmId": "farm-dalat-001",
+  "listingId": "listing-strawberry-001",
+  "productName": "Dâu Tây Đà Lạt",
+  "quantity": 100,
+  "totalAmount": 8500000
+}
+
+###
+# TC-O03 | SAD PATH | Tạo đơn hàng — retailerId không tồn tại
+# Expected: HTTP 400/404 — AppError "RETAILER_NOT_FOUND"
+POST {{baseUrl}}/api/retail/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "fake-retailer-id",
+  "farmId": "farm-dalat-001",
+  "listingId": "listing-001",
+  "productName": "Xoài",
+  "quantity": 50,
+  "totalAmount": 2000000,
+  "depositAmount": 600000
+}
+
+###
+# TC-O04 | SAD PATH | Tạo đơn hàng — gateway không hợp lệ
+# Expected: HTTP 400 — gateway phải là "VNPAY" hoặc "MOMO"
+POST {{baseUrl}}/api/retail/orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "retailerId": "{{retailerId}}",
+  "farmId": "farm-dalat-001",
+  "listingId": "listing-001",
+  "productName": "Bơ Booth",
+  "quantity": 30,
+  "totalAmount": 900000,
+  "depositAmount": 270000,
+  "gateway": "PAYPAL"
+}
+
+###
+# TC-O05 | HAPPY PATH | Lấy danh sách đơn hàng (có filter)
+# Schema  : listOrdersQuerySchema — status (enum), fromDate, toDate (optional)
+# Expected: HTTP 200 OK — array orders, sort createdAt DESC
+GET {{baseUrl}}/api/retail/orders?status=PLACED&fromDate=2025-01-01T00:00:00Z&toDate=2025-12-31T23:59:59Z
+Authorization: Bearer {{token}}
+
+###
+# TC-O06 | HAPPY PATH | Lấy chi tiết đơn hàng (bao gồm status history)
+# Expected: HTTP 200 OK — { order: RetailOrder, statusHistory: OrderStatusHistory[] }
+GET {{baseUrl}}/api/retail/orders/{{orderId}}
+Authorization: Bearer {{token}}
+
+###
+# TC-O07 | SAD PATH | Lấy chi tiết đơn hàng — ID không tồn tại
+# Expected: HTTP 400/404 — AppError "ORDER_NOT_FOUND"
+GET {{baseUrl}}/api/retail/orders/non-existent-order-id-999
+Authorization: Bearer {{token}}
+
+###
+# TC-O08 | HAPPY PATH | Hủy đơn hàng (Cancel — chỉ cho phép khi status=PLACED)
+# Mô tả   : Retailer hủy đơn đã đặt → hệ thống gửi refund request đến payment-service
+# Expected: HTTP 200 OK — order object với status=CANCELLED
+DELETE {{baseUrl}}/api/retail/orders/{{orderId}}/cancel
+Authorization: Bearer {{token}}
+
+###
+# TC-O09 | SAD PATH | Hủy đơn hàng — Order không ở trạng thái PLACED
+# Mô tả   : Thử hủy đơn đang ở SHIPPING (không được phép)
+# Expected: HTTP 400/422 — AppError "ORDER_CANCELLATION_NOT_ALLOWED"
+DELETE {{baseUrl}}/api/retail/orders/{{orderId}}/cancel
+Authorization: Bearer {{token}}
+
+###
+# TC-O10 | HAPPY PATH | Payment callback — Xác nhận thanh toán thành công
+# Mô tả   : Webhook từ payment-service gọi lại sau khi user thanh toán — không cần auth
+# Schema  : paymentCallbackSchema — orderId (required), paymentId, transactionId, amount (optional)
+# Expected: HTTP 200 OK — order object với status=PLACED
+POST {{baseUrl}}/api/retail/orders/payment-callback
+Content-Type: application/json
+
+{
+  "orderId": "{{orderId}}",
+  "paymentId": "VNP-TXN-20250615-001",
+  "transactionId": "TRANS-ABC123XYZ",
+  "amount": 2550000
+}
+
+###
+# TC-O11 | SAD PATH | Payment callback — orderId rỗng (bắt buộc)
+# Expected: HTTP 400 — Zod validation error, orderId is required
+POST {{baseUrl}}/api/retail/orders/payment-callback
+Content-Type: application/json
+
+{
+  "paymentId": "VNP-TXN-001"
+}
