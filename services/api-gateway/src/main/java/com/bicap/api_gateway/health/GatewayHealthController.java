@@ -29,8 +29,8 @@ public class GatewayHealthController {
     // Map service name → health URL
     private static final Map<String, String> SERVICES = Map.of(
             "identity-service",      "http://localhost:8081/actuator/health",
-            "farm-service",          "http://localhost:8082/actuator/health",
-            "retailer-service",      "http://localhost:8083/actuator/health",
+            "farm-service",          "http://localhost:8082/health",
+            "retailer-service",      "http://localhost:8083/health",
             "shipping-service",      "http://localhost:8084/actuator/health",
             "notification-service",  "http://localhost:8085/actuator/health",
             "payment-service",       "http://localhost:8086/actuator/health",

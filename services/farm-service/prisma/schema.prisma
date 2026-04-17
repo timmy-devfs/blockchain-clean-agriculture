@@ -25,6 +25,8 @@ model Farm {
   id              String                       @id @default(auto()) @map("_id") @db.ObjectId
   name            String
   ownerId         String
+  isApproved      Boolean                      @default(false)
+  rejectReason    String?
   address         String?
   province        String?
   area            Float?

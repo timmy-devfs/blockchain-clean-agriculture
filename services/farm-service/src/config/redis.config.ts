@@ -3,7 +3,13 @@ import { env } from "./env";
 
 export const redis = new Redis(env.REDIS_URL, {
   lazyConnect: true,
-  maxRetriesPerRequest: 3
+  maxRetriesPerRequest: 3,
+  retryStrategy: (attempt: number) => {
+    if (env.REDIS_OPTIONAL) {
+      return null;
+    }
+    return Math.min(attempt * 200, 2000);
+  }
 });
 redis.on("error", (error) => {
   console.warn("[farm-service] Redis error", error.message);

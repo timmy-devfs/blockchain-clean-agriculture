@@ -1,0 +1,483 @@
+
+# ═══════════════════════════════════════════════════════════════════
+# BICAP — farm-service | API Test Plan (VS Code REST Client)
+# Senior QA Automation Engineer — Role: Integration Tester
+#
+# Gateway Route: /api/farm/** → http://localhost:8082
+# Auth: JWT Bearer Token (từ identity-service)
+# ═══════════════════════════════════════════════════════════════════
+
+@baseUrl = http://localhost:8080
+@token = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI4YTM1ZTZiNi02OGI5LTQ3MWUtODJmNC1kM2E1ZTg0YzliNWUiLCJlbWFpbCI6ImZhcm0xQGJpY2FwLmlvIiwicm9sZSI6IkZBUk1fTUFOQUdFUiIsInR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzU3NTY3MjEsImV4cCI6MTc3NTc1NzYyMX0.VTZhTWyUe0TV2bqt4LcTQPWsxvW9CGOiNldWo0
+@adminToken = eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI4YTM1ZTZiNi02OGI5LTQ3MWUtODJmNC1kM2E1ZTg0YzliNWUiLCJlbWFpbCI6ImZhcm0xQGJpY2FwLmlvIiwicm9sZSI6IkZBUk1fTUFOQUdFUiIsInR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzU3NTY3MjEsImV4cCI6MTc3NTc1NzYyMX0.VTZhTWyUe0TV2bqt4LcTQPWsxvW9CGOiNldWo0
+
+# Các ID dùng chung giữa các test case (cập nhật sau khi chạy TC-F01)
+@farmId = REPLACE_AFTER_CREATE
+@seasonId = REPLACE_AFTER_CREATE
+@listingId = REPLACE_AFTER_CREATE
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 1: FARM CRUD
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-F01 | HAPPY PATH | Tạo farm mới
+# Mô tả   : Farmer đã đăng nhập tạo một trang trại mới với đầy đủ thông tin
+# Schema  : createFarmSchema — name (required), address, province, area (optional)
+# Expected: HTTP 201 Created — trả về object farm với id, name, status=PENDING
+POST {{baseUrl}}/api/farm/farms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Trang Trại Xanh Sạch Đà Lạt",
+  "address": "123 Đường Hoa Hồng, Phường 1",
+  "province": "Lâm Đồng",
+  "area": 5.5
+}
+
+###
+# TC-F02 | SAD PATH | Tạo farm — Thiếu trường bắt buộc (name)
+# Mô tả   : Gửi request không có trường `name` (required theo schema)
+# Expected: HTTP 400 Bad Request — body có `message: "Invalid payload"` và `errors` chi tiết
+POST {{baseUrl}}/api/farm/farms
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "address": "123 Đường Hoa Hồng, Phường 1",
+  "province": "Lâm Đồng"
+}
+
+###
+# TC-F03 | SAD PATH | Tạo farm — Không có token (Unauthorized)
+# Mô tả   : Gọi API không đính kèm header Authorization
+# Expected: HTTP 401 Unauthorized
+POST {{baseUrl}}/api/farm/farms
+Content-Type: application/json
+
+{
+  "name": "Trang Trại Không Token"
+}
+
+###
+# TC-F04 | HAPPY PATH | Lấy danh sách farm của user hiện tại
+# Mô tả   : Farmer lấy toàn bộ farm của mình (getMyFarms — lọc theo userId từ JWT)
+# Expected: HTTP 200 OK — trả về array các farm objects
+GET {{baseUrl}}/api/farm/farms
+Authorization: Bearer {{token}}
+
+###
+# TC-F05 | HAPPY PATH | Cập nhật thông tin farm
+# Mô tả   : Farmer cập nhật tên và diện tích của farm
+# Schema  : updateFarmSchema — ít nhất 1 trong các field (name, address, province, area)
+# Expected: HTTP 200 OK — trả về farm object đã được cập nhật
+PUT {{baseUrl}}/api/farm/farms/{{farmId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Trang Trại Xanh Sạch Đà Lạt (Mở Rộng)",
+  "area": 8.0
+}
+
+###
+# TC-F06 | SAD PATH | Cập nhật farm — Body rỗng (không có field nào)
+# Mô tả   : Gửi body `{}` — vi phạm rule `.refine()` của updateFarmSchema
+# Expected: HTTP 400 Bad Request — "At least one field is required"
+PUT {{baseUrl}}/api/farm/farms/{{farmId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+###
+# TC-F07 | SAD PATH | Cập nhật farm — ID không tồn tại
+# Mô tả   : Cập nhật một farm với ID giả không có trong DB
+# Expected: HTTP 404 Not Found — "Farm not found"
+PUT {{baseUrl}}/api/farm/farms/non-existent-farm-id-999
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Farm Không Tồn Tại"
+}
+
+###
+# TC-F08 | HAPPY PATH | Upload / Cập nhật giấy phép kinh doanh
+# Mô tả   : Farmer gắn giấy phép cho farm (dùng multipart/form-data hoặc x-www-form-urlencoded)
+# Schema  : uploadLicenseSchema — licenseNumber (required), issuedBy, issuedAt, expiresAt (optional)
+# Note    : Endpoint này cần file upload — dùng form-data (REST Client hỗ trợ multipart)
+# Expected: HTTP 201 Created — farm object cập nhật với thông tin license
+POST {{baseUrl}}/api/farm/farms/{{farmId}}/license
+Authorization: Bearer {{token}}
+Content-Type: application/x-www-form-urlencoded
+
+licenseNumber=GPKD-2024-001234&issuedBy=Sở Kế Hoạch Đầu Tư Lâm Đồng&issuedAt=2024-01-15T00:00:00Z&expiresAt=2027-01-14T23:59:59Z
+
+###
+# TC-F09 | SAD PATH | Upload license — Thiếu licenseNumber (required)
+# Expected: HTTP 400 Bad Request — errors.licenseNumber required
+POST {{baseUrl}}/api/farm/farms/{{farmId}}/license
+Authorization: Bearer {{token}}
+Content-Type: application/x-www-form-urlencoded
+
+issuedBy=Sở Kế Hoạch Đầu Tư
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 2: FARM ADMIN ENDPOINTS
+# Note: Các API này yêu cầu role = ADMIN trong JWT
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-F10 | HAPPY PATH | [ADMIN] Lấy danh sách farm theo status
+# Mô tả   : Admin xem toàn bộ farm, lọc theo trạng thái PENDING
+# Schema  : adminFarmStatusQuerySchema — status enum: PENDING | APPROVED | REJECTED (optional)
+# Expected: HTTP 200 OK — array farm objects
+GET {{baseUrl}}/api/farm/admin/farms?status=PENDING
+Authorization: Bearer {{adminToken}}
+
+###
+# TC-F11 | HAPPY PATH | [ADMIN] Lấy toàn bộ farm (không filter)
+# Expected: HTTP 200 OK — tất cả farm trong hệ thống
+GET {{baseUrl}}/api/farm/admin/farms
+Authorization: Bearer {{adminToken}}
+
+###
+# TC-F12 | SAD PATH | [ADMIN] Lấy farm — Query param status sai enum
+# Expected: HTTP 400 Bad Request — invalid status enum value
+GET {{baseUrl}}/api/farm/admin/farms?status=INVALID_STATUS
+Authorization: Bearer {{adminToken}}
+
+###
+# TC-F13 | SAD PATH | [ADMIN] Endpoint admin dùng token của farmer thường
+# Mô tả   : Đảm bảo middleware role check hoạt động đúng
+# Expected: HTTP 403 Forbidden — "Forbidden"
+GET {{baseUrl}}/api/farm/admin/farms
+Authorization: Bearer {{token}}
+
+###
+# TC-F14 | HAPPY PATH | [ADMIN] Duyệt farm (Approve)
+# Mô tả   : Admin chuyển trạng thái farm từ PENDING → APPROVED
+# Expected: HTTP 200 OK — farm object với status=APPROVED
+PUT {{baseUrl}}/api/farm/admin/farms/{{farmId}}/approve
+Authorization: Bearer {{adminToken}}
+
+###
+# TC-F15 | HAPPY PATH | [ADMIN] Từ chối farm (Reject)
+# Mô tả   : Admin từ chối farm với lý do cụ thể
+# Schema  : adminRejectSchema — rejectReason (required)
+# Expected: HTTP 200 OK — farm object với status=REJECTED và rejectReason
+PUT {{baseUrl}}/api/farm/admin/farms/{{farmId}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "rejectReason": "Hồ sơ giấy phép không hợp lệ — giấy phép đã hết hạn"
+}
+
+###
+# TC-F16 | SAD PATH | [ADMIN] Từ chối farm — Thiếu rejectReason
+# Expected: HTTP 400 Bad Request — rejectReason là trường bắt buộc
+PUT {{baseUrl}}/api/farm/admin/farms/{{farmId}}/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+###
+# TC-F17 | HAPPY PATH | [ADMIN] Xóa farm
+# Mô tả   : Admin xóa cứng (hard delete) một farm
+# Expected: HTTP 204 No Content — không có response body
+DELETE {{baseUrl}}/api/farm/admin/farms/{{farmId}}
+Authorization: Bearer {{adminToken}}
+
+###
+# TC-F18 | SAD PATH | [ADMIN] Xóa farm — ID không tồn tại
+# Expected: HTTP 404 Not Found — "Farm not found"
+DELETE {{baseUrl}}/api/farm/admin/farms/non-existent-farm-id-999
+Authorization: Bearer {{adminToken}}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 3: SEASON CRUD
+# Gateway Route: /api/farm/seasons/** → farm-service
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-S01 | HAPPY PATH | Tạo mùa vụ mới
+# Mô tả   : Farmer tạo mùa vụ gắn với một farm cụ thể
+# Schema  : createSeasonSchema — farmId (required), cropType (required), startDate (required),
+#           productCategoryId, estimatedEndDate (optional)
+# Expected: HTTP 201 Created — season object với status mặc định PREPARING
+POST {{baseUrl}}/api/farm/seasons
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}",
+  "cropType": "Dâu Tây",
+  "startDate": "2025-01-15T00:00:00Z",
+  "estimatedEndDate": "2025-06-30T00:00:00Z",
+  "productCategoryId": "cat-001"
+}
+
+###
+# TC-S02 | SAD PATH | Tạo mùa vụ — Thiếu cropType (required)
+# Expected: HTTP 400 Bad Request — errors.cropType required
+POST {{baseUrl}}/api/farm/seasons
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}",
+  "startDate": "2025-01-15T00:00:00Z"
+}
+
+###
+# TC-S03 | SAD PATH | Tạo mùa vụ — farmId không thuộc về user
+# Expected: HTTP 404 Not Found — "Farm not found"
+POST {{baseUrl}}/api/farm/seasons
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "farm-id-belongs-to-another-user",
+  "cropType": "Cà Phê",
+  "startDate": "2025-01-15T00:00:00Z"
+}
+
+###
+# TC-S04 | HAPPY PATH | Lấy danh sách mùa vụ (có phân trang và filter)
+# Mô tả   : Farmer lấy danh sách mùa vụ với filter theo farmId và status, phân trang
+# Schema  : listSeasonsQuerySchema — page (default:1), limit (default:10), farmId, cropType, status
+# Expected: HTTP 200 OK — { data: [...], total, page, limit }
+GET {{baseUrl}}/api/farm/seasons?page=1&limit=10&farmId={{farmId}}&status=PREPARING
+Authorization: Bearer {{token}}
+
+###
+# TC-S05 | HAPPY PATH | Lấy chi tiết một mùa vụ
+# Mô tả   : Farmer xem đầy đủ thông tin một season theo ID (bao gồm updates lịch sử)
+# Expected: HTTP 200 OK — season detail object
+GET {{baseUrl}}/api/farm/seasons/{{seasonId}}
+Authorization: Bearer {{token}}
+
+###
+# TC-S06 | SAD PATH | Lấy chi tiết mùa vụ — ID không tồn tại
+# Expected: HTTP 404 Not Found — "Season not found"
+GET {{baseUrl}}/api/farm/seasons/non-existent-season-id-999
+Authorization: Bearer {{token}}
+
+###
+# TC-S07 | HAPPY PATH | Cập nhật thông tin mùa vụ
+# Mô tả   : Farmer cập nhật trạng thái và sản lượng sau khi thu hoạch
+# Schema  : updateSeasonSchema — ít nhất 1 field (cropType, status, totalYield...)
+# SeasonStatus enum: PREPARING | ACTIVE | HARVESTED | EXPORTED
+# Expected: HTTP 200 OK — season object cập nhật
+PUT {{baseUrl}}/api/farm/seasons/{{seasonId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "ACTIVE",
+  "cropType": "Dâu Tây Nhật",
+  "estimatedEndDate": "2025-07-15T00:00:00Z"
+}
+
+###
+# TC-S08 | SAD PATH | Cập nhật mùa vụ — status enum không hợp lệ
+# Expected: HTTP 400 Bad Request — status must be one of PREPARING | ACTIVE | HARVESTED | EXPORTED
+PUT {{baseUrl}}/api/farm/seasons/{{seasonId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "COMPLETED"
+}
+
+###
+# TC-S09 | HAPPY PATH | Thêm update log cho mùa vụ (nhật ký hoạt động)
+# Mô tả   : Farmer ghi nhận sự kiện (trạng thái mới, ghi chú, ảnh thực địa)
+# Schema  : createSeasonUpdateSchema — status (required enum SeasonStatus), note, imageUrls (max 20)
+# Expected: HTTP 201 Created — season detail object mới nhất (bao gồm update vừa thêm)
+POST {{baseUrl}}/api/farm/seasons/{{seasonId}}/updates
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "HARVESTED",
+  "note": "Thu hoạch đợt 1 thành công, đạt khoảng 80% sản lượng ước tính",
+  "imageUrls": [
+    "https://cdn.bicap.io/farm-images/harvest-001.jpg",
+    "https://cdn.bicap.io/farm-images/harvest-002.jpg"
+  ]
+}
+
+###
+# TC-S10 | HAPPY PATH | Export mùa vụ lên blockchain
+# Mô tả   : Farmer export season ra blockchain. Season phải ở status HARVESTED
+# Expected: HTTP 200 OK — season object với status=EXPORTED
+POST {{baseUrl}}/api/farm/seasons/{{seasonId}}/export
+Authorization: Bearer {{token}}
+
+###
+# TC-S11 | SAD PATH | Export mùa vụ — Season chưa ở trạng thái HARVESTED
+# Mô tả   : Cố tình export một season đang ở trạng thái ACTIVE (chưa harvest)
+# Expected: HTTP 400 Bad Request — errorCode: 2001, "Season must be HARVESTED before export"
+POST {{baseUrl}}/api/farm/seasons/{{seasonId}}/export
+Authorization: Bearer {{token}}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 4: MARKETPLACE LISTINGS (FARM SIDE)
+# Gateway Route: /api/farm/marketplace/** → farm-service
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-M01 | HAPPY PATH | Tạo listing lên marketplace
+# Mô tả   : Farmer đăng bán sản phẩm từ một mùa vụ lên marketplace
+# Điều kiện: Farm đã APPROVED, user đang có gói dịch vụ còn hiệu lực
+# Schema  : createListingSchema — farmId, seasonId, title (required); description, quantity, unitPrice
+# Expected: HTTP 201 Created — listing object
+POST {{baseUrl}}/api/farm/marketplace/listings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}",
+  "seasonId": "{{seasonId}}",
+  "title": "Dâu Tây Đà Lạt Hữu Cơ — Thu Hoạch Tháng 6",
+  "description": "Dâu tây trồng không hóa chất, được chứng nhận VietGAP, đóng gói 500g/hộp",
+  "quantity": 200,
+  "unitPrice": 85000
+}
+
+###
+# TC-M02 | SAD PATH | Tạo listing — Thiếu title (required)
+# Expected: HTTP 400 Bad Request — errors.title required
+POST {{baseUrl}}/api/farm/marketplace/listings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}",
+  "seasonId": "{{seasonId}}",
+  "quantity": 200,
+  "unitPrice": 85000
+}
+
+###
+# TC-M03 | SAD PATH | Tạo listing — Farm chưa được duyệt
+# Expected: HTTP 403 Forbidden — "Farm is not approved"
+POST {{baseUrl}}/api/farm/marketplace/listings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "pending-farm-id-001",
+  "seasonId": "{{seasonId}}",
+  "title": "Listing Từ Farm Chưa Duyệt",
+  "quantity": 100,
+  "unitPrice": 50000
+}
+
+###
+# TC-M04 | HAPPY PATH | Lấy danh sách listings của user (có phân trang và keyword search)
+# Schema  : listMyListingsQuerySchema — page, limit, farmId, seasonId, keyword
+# Expected: HTTP 200 OK — paginated listings
+GET {{baseUrl}}/api/farm/marketplace/listings?page=1&limit=10&farmId={{farmId}}&keyword=Dâu Tây
+Authorization: Bearer {{token}}
+
+###
+# TC-M05 | HAPPY PATH | Lấy listings của chính mình (route /my)
+# Expected: HTTP 200 OK — listings của user đang đăng nhập
+GET {{baseUrl}}/api/farm/marketplace/listings/my?page=1&limit=5
+Authorization: Bearer {{token}}
+
+###
+# TC-M06 | HAPPY PATH | Cập nhật listing
+# Schema  : updateListingSchema — ít nhất 1 field (title, description, quantity, unitPrice)
+# Expected: HTTP 200 OK — listing object đã cập nhật
+PUT {{baseUrl}}/api/farm/marketplace/listings/{{listingId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Dâu Tây Đà Lạt Hữu Cơ — Giảm Giá Mùa Hè",
+  "unitPrice": 75000,
+  "quantity": 150
+}
+
+###
+# TC-M07 | SAD PATH | Cập nhật listing — Body rỗng
+# Expected: HTTP 400 Bad Request — "At least one field is required"
+PUT {{baseUrl}}/api/farm/marketplace/listings/{{listingId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+###
+# TC-M08 | HAPPY PATH | Xóa listing
+# Mô tả   : Farmer gỡ sản phẩm khỏi marketplace
+# Expected: HTTP 204 No Content
+DELETE {{baseUrl}}/api/farm/marketplace/listings/{{listingId}}
+Authorization: Bearer {{token}}
+
+###
+# TC-M09 | SAD PATH | Xóa listing — ID không tồn tại
+# Expected: HTTP 404 Not Found — "Listing not found"
+DELETE {{baseUrl}}/api/farm/marketplace/listings/non-existent-listing-id
+Authorization: Bearer {{token}}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODULE 5: SERVICE PACKAGES
+# Gateway Route: /api/farm/packages/** → farm-service
+# ═══════════════════════════════════════════════════════════════════
+
+###
+# TC-P01 | HAPPY PATH | Xem danh sách gói dịch vụ marketplace
+# Mô tả   : Public endpoint — không cần token
+# Expected: HTTP 200 OK — array các package objects (name, price, duration, maxListings...)
+GET {{baseUrl}}/api/farm/packages
+
+###
+# TC-P02 | HAPPY PATH | Đăng ký gói dịch vụ
+# Mô tả   : Farmer đăng ký gói dịch vụ → nhận paymentUrl để thanh toán
+# Schema  : subscribePackageSchema — farmId (required)
+# Note    : :id là ID của package (lấy từ TC-P01)
+# Expected: HTTP 201 Created — { paymentUrl, subscription }
+POST {{baseUrl}}/api/farm/packages/PKG-BASIC-001/subscribe
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}"
+}
+
+###
+# TC-P03 | SAD PATH | Đăng ký gói dịch vụ — Package ID không tồn tại
+# Expected: HTTP 404 Not Found — "Package not found"
+POST {{baseUrl}}/api/farm/packages/non-existent-pkg/subscribe
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "farmId": "{{farmId}}"
+}
+
+###
+# TC-P04 | HAPPY PATH | Xem gói dịch vụ đang active của farm
+# Schema  : myPackageQuerySchema — farmId (required query param)
+# Expected: HTTP 200 OK — { subscription, expiryDate, countdownSeconds }
+GET {{baseUrl}}/api/farm/packages/my?farmId={{farmId}}
+Authorization: Bearer {{token}}
+
+###
+# TC-P05 | SAD PATH | Xem gói dịch vụ — Farm không có gói active
+# Expected: HTTP 404 Not Found — "No active package"
+GET {{baseUrl}}/api/farm/packages/my?farmId=farm-without-package-id
+Authorization: Bearer {{token}}

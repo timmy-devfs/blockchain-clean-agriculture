@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
 }
 
 enum OrderStatus {
@@ -17,7 +17,7 @@ enum OrderStatus {
 }
 
 model Retailer {
-  id        String       @id @default(uuid())
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   email     String       @unique
   phone     String?
@@ -30,11 +30,12 @@ model Retailer {
 }
 
 model RetailOrder {
-  id              String               @id @default(uuid())
-  retailerId      String               @map("retailer_id")
+  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  retailerId      String               @map("retailer_id") @db.ObjectId
   productName     String               @map("product_name")
   quantity        Int
-  totalAmount     Decimal              @db.Decimal(10, 2) @map("total_amount")
+  // MongoDB schema: prefer Float for money-like numbers in this project
+  totalAmount     Float               @map("total_amount")
   status          OrderStatus          @default(PENDING_PAYMENT)
   qrCode          String?              @map("qr_code")
   createdAt       DateTime             @default(now()) @map("created_at")
@@ -47,8 +48,8 @@ model RetailOrder {
 }
 
 model OrderStatusHistory {
-  id         String      @id @default(uuid())
-  orderId    String      @map("order_id")
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  orderId    String      @map("order_id") @db.ObjectId
   fromStatus OrderStatus? @map("from_status")
   toStatus   OrderStatus @map("to_status")
   changedBy  String?     @map("changed_by")
