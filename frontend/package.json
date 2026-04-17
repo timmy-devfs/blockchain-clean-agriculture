@@ -1,0 +1,24 @@
+{
+  "name": "bicap-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:admin": "pnpm --filter web-admin dev",
+    "dev:farm": "pnpm --filter web-farm dev",
+    "dev:retailer": "pnpm --filter web-retailer dev",
+    "dev:shipping": "pnpm --filter web-shipping dev",
+    "dev:public": "pnpm --filter web-public dev",
+    "build:all": "pnpm --recursive build",
+    "typecheck": "pnpm --recursive exec tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.4.5"
+  }
+}
