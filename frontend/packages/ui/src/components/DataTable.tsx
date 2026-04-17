@@ -2,14 +2,14 @@
 
 import React from "react";
 
-export interface Column<T> {
+export interface Column<T extends object> {
   key: keyof T | string;
   header: string;
   render?: (value: unknown, row: T) => React.ReactNode;
   sortable?: boolean;
 }
 
-interface DataTableProps<T> {
+interface DataTableProps<T extends object> {
   columns: Column<T>[];
   data: T[];
   isLoading?: boolean;
@@ -30,7 +30,7 @@ function SkeletonRow({ cols }: { cols: number }) {
   );
 }
 
-export function DataTable<T extends Record<string, unknown>>({
+export function DataTable<T extends object>({
   columns,
   data,
   isLoading = false,
