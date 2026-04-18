@@ -11,7 +11,7 @@ import { EMAIL_KEY, TOKEN_KEY } from "@/lib/api";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, loginWithBiometric, isLoading, error } = useAuth();
+  const { login, isLoading, error } = useAuth();
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -39,11 +39,6 @@ export default function LoginScreen() {
       return;
     }
     const ok = await login(email, password, remember);
-    if (ok) router.replace("/(tabs)");
-  };
-
-  const handleBiometric = async () => {
-    const ok = await loginWithBiometric();
     if (ok) router.replace("/(tabs)");
   };
 
@@ -89,7 +84,8 @@ export default function LoginScreen() {
               <TextInput
                 value={password}
                 onChangeText={setPassword}
-                placeholder="••••••••"
+                //placeholder="••••••••"
+                placeholder="pass test: 123123"
                 secureTextEntry
                 className="border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900"
               />
@@ -126,20 +122,6 @@ export default function LoginScreen() {
                 {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
               </Text>
             </TouchableOpacity>
-
-            {/* Biometric Button */}
-            {biometricAvailable && hasSavedToken && (
-              <TouchableOpacity
-                onPress={handleBiometric}
-                disabled={isLoading}
-                className="rounded-2xl py-4 items-center border-2 border-gray-200"
-                activeOpacity={0.8}
-              >
-                <Text className="text-gray-700 font-semibold text-base">
-                  {Platform.OS === "ios" ? "🔒 Đăng nhập bằng Face ID" : "👆 Đăng nhập bằng vân tay"}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
         </View>
       </ScrollView>

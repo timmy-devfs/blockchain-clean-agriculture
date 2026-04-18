@@ -7,17 +7,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useShipmentDetail } from "@/hooks/useShipments";
 import { StatusTimeline } from "@/components/StatusTimeline";
 
-const STATUS_ACTION: Record<string, { label: string; next: string } | null> = {
-  ASSIGNED:   { label: "🔍 Bắt đầu nhận hàng", next: "scan" },
-  PICKED_UP:  { label: "🚚 Bắt đầu vận chuyển", next: "scan" },
-  IN_TRANSIT: { label: "✅ Xác nhận giao hàng",  next: "scan" },
-  DELIVERED:  null,
-  CANCELLED:  null,
+const STATUS_ACTION: Record<string, { label: string; actionType: string } | null> = {
+  ASSIGNED: { label: "🔍 Bắt đầu nhận hàng", actionType: "pickup" },
+  PICKED_UP: { label: "🚚 Bắt đầu vận chuyển", actionType: "scan_only" }, // Tạm thời
+  IN_TRANSIT: { label: "✅ Xác nhận giao hàng", actionType: "deliver" },
+  DELIVERED: null,
+  CANCELLED: null,
 };
 
 export default function ShipmentDetailScreen() {
-  const { id }   = useLocalSearchParams<{ id: string }>();
-  const router   = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
 
   const { data: shipment, isLoading } = useShipmentDetail(id);
 
@@ -37,8 +37,8 @@ export default function ShipmentDetailScreen() {
     );
   }
 
-  const action    = STATUS_ACTION[shipment.status];
-  const mapsUrl   = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(shipment.deliveryAddress)}`;
+  const action = STATUS_ACTION[shipment.status];
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(shipment.deliveryAddress)}`;
 
   return (
     <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
@@ -95,7 +95,10 @@ export default function ShipmentDetailScreen() {
         {/* Action Button — conditional by status */}
         {action && (
           <TouchableOpacity
-            onPress={() => router.push("/(tabs)/scan")}
+            onPress={() => router.push({
+              pathname: "/(tabs)/scan",
+              params: { shipmentId: id, actionType: action.actionType }
+            })}
             className="bg-green-500 rounded-2xl py-4 items-center shadow-sm"
             activeOpacity={0.85}
           >
