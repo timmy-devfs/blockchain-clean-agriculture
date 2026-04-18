@@ -77,14 +77,9 @@ export default function ScanScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!shipmentId || !photoUri || !qrData) {
-      Alert.alert("Lỗi", "Thiếu dữ liệu chuyến hàng hoặc ảnh chụp.");
-      return;
-    }
+    if (!shipmentId || !photoUri || !qrData) return;
 
-    const finalRecipientName = recipientName.trim() || activeShipment.retailerName;
-
-    // ─── BƯỚC 1: KIỂM TRA MẠNG TRƯỚC KHI GỬI ─────────────────────────────
+    const finalRecipientName = recipientName.trim() || activeShipment?.retailerName;
     const netState = await NetInfo.fetch();
 
     if (!netState.isConnected) {
@@ -100,12 +95,8 @@ export default function ScanScreen() {
         timestamp: Date.now()
       });
 
-      Alert.alert(
-        "Mất kết nối mạng 📡", 
-        "Hệ thống đã lưu lại ảnh và dữ liệu an toàn vào máy. App sẽ tự động gửi đi khi có mạng trở lại.",
-        [{ text: "Đã hiểu", onPress: () => router.back() }]
-      );
-      return; // Dừng lại ở đây, không gọi API nữa
+      Alert.alert("Mất mạng 📡", "Đã lưu dữ liệu. Sẽ tự động gửi khi có mạng lại.", [{ text: "OK", onPress: () => router.back() }]);
+      return;
     }
 
     // ─── BƯỚC 2: CÓ MẠNG -> GỌI API NHƯ BÌNH THƯỜNG ──────────────────────

@@ -27,7 +27,7 @@ export default function ProfileScreen() {
             await SecureStore.deleteItemAsync(TOKEN_KEY);
             await SecureStore.deleteItemAsync(REFRESH_KEY);
             qc.clear();
-            router.replace("/(auth)/login");
+            router.replace("/login");
           },
         },
       ]
