@@ -3,9 +3,9 @@ import * as SecureStore from "expo-secure-store";
 import type { ApiResponse, PageResponse } from "@bicap/types";
 
 // ─── Token keys ───────────────────────────────────────────────────────────
-export const TOKEN_KEY   = "bicap_access_token";
+export const TOKEN_KEY = "bicap_access_token";
 export const REFRESH_KEY = "bicap_refresh_token";
-export const EMAIL_KEY   = "bicap_remember_email";
+export const EMAIL_KEY = "bicap_remember_email";
 
 // ─── Axios instance cho mobile ────────────────────────────────────────────
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -119,4 +119,42 @@ export const shipmentApi = {
     api.get<ApiResponse<ShipmentDetail>>(
       `/api/shipping/driver/shipments/${id}`
     ).then((r) => r.data.data),
+
+
+  // Gửi API Nhận hàng (Pickup)
+  pickup: async (shipmentId: string, qrCode: string, photoUri: string) => {
+    const formData = new FormData();
+    formData.append("qrCode", qrCode);
+
+    // Ép kiểu (any) vì TypeScript chuẩn của DOM không khớp chuẩn của React Native FormData
+    formData.append("image", {
+      uri: photoUri,
+      name: "pickup_proof.jpg",
+      type: "image/jpeg",
+    } as any);
+
+    return api.post<ApiResponse<any>>(
+      `/api/shipping/driver/shipments/${shipmentId}/pickup`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
+
+  // Gửi API Giao hàng (Deliver)
+  deliver: async (shipmentId: string, recipientName: string, photoUri: string) => {
+    const formData = new FormData();
+    formData.append("recipientName", recipientName);
+
+    formData.append("image", {
+      uri: photoUri,
+      name: "deliver_proof.jpg",
+      type: "image/jpeg",
+    } as any);
+
+    return api.post<ApiResponse<any>>(
+      `/api/shipping/driver/shipments/${shipmentId}/deliver`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
 };

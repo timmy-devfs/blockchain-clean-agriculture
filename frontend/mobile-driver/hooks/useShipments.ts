@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { shipmentApi } from "@/lib/api";
 
 // Infinite scroll cho Shipments tab
@@ -49,6 +50,34 @@ export function useHomeStats() {
         activeCount: active.total,
         activeShipments: active.data,
       };
+    },
+  });
+}
+
+// Hook xử lý Pickup
+export function usePickupShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, qrCode, photoUri }: { id: string; qrCode: string; photoUri: string }) =>
+      shipmentApi.pickup(id, qrCode, photoUri),
+    onSuccess: (_, variables) => {
+      // Báo cho React Query biết data cũ đã lỗi thời, cần fetch lại
+      queryClient.invalidateQueries({ queryKey: ["shipment-detail", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["driver-shipments"] });
+    },
+  });
+}
+
+// Hook xử lý Deliver
+export function useDeliverShipment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, recipientName, photoUri }: { id: string; recipientName: string; photoUri: string }) =>
+      shipmentApi.deliver(id, recipientName, photoUri),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["shipment-detail", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["driver-shipments"] });
+      queryClient.invalidateQueries({ queryKey: ["driver-home-stats"] }); // Cập nhật thống kê trang chủ
     },
   });
 }
