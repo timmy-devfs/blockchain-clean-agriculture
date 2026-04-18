@@ -7,7 +7,7 @@ export const REFRESH_KEY = "bicap_refresh_token";
 export const EMAIL_KEY = "bicap_remember_email";
 
 // ─── TÍCH HỢP MOCK DB CHO CHẾ ĐỘ TEST ─────────────────────────────────────
-export const isMockMode = true; 
+export const isMockMode = true;
 
 const MOCK_DB = {
   users: [
@@ -26,7 +26,7 @@ const MOCK_DB = {
 };
 // ──────────────────────────────────────────────────────────────────────────
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8080";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
