@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentGateway {
+  VNPAY
+  MOMO
+}
+
+enum PaymentType {
+  DEPOSIT
+  FULL
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  payerId       String
+  orderId       String
+  amount        Float
+  type          PaymentType
+  gateway       PaymentGateway
+  status        PaymentStatus  @default(PENDING)
+  paymentUrl    String?
+  transactionId String?
+  paidAt        DateTime?
+  refundedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([payerId, createdAt])
+  @@index([orderId])
+}
