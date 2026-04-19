@@ -5,6 +5,7 @@ import { healthRouter } from "./routes/health.route";
 import { retailerRouter } from "./routes/retailer.route";
 import { marketplaceRouter } from "./routes/marketplace.route";
 import { orderRouter } from "./routes/order.route";
+import { retailFlowRouter } from "./routes/retailFlow.route";
 import { errorHandler } from "./middlewares/errorHandler";
 
 export const app = express();
@@ -17,5 +18,6 @@ app.use(healthRouter);
 app.use("/api/v1", retailerRouter);
 app.use("/api/retail", marketplaceRouter);
 app.use("/api/retail", orderRouter);
+app.use("/api/retail", retailFlowRouter);
 
 app.use(errorHandler);

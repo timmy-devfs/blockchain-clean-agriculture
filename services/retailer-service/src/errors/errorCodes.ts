@@ -12,7 +12,9 @@ export const errorCodes = {
   MARKETPLACE_UNAVAILABLE: { code: 3011, message: "Marketplace service unavailable", status: 503 },
   PAYMENT_SERVICE_ERROR: { code: 3012, message: "Payment service error", status: 502 },
   ORDER_CANCELLATION_NOT_ALLOWED: { code: 3013, message: "Order cancellation is not allowed", status: 400 },
-  INVALID_EVENT_PAYLOAD: { code: 3014, message: "Invalid event payload", status: 400 }
+  INVALID_EVENT_PAYLOAD: { code: 3014, message: "Invalid event payload", status: 400 },
+  QR_NOT_FOUND: { code: 3015, message: "QR not found", status: 404 },
+  PROFILE_NOT_FOUND: { code: 3016, message: "Retailer profile not found", status: 404 }
 } as const;
 
 export type ErrorCodeKey = keyof typeof errorCodes;

@@ -15,3 +15,13 @@ export const paymentAxios = axios.create({
   baseURL: env.PAYMENT_SERVICE_BASE_URL,
   timeout: 5000
 });
+
+export const shippingAxios = axios.create({
+  baseURL: env.SHIPPING_SERVICE_BASE_URL,
+  timeout: 5000
+});
+
+export const reportAxios = axios.create({
+  baseURL: env.REPORT_SERVICE_BASE_URL,
+  timeout: 5000
+});
