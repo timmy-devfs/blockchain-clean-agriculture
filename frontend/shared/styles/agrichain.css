@@ -1,0 +1,156 @@
+/* ══════════════════════════════════════════════
+   AUTH / LOGIN  — redesigned styles
+   Thêm vào cuối file agrichain.css
+══════════════════════════════════════════════ */
+
+/* Override cũ */
+.auth-shell {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: auto;
+  background: radial-gradient(ellipse at 60% 0%, #0d2e18 0%, #080D08 70%);
+}
+
+.auth-card {
+  width: min(460px, 100%);
+  background: rgba(14, 20, 14, 0.85);
+  border: 1px solid var(--border2);
+  border-radius: var(--r3);
+  padding: 28px 28px 22px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border);
+  backdrop-filter: blur(12px);
+}
+
+/* Brand pill ở trên */
+.auth-brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(34, 197, 94, 0.07);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  padding: 6px 14px 6px 8px;
+  margin-bottom: 18px;
+}
+
+.auth-brand-name {
+  font-family: var(--font-h);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.1px;
+}
+
+/* Heading */
+.auth-h1 {
+  font-family: var(--font-h);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  margin-bottom: 6px;
+}
+
+.auth-sub {
+  font-size: 13px;
+  color: var(--text3);
+  line-height: 1.45;
+  margin-bottom: 0;
+}
+
+/* Form container */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+/* Info hint box */
+.auth-info-box {
+  background: rgba(34, 197, 94, 0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.auth-info-box p {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.5;
+}
+
+.auth-info-box code {
+  font-size: 10px;
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--green);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* Actions row */
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.auth-submit {
+  flex: 1;
+}
+
+/* Footer note */
+.auth-footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 11px;
+  color: var(--text4);
+  letter-spacing: 0.2px;
+}
+
+/* Topbar buttons — đảm bảo có style nếu chưa có */
+.topbar-btn {
+  padding: 9px 18px;
+  border-radius: var(--r);
+  font-family: var(--font-b);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: 1px solid var(--border2);
+  outline: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+}
+
+.btn-ghost:hover {
+  background: var(--bg3);
+  border-color: var(--border3);
+}
+
+.btn-primary {
+  background: var(--green2);
+  color: #fff;
+  border-color: var(--green2);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--green3);
+  border-color: var(--green3);
+}
+
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

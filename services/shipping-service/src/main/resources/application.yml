@@ -1,5 +1,5 @@
 server:
-  port: 8084  # Cổng chạy service này
+  port: ${SHIPPING_PORT:8084}  # Cổng chạy service này
 
 spring:
   application:

@@ -7,6 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ReportRepository extends JpaRepository<Report, Long> {
+
+    // ── Dùng cho GET /api/reports/my ──
+    List<Report> findByReporterUserIdOrderByIdDesc(Long reporterUserId);
+
     List<Report> findByStatusOrderByIdDesc(ReportStatus status);
 
     List<Report> findByReporterRoleOrderByIdDesc(String reporterRole);

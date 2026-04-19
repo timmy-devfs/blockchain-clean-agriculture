@@ -1,11 +1,11 @@
 {
-  "name": "bicap-web-admin",
+  "name": "bicap-web-public",
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 3004",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p 3004",
     "lint": "next lint"
   },
   "dependencies": {

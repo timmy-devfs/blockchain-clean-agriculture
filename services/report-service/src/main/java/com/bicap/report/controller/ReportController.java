@@ -36,6 +36,17 @@ public class ReportController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created));
     }
 
+    // ── GET /api/reports/my — chỉ trả báo cáo của user đang login ──
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<?>> listMy(Authentication auth) {
+        Long userId = getUserId(auth);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(ErrorCode.UNAUTHORIZED));
+        }
+        List<Report> list = reportService.listForUser(userId);
+        return ResponseEntity.ok(ApiResponse.success(list));
+    }
+
     @GetMapping("/admin")
     public ResponseEntity<ApiResponse<?>> listAdmin(
             @RequestParam(required = false) ReportStatus status,
