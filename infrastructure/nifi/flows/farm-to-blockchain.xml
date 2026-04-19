@@ -1,22 +1,18 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  BICAP NiFi Flow: farm-to-blockchain
-  Mục đích: Monitor Kafka topic bicap.season.created → Verify blockchain write (txHash != null)
-  Sprint 5 (BIC-040): Implement đầy đủ tại đây
-  
-  Flow:
-    ConsumeKafka (bicap.season.created)
-      → Wait 30s (blockchain write time)
-      → InvokeHTTP GET http://blockchain-service:8090/api/chain/trace/{seasonId}
-      → RouteOnAttribute (txHash != null → SUCCESS, null → ALERT)
-      → PutEmail / LogAttribute (khi ALERT)
+  BICAP NiFi template: farm-to-blockchain.xml
+  Goal: Monitor bicap.season.created, wait 30s, verify txHash from blockchain-service.
+
+  Expected chain:
+  ConsumeKafka -> EvaluateJsonPath(seasonId) -> Wait(30s) -> InvokeHTTP(trace API)
+  -> EvaluateJsonPath(txHash) -> RouteOnAttribute(SUCCESS/ALERT) -> LogAttribute
 -->
 <template encoding-version="1.0">
-  <description>BICAP Farm Season to Blockchain Verification — Monitor Kafka and verify blockchain txHash</description>
-  <name>BICAP_Farm_To_Blockchain</name>
+  <description>Flow 2 - Blockchain monitor for season.created events with txHash verification.</description>
+  <name>BICAP_FARM_TO_BLOCKCHAIN</name>
   <snippet>
     <processors>
-      <id>kafka-consumer-001</id>
+      <id>farm-kafka-001</id>
       <name>ConsumeKafka_SeasonCreated</name>
       <type>org.apache.nifi.processors.kafka.pubsub.ConsumeKafka_2_6</type>
       <config>
@@ -34,5 +30,164 @@
         </property>
       </config>
     </processors>
+
+    <processors>
+      <id>farm-eval-season-001</id>
+      <name>EvaluateJsonPath_SeasonId</name>
+      <type>org.apache.nifi.processors.standard.EvaluateJsonPath</type>
+      <config>
+        <property>
+          <name>Destination</name>
+          <value>flowfile-attribute</value>
+        </property>
+        <property>
+          <name>seasonId</name>
+          <value>$.seasonId</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-wait-001</id>
+      <name>Wait_30sForBlockchainWrite</name>
+      <type>org.apache.nifi.processors.standard.Wait</type>
+      <config>
+        <property>
+          <name>Release Signal Identifier</name>
+          <value>${seasonId}</value>
+        </property>
+        <property>
+          <name>Target Signal Count</name>
+          <value>1</value>
+        </property>
+        <property>
+          <name>Wait Buffer Count</name>
+          <value>1</value>
+        </property>
+        <property>
+          <name>Wait Timeout</name>
+          <value>30 sec</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-http-verify-001</id>
+      <name>InvokeHTTP_VerifyTrace</name>
+      <type>org.apache.nifi.processors.standard.InvokeHTTP</type>
+      <config>
+        <property>
+          <name>HTTP Method</name>
+          <value>GET</value>
+        </property>
+        <property>
+          <name>Remote URL</name>
+          <value>http://blockchain-service:8090/api/chain/trace/${seasonId}</value>
+        </property>
+        <property>
+          <name>Accept</name>
+          <value>application/json</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-eval-tx-001</id>
+      <name>EvaluateJsonPath_TxHash</name>
+      <type>org.apache.nifi.processors.standard.EvaluateJsonPath</type>
+      <config>
+        <property>
+          <name>Destination</name>
+          <value>flowfile-attribute</value>
+        </property>
+        <property>
+          <name>txHash</name>
+          <value>$.txHash</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-route-001</id>
+      <name>RouteOnAttribute_SuccessAlert</name>
+      <type>org.apache.nifi.processors.standard.RouteOnAttribute</type>
+      <config>
+        <property>
+          <name>SUCCESS</name>
+          <value>${txHash:isEmpty():not()}</value>
+        </property>
+        <property>
+          <name>ALERT</name>
+          <value>${txHash:isEmpty()}</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-log-success-001</id>
+      <name>LogAttribute_BlockchainSuccess</name>
+      <type>org.apache.nifi.processors.standard.LogAttribute</type>
+      <config>
+        <property>
+          <name>Log Level</name>
+          <value>info</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>farm-log-alert-001</id>
+      <name>LogAttribute_BlockchainAlert</name>
+      <type>org.apache.nifi.processors.standard.LogAttribute</type>
+      <config>
+        <property>
+          <name>Log Level</name>
+          <value>error</value>
+        </property>
+      </config>
+    </processors>
+
+    <connections>
+      <name>Kafka_to_SeasonId</name>
+      <source-id>farm-kafka-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>farm-eval-season-001</destination-id>
+    </connections>
+    <connections>
+      <name>SeasonId_to_Wait</name>
+      <source-id>farm-eval-season-001</source-id>
+      <source-relationship-name>matched</source-relationship-name>
+      <destination-id>farm-wait-001</destination-id>
+    </connections>
+    <connections>
+      <name>Wait_to_Verify</name>
+      <source-id>farm-wait-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>farm-http-verify-001</destination-id>
+    </connections>
+    <connections>
+      <name>Verify_to_TxHash</name>
+      <source-id>farm-http-verify-001</source-id>
+      <source-relationship-name>response</source-relationship-name>
+      <destination-id>farm-eval-tx-001</destination-id>
+    </connections>
+    <connections>
+      <name>TxHash_to_Route</name>
+      <source-id>farm-eval-tx-001</source-id>
+      <source-relationship-name>matched</source-relationship-name>
+      <destination-id>farm-route-001</destination-id>
+    </connections>
+    <connections>
+      <name>RouteSuccess_to_Log</name>
+      <source-id>farm-route-001</source-id>
+      <source-relationship-name>SUCCESS</source-relationship-name>
+      <destination-id>farm-log-success-001</destination-id>
+    </connections>
+    <connections>
+      <name>RouteAlert_to_Log</name>
+      <source-id>farm-route-001</source-id>
+      <source-relationship-name>ALERT</source-relationship-name>
+      <destination-id>farm-log-alert-001</destination-id>
+    </connections>
   </snippet>
 </template>
