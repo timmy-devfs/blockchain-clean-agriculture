@@ -1,30 +1,175 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-  BICAP NiFi Flow: iot-to-redis
-  Mục đích: Poll IoT device API mỗi 5 phút → POST batch data → iot-service
-  Sprint 5 (BIC-040): Implement đầy đủ tại đây
-  
-  Flow:
-    GenerateFlowFile (trigger 5 phút)
-      → InvokeHTTP GET http://iot-device/api/sensors
-      → ValidateRecord (check schema)
-      → InvokeHTTP POST http://iot-service:8087/api/iot/sensors/data
-      → LogAttribute (success/failure)
+  BICAP NiFi template: iot-to-redis.xml
+  Goal: Poll IoT source every 5 minutes, validate payload, then POST to iot-service.
+
+  Expected chain:
+  GenerateFlowFile (5 min)
+    -> InvokeHTTP (GET IoT source)
+    -> ValidateRecord (JSON schema)
+    -> RouteOnAttribute (valid / invalid)
+    -> InvokeHTTP (POST /api/iot/sensors/data)
+    -> LogAttribute
 -->
 <template encoding-version="1.0">
-  <description>BICAP IoT Sensor Data Sync — Poll device API every 5 minutes and push to iot-service</description>
-  <name>BICAP_IoT_To_Redis</name>
+  <description>Flow 1 - IoT Sync every 5 minutes with validation and invalid queue routing.</description>
+  <name>BICAP_IOT_TO_REDIS</name>
   <snippet>
     <processors>
       <id>iot-trigger-001</id>
-      <name>GenerateFlowFile_5min_Trigger</name>
+      <name>GenerateFlowFile_5min</name>
       <type>org.apache.nifi.processors.standard.GenerateFlowFile</type>
       <config>
+        <property>
+          <name>scheduling-strategy</name>
+          <value>TIMER_DRIVEN</value>
+        </property>
         <property>
           <name>scheduling-period</name>
           <value>5 min</value>
         </property>
+        <property>
+          <name>custom-text</name>
+          <value>{"trigger":"iot-poll"}</value>
+        </property>
       </config>
     </processors>
+
+    <processors>
+      <id>iot-http-get-001</id>
+      <name>InvokeHTTP_GetIoTData</name>
+      <type>org.apache.nifi.processors.standard.InvokeHTTP</type>
+      <config>
+        <property>
+          <name>HTTP Method</name>
+          <value>GET</value>
+        </property>
+        <property>
+          <name>Remote URL</name>
+          <value>http://iot-device:8080/api/sensors</value>
+        </property>
+        <property>
+          <name>Accept</name>
+          <value>application/json</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>iot-validate-001</id>
+      <name>ValidateRecord_IoTSchema</name>
+      <type>org.apache.nifi.processors.standard.ValidateRecord</type>
+      <config>
+        <property>
+          <name>Record Reader</name>
+          <value>JsonTreeReader</value>
+        </property>
+        <property>
+          <name>Schema Access Strategy</name>
+          <value>schema-text-property</value>
+        </property>
+        <property>
+          <name>Schema Text</name>
+          <value>{"type":"array","items":{"type":"object","required":["farmId","sensorId","type","value","unit"],"properties":{"farmId":{"type":"string"},"sensorId":{"type":"string"},"type":{"type":"string"},"value":{"type":"number"},"unit":{"type":"string"}}}}</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>iot-route-001</id>
+      <name>RouteOnAttribute_ValidInvalid</name>
+      <type>org.apache.nifi.processors.standard.RouteOnAttribute</type>
+      <config>
+        <property>
+          <name>valid</name>
+          <value>${record.error.message:isEmpty()}</value>
+        </property>
+        <property>
+          <name>invalid</name>
+          <value>${record.error.message:isEmpty():not()}</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>iot-http-post-001</id>
+      <name>InvokeHTTP_PostToIoTService</name>
+      <type>org.apache.nifi.processors.standard.InvokeHTTP</type>
+      <config>
+        <property>
+          <name>HTTP Method</name>
+          <value>POST</value>
+        </property>
+        <property>
+          <name>Remote URL</name>
+          <value>http://iot-service:8087/api/iot/sensors/data</value>
+        </property>
+        <property>
+          <name>Content-Type</name>
+          <value>application/json</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>iot-log-success-001</id>
+      <name>LogAttribute_IoTSyncSuccess</name>
+      <type>org.apache.nifi.processors.standard.LogAttribute</type>
+      <config>
+        <property>
+          <name>Log Level</name>
+          <value>info</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>iot-log-invalid-001</id>
+      <name>LogAttribute_IoTInvalidQueue</name>
+      <type>org.apache.nifi.processors.standard.LogAttribute</type>
+      <config>
+        <property>
+          <name>Log Level</name>
+          <value>warn</value>
+        </property>
+      </config>
+    </processors>
+
+    <connections>
+      <name>Generate_to_Get</name>
+      <source-id>iot-trigger-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>iot-http-get-001</destination-id>
+    </connections>
+    <connections>
+      <name>Get_to_Validate</name>
+      <source-id>iot-http-get-001</source-id>
+      <source-relationship-name>response</source-relationship-name>
+      <destination-id>iot-validate-001</destination-id>
+    </connections>
+    <connections>
+      <name>Validate_to_Route</name>
+      <source-id>iot-validate-001</source-id>
+      <source-relationship-name>valid</source-relationship-name>
+      <destination-id>iot-route-001</destination-id>
+    </connections>
+    <connections>
+      <name>RouteValid_to_Post</name>
+      <source-id>iot-route-001</source-id>
+      <source-relationship-name>valid</source-relationship-name>
+      <destination-id>iot-http-post-001</destination-id>
+    </connections>
+    <connections>
+      <name>Post_to_LogSuccess</name>
+      <source-id>iot-http-post-001</source-id>
+      <source-relationship-name>response</source-relationship-name>
+      <destination-id>iot-log-success-001</destination-id>
+    </connections>
+    <connections>
+      <name>RouteInvalid_to_LogWarn</name>
+      <source-id>iot-route-001</source-id>
+      <source-relationship-name>invalid</source-relationship-name>
+      <destination-id>iot-log-invalid-001</destination-id>
+    </connections>
   </snippet>
 </template>
