@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PLACED
+  CONFIRMED
+  SHIPPING
+  DELIVERED
+  CANCELLED
+}
+
+model Retailer {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String       @unique
+  phone     String?
+  address   String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  orders    RetailOrder[]
+
+  @@map("retailers")
+}
+
+model RetailOrder {
+  id              String               @id @default(auto()) @map("_id") @db.ObjectId
+  retailerId      String               @map("retailer_id") @db.ObjectId
+  productName     String               @map("product_name")
+  quantity        Int
+  // MongoDB schema: prefer Float for money-like numbers in this project
+  totalAmount     Float               @map("total_amount")
+  status          OrderStatus          @default(PENDING_PAYMENT)
+  qrCode          String?              @map("qr_code")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  retailer        Retailer             @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  statusHistories OrderStatusHistory[]
+
+  @@index([retailerId])
+  @@map("retail_orders")
+}
+
+model OrderStatusHistory {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  orderId    String      @map("order_id") @db.ObjectId
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus @map("to_status")
+  changedBy  String?     @map("changed_by")
+  note       String?
+  createdAt  DateTime    @default(now()) @map("created_at")
+  order      RetailOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_status_history")
+}

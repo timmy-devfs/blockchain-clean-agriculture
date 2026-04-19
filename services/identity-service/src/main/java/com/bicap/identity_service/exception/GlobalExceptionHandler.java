@@ -3,6 +3,7 @@ package com.bicap.identity_service.exception;
 import com.bicap.identity_service.common.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -34,9 +35,11 @@ public class GlobalExceptionHandler {
 
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String field   = ((FieldError) error).getField();
-            String message = error.getDefaultMessage();
-            errors.put(field, message);
+            if (error instanceof FieldError fieldError) {
+                errors.put(fieldError.getField(), fieldError.getDefaultMessage());
+            } else {
+                errors.put(error.getObjectName(), error.getDefaultMessage());
+            }
         });
 
         return ResponseEntity
@@ -46,6 +49,17 @@ public class GlobalExceptionHandler {
                         .message("Validation failed")
                         .data(errors)
                         .build());
+    }
+
+    // ── JSON không đọc được (body thiếu, sai format, bị cắt khi gọi curl trên Windows) ──
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException ex) {
+        log.warn("Request body not readable: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(
+                        ErrorCode.VALIDATION_ERROR.getCode(),
+                        "Invalid or malformed JSON request body"));
     }
 
     // ── Access Denied ─────────────────────────────────────────

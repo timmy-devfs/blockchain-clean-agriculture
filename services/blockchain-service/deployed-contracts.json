@@ -1,0 +1,15 @@
+{
+  "network": "testnet",
+  "deployedAt": "2026-03-26T04:11:40.489Z",
+  "deployer": "0xdd4df278200505d0851971b53578773ec34a6ddf",
+  "contracts": {
+    "FarmTrace": {
+      "address": "0xafb6ecd9422a3245e958c6bc83bab377a74afd10",
+      "txHash": "0x975866fabcee44b2ce96cd01dc1e4220aa268ae3aa2d45e50cf79d7a2844cd35"
+    },
+    "ProductCertification": {
+      "address": "0x93f0286e4a69188417efd726e566cff69f033912",
+      "txHash": "0x03045d55618a69220ba67a5fbf46a3ac17fbfeb21aa0da032ab6505acbf08b58"
+    }
+  }
+}
