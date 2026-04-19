@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum SensorType {
+  TEMP
+  HUMIDITY
+  PH
+}
+
+model SensorReading {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  farmId    String
+  sensorId  String
+  type      SensorType
+  value     Float
+  unit      String
+  isAlert   Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([farmId, createdAt])
+  @@index([farmId, type, createdAt])
+  @@index([farmId, sensorId, type, createdAt])
+}
