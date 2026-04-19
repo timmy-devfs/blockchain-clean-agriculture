@@ -1,4 +1,4 @@
-import { SeasonStatus } from "../constants/enums";
+import { SeasonStatus } from "@prisma/client";
 import { z } from "zod";
 
 export const createSeasonSchema = z.object({

@@ -46,3 +46,6 @@ logs/
 coverage/
 .nyc_output/
 test-results/
+
+# ── Typescript Build Cache ───────────────────────────────────
+*.tsbuildinfo

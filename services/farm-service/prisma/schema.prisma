@@ -17,6 +17,7 @@ enum SeasonStatus {
 enum OrderStatus {
   PENDING
   CONFIRMED
+  REJECTED
   CANCELLED
   COMPLETED
 }
@@ -99,6 +100,7 @@ model MarketplaceListing {
 
 model FarmOrder {
   id              String            @id @default(auto()) @map("_id") @db.ObjectId
+  externalOrderId String            @unique
   farmId          String            @db.ObjectId
   seasonId        String            @db.ObjectId
   listingId       String            @db.ObjectId
@@ -106,6 +108,7 @@ model FarmOrder {
   quantity        Float
   totalAmount     Float
   status          OrderStatus       @default(PENDING)
+  rejectReason    String?
   deliveryAddress String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt

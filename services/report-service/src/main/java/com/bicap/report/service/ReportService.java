@@ -37,6 +37,11 @@ public class ReportService {
         return reportRepository.save(report);
     }
 
+    // ── Chỉ trả báo cáo của user đang login ──
+    public List<Report> listForUser(Long userId) {
+        return reportRepository.findByReporterUserIdOrderByIdDesc(userId);
+    }
+
     public List<Report> listForAdmin(ReportStatus status, String role) {
         if (status != null && role != null && !role.isBlank()) {
             return reportRepository.findByStatusAndReporterRoleOrderByIdDesc(status, role);
