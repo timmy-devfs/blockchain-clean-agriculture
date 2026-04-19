@@ -160,6 +160,47 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # ── SHIPPING SERVICE (Spring Boot) ─────────────────────────────
+  shipping-service:
+    build:
+      context: ./services/shipping-service
+      dockerfile: Dockerfile
+    container_name: bicap-shipping-service
+    networks: [bicap-network]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      SHIPPING_PORT: 8084
+      SHIPPING_DB_HOST: postgres
+      SHIPPING_DB_PORT: 5432
+      SHIPPING_DB_NAME: shipping_db
+      SHIPPING_DB_USER: postgres
+      SHIPPING_DB_PASSWORD: postgres
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: unless-stopped
+
+  # ── WEB SHIPPING (Next.js) ────────────────────────────────────
+  web-shipping:
+    build:
+      context: ./frontend/web-shipping
+      dockerfile: Dockerfile
+    container_name: bicap-web-shipping
+    networks: [bicap-network]
+    depends_on:
+      shipping-service:
+        condition: service_started
+    ports:
+      - "3003:3003"
+    environment:
+      # in-browser calls go to host-mapped port; inside container SSR is minimal here
+      NEXT_PUBLIC_SHIPPING_API_BASE: http://localhost:8084
+    restart: unless-stopped
+
   # ── NIFI ──────────────────────────────────────────────────────
   nifi:
     image: apache/nifi:1.23.0
