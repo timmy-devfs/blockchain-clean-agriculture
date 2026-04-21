@@ -44,14 +44,14 @@ export function StatusTimeline({ history }: StatusTimelineProps) {
         const isLast = index === history.length - 1;
         const colorClass = STATUS_COLORS[item.status] || 'bg-gray-400';
         const label = STATUS_LABELS[item.status] || item.status;
-        
+
         return (
           <View key={item.id} className="flex-row items-start relative">
             {/* Timeline Line */}
             {!isLast && (
               <View className="absolute left-[11px] top-[14px] bottom-[-24px] w-[2px] bg-gray-200" />
             )}
-            
+
             {/* Timeline Dot */}
             <View className="w-6 items-center mt-1 z-10">
               <View className={`w-3 h-3 rounded-full ${colorClass} ring-4 ring-white`} />

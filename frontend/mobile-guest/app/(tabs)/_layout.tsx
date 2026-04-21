@@ -1,12 +1,17 @@
 import { Tabs } from 'expo-router';
 import { Home, Search, QrCode, Newspaper } from 'lucide-react-native';
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 export default function TabLayout() {
+
+    const insets = useSafeAreaInsets();
+
     return (
         <Tabs screenOptions={{
             tabBarActiveTintColor: '#22c55e',
             headerShown: false,
-            tabBarStyle: { height: 60, paddingBottom: 8 }
+            tabBarStyle: { height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom }
         }}>
             <Tabs.Screen name="index" options={{
                 title: 'Trang chủ',

@@ -84,7 +84,7 @@ export default function ScanScreen() {
 
     if (!netState.isConnected) {
       // ⚠️ MẤT MẠNG -> LƯU VÀO OFFLINE QUEUE
-      const actionPayload = actionType === "pickup" 
+      const actionPayload = actionType === "pickup"
         ? { id: shipmentId, qrCode: qrData, photoUri }
         : { id: shipmentId, recipientName: finalRecipientName, photoUri };
 

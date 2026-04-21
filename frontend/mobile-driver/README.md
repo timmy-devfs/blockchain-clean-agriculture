@@ -64,21 +64,123 @@ frontend/mobile-driver/
 - thêm " \emulator " vào cuối đường dẫn
 - dán vào setting -> emulator -> Emulator: Emulator Path
 
-**1. Cài đặt các thư viện phụ thuộc (`node_modules`)**
+**1. Cài Tools & Login**
 
-```bash
-npm install
-```
+Cài EAS CLI toàn cục và đăng nhập tài khoản Expo:
 
-**2. Bật môi trường giả lập Server (Metro Bundler)**
+# Cài EAS CLI global
+npm install -g eas-cli
+ 
+# Đăng nhập tài khoản Expo (tạo tại expo.dev nếu chưa có)
+eas login
+ 
+# Kiểm tra đã login chưa
+eas whoami
 
-```bash
-npx expo start -c
-```
-*(Option `-c` để xóa cache trước khi chạy tránh các lỗi khởi tạo tiềm ẩn)*
+✅  Tạo tài khoản Expo miễn phí tại https://expo.dev — cần thiết để dùng EAS Build.
 
-Sau khi quét hoàn thiện, Terminal sẽ hiển thị một mã QR Code:
-- **Thiết bị thật:** Mở ứng dụng điện thoại quét mã QR hoặc đăng nhập tài khoản expo.
-- **Android Emulator:** Giữ tab Terminal, nhấn nút `a`.
-- **iOS Simulator:** Giữ tab Terminal, nhấn nút `i`. 
-- **Phiên bản Web:** Giữ tab Terminal, nhấn nút `w` (Dù ứng dụng tập trung mobile, nhưng tuỳ vào cấu hình react-native-web có thể xem được giao diện hạn chế trên trình duyệt).
+**2. Cài Packages vào Project**
+Vào thư mục project và cài các dependencies cần thiết:
+ 
+npx expo install @react-native-firebase/app
+npx expo install @react-native-firebase/messaging
+npx expo install expo-dev-client
+npx expo install @notifee/react-native
+
+**3. Firebase Console**
+
+1.Vào https://console.firebase.google.com
+2.Tạo project mới → bấm icon Android
+3.Điền package name: com.bicap.mobiledriver → Register app
+4.Download google-services.json → đặt vào root project
+
+Cấu trúc thư mục sau khi đặt file:
+
+mobile-driver/
+├── google-services.json       ← đặt ở đây
+├── app.json
+├── package.json
+├── eas.json
+└── app/
+
+⚠️  Package name trong app.json PHẢI KHỚP HOÀN TOÀN với package_name trong google-services.json.
+
+**4. Cấu hình app.json**
+
+File app.json hoàn chỉnh cho project mobile-driver:
+
+{
+  "expo": {
+    "name": "mobile-driver",
+    "slug": "mobile-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "mobiledriver",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
+    "android": {
+      "googleServicesFile": "./google-services.json",
+      "package": "com.bicap.mobiledriver",
+      "adaptiveIcon": { ... },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-firebase/app",
+      [
+        "@react-native-firebase/messaging",
+        {
+          "ios": {
+            "permissions": ["Alert", "Badge", "Sound"]
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": { "projectId": "c01078d3-9cf2-40d0-a291-fe464662e67a" }
+    }
+  }
+}
+
+**5. Cấu hình EAS**
+
+eas build:configure
+
+File eas.json sinh ra sẽ có dạng:
+
+**6. Build APK**
+
+eas build --profile development --platform android
+
+Quá trình build diễn ra trên server EAS:
+•Compress & upload project files
+•EAS server cài dependencies, prebuild native code
+•Ký APK bằng keystore
+•Trả về link tải file .apk (mất 5–15 phút)
+
+✅  Có thể theo dõi tiến trình build tại: https://expo.dev/accounts/trughau/projects/mobile-driver
+
+**7. Cài APK lên Máy Thật**
+
+1.Tải file .apk từ link EAS cung cấp
+2.Chuyển file vào điện thoại Android (USB hoặc cloud)
+3.Mở file .apk → Install → Open
+
+**8. Test Push Notification**
+
+Vào Firebase Console → Engage → Messaging → Send your first message:
+
+Field	Giá trị ví dụ
+Title	Đơn hàng mới
+Body	Bạn có đơn giao hàng mới từ farm Đà Lạt
+Target	App: com.bicap.mobiledriver
+
+✅  Điện thoại cài APK development sẽ nhận được notification ngay lập tức.
+
+npx kill-port 8081
+npx expo start --dev-client

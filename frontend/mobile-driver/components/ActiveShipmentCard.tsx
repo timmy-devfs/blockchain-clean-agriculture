@@ -4,9 +4,9 @@ import { useRouter } from "expo-router";
 import type { ShipmentListItem } from "@/lib/api";
 
 const STATUS_TEXT: Record<string, string> = {
-  ASSIGNED:    "Đã phân công",
-  PICKED_UP:   "Đã lấy hàng",
-  IN_TRANSIT:  "Đang giao hàng",
+  ASSIGNED: "Đã phân công",
+  PICKED_UP: "Đã lấy hàng",
+  IN_TRANSIT: "Đang giao hàng",
 };
 
 interface Props { shipment: ShipmentListItem; }
