@@ -4,21 +4,21 @@ import { useRouter } from "expo-router";
 import type { ShipmentListItem } from "@/lib/api";
 
 const STATUS_COLORS: Record<string, string> = {
-  ASSIGNED:    "bg-gray-100",
-  PICKED_UP:   "bg-yellow-100",
-  IN_TRANSIT:  "bg-blue-100",
-  DELAYED:     "bg-orange-100",
-  DELIVERED:   "bg-green-100",
-  CANCELLED:   "bg-red-100",
+  ASSIGNED: "bg-gray-100",
+  PICKED_UP: "bg-yellow-100",
+  IN_TRANSIT: "bg-blue-100",
+  DELAYED: "bg-orange-100",
+  DELIVERED: "bg-green-100",
+  CANCELLED: "bg-red-100",
 };
 
 const STATUS_TEXT: Record<string, string> = {
-  ASSIGNED:    "Đã phân công",
-  PICKED_UP:   "Đã nhận hàng",
-  IN_TRANSIT:  "Đang giao",
-  DELAYED:     "Bị trì hoãn",
-  DELIVERED:   "Đã giao",
-  CANCELLED:   "Đã hủy",
+  ASSIGNED: "Đã phân công",
+  PICKED_UP: "Đã nhận hàng",
+  IN_TRANSIT: "Đang giao",
+  DELAYED: "Bị trì hoãn",
+  DELIVERED: "Đã giao",
+  CANCELLED: "Đã hủy",
 };
 
 interface Props { shipment: ShipmentListItem; }

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { Zap, ZapOff } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -10,34 +10,25 @@ export default function ScanScreen() {
   const [scanned, setScanned] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
 
-  // Xử lý xin quyền Camera khi mở Tab
-  useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
-  }, [permission]);
-
-  if (!permission) {
-    return <View className="flex-1 bg-black" />;
-  }
+  if (!permission) return <View style={{ flex: 1, backgroundColor: 'black' }} />;
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50 px-6">
-        <Text className="text-center text-gray-700 text-base mb-4">
-          Chúng tôi cần quyền truy cập Camera để quét mã nguồn gốc nông sản.
+      <View className="flex-1 items-center justify-center bg-gray-900 px-6">
+        <Text className="text-white text-center text-lg mb-6">
+          Ứng dụng cần quyền truy cập Camera.
         </Text>
         <TouchableOpacity
           onPress={requestPermission}
-          className="bg-green-600 px-6 py-3 rounded-xl"
+          className="bg-green-500 py-3 px-6 rounded-xl"
         >
-          <Text className="text-white font-bold text-center">Cấp quyền Camera</Text>
+          <Text className="text-white font-bold text-base">Cấp quyền Camera</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Hàm cốt lõi: Xử lý dữ liệu khi quét trúng mã QR
+  // ─── LOGIC CỐT LÕI: Giữ nguyên từ file 2 ────────────────────────────────
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
@@ -45,64 +36,171 @@ export default function ScanScreen() {
     try {
       let finalSeasonId = data;
 
-      // Xử lý bóc tách URL từ Backend của Hậu sinh ra
-      // Ví dụ data: "http://192.168.1.x:8090/api/chain/trace/SS-2024-001"
       if (data.includes('/api/chain/trace/')) {
         const parts = data.split('/');
-        finalSeasonId = parts[parts.length - 1]; // Lấy phần tử cuối cùng
-      }
-      // Xử lý bóc tách link Frontend (Nếu mã in trên bao bì là link web)
-      else if (data.includes('/trace/')) {
+        finalSeasonId = parts[parts.length - 1];
+      } else if (data.includes('/trace/')) {
         const parts = data.split('/trace/');
         finalSeasonId = parts[1];
       }
 
-      console.log("Mã gốc quét được:", data);
-      console.log("Season ID đã trích xuất:", finalSeasonId);
+      console.log('Mã gốc quét được:', data);
+      console.log('Season ID đã trích xuất:', finalSeasonId);
 
-      // Chuyển hướng sang trang Truy xuất nguồn gốc
       router.push({
-        pathname: "/trace/[qrCode]",
-        params: { qrCode: finalSeasonId }
+        pathname: '/trace/[qrCode]',
+        params: { qrCode: finalSeasonId },
       });
 
-      // Reset trạng thái sau 2 giây để người dùng ấn Back ra quét mã khác được luôn
       setTimeout(() => setScanned(false), 2000);
-
     } catch (error) {
-      Alert.alert("Lỗi mã QR", "Mã QR không hợp lệ hoặc không thuộc hệ thống BICAP.");
+      Alert.alert('Lỗi mã QR', 'Mã QR không hợp lệ hoặc không thuộc hệ thống BICAP.');
       setTimeout(() => setScanned(false), 2000);
     }
   };
 
   return (
-    <View className="flex-1 bg-black">
-      {/* 1. Camera để độc lập, KHÔNG chứa children bên trong */}
+    <View style={{ flex: 1, backgroundColor: 'black' }}>
+      {/* Camera phủ toàn màn hình */}
       <CameraView
-        style={{ flex: 1 }}
+        style={StyleSheet.absoluteFillObject}
         facing="back"
         enableTorch={torchEnabled}
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
       />
 
-      {/* 2. Khung Viewfinder nổi lên trên (Absolute) */}
-      <View style={StyleSheet.absoluteFillObject} className="z-10 pointer-events-none bg-black/60">
-        <View className="flex-1 items-center justify-center">
-          <View className="w-72 h-72 border-2 border-green-500 rounded-3xl bg-transparent" />
-          <Text className="text-white mt-8 text-center px-10 text-base font-medium">
-            Hướng Camera vào mã QR trên bao bì sản phẩm
+      {/* ─── Overlay layout: giống cấu trúc file 1 ─────────────────────── */}
+      <View style={styles.overlay}>
+        {/* Top */}
+        <View style={styles.topOverlay}>
+          <Text style={styles.instructionText}>
+            {scanned
+              ? 'Đã quét! Đang xử lý...'
+              : 'Hướng Camera vào mã QR trên bao bì sản phẩm'}
           </Text>
         </View>
-      </View>
 
-      {/* 3. Nút Flash nổi lên trên */}
-      <TouchableOpacity
-        onPress={() => setTorchEnabled(!torchEnabled)}
-        className="absolute bottom-16 self-center bg-black/50 p-4 rounded-full border border-white/30 z-20"
-      >
-        {torchEnabled ? <Zap color="#fef08a" size={28} /> : <ZapOff color="white" size={28} />}
-      </TouchableOpacity>
+        {/* Middle row */}
+        <View style={styles.middleRow}>
+          <View style={styles.sideOverlay} />
+
+          {/* Viewfinder với 4 góc xanh */}
+          <View style={styles.viewfinder}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
+          </View>
+
+          <View style={styles.sideOverlay} />
+        </View>
+
+        {/* Bottom */}
+        <View style={styles.bottomOverlay}>
+          {/* Nút Flash — giữ logic toggle từ file 2 */}
+          <TouchableOpacity
+            onPress={() => setTorchEnabled(!torchEnabled)}
+            style={[
+              styles.torchButton,
+              torchEnabled && styles.torchButtonActive,
+            ]}
+          >
+            <Ionicons
+              name={torchEnabled ? 'flash' : 'flash-off'}
+              size={24}
+              color={torchEnabled ? 'black' : 'white'}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
+
+const overlayColor = 'rgba(0,0,0,0.6)';
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+  },
+  topOverlay: {
+    flex: 1,
+    backgroundColor: overlayColor,
+    justifyContent: 'flex-end',
+    paddingBottom: 16,
+    alignItems: 'center',
+  },
+  instructionText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  middleRow: {
+    flexDirection: 'row',
+    height: 250,
+  },
+  sideOverlay: {
+    flex: 1,
+    backgroundColor: overlayColor,
+  },
+  viewfinder: {
+    width: 250,
+    height: 250,
+    backgroundColor: 'transparent',
+    position: 'relative',
+  },
+  bottomOverlay: {
+    flex: 1,
+    backgroundColor: overlayColor,
+    alignItems: 'center',
+    paddingTop: 24,
+  },
+  torchButton: {
+    padding: 16,
+    borderRadius: 9999,
+    backgroundColor: 'rgba(30,30,30,0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  torchButtonActive: {
+    backgroundColor: '#facc15',
+  },
+  // 4 góc xanh — giống hệt file 1
+  corner: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderColor: '#22c55e',
+  },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 16,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 16,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 16,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 16,
+  },
+});
