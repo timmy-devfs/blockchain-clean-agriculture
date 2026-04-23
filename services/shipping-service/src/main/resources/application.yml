@@ -5,16 +5,18 @@ spring:
   application:
     name: shipping-service
 
-  # Kết nối PostgreSQL
+  # Kết nối MySQL
   datasource:
-    url: jdbc:postgresql://${SHIPPING_DB_HOST:127.0.0.1}:${SHIPPING_DB_PORT:5432}/${SHIPPING_DB_NAME:shipping_db}
-    username: ${SHIPPING_DB_USER:postgres}
-    password: ${SHIPPING_DB_PASSWORD:postgres}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/shipping_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:bicap_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:12123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
       ddl-auto: validate   # Không tự tạo bảng, để Flyway lo
     show-sql: true         # In câu SQL ra console khi debug
+    database-platform: org.hibernate.dialect.MySQLDialect
 
   # Flyway tự chạy các file V1__..sql → V5__..sql khi khởi động
   flyway:

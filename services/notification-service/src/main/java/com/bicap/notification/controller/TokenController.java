@@ -2,6 +2,10 @@ package com.bicap.notification.controller;
 
 import com.bicap.notification.dto.TokenUpsertRequest;
 import com.bicap.notification.service.DeviceTokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -15,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping({"/tokens", "/api/notify/tokens"})
+@Tag(name = "Device Tokens", description = "Manage FCM device tokens per user")
 public class TokenController {
 
     private final DeviceTokenService deviceTokenService;
@@ -38,6 +43,12 @@ public class TokenController {
     // }
 
     @PostMapping
+    @Operation(summary = "Đăng ký hoặc cập nhật device token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lưu token thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh người dùng"),
+            @ApiResponse(responseCode = "400", description = "Payload không hợp lệ")
+    })
     public ResponseEntity<Void> registerToken(
             Authentication authentication,
             @RequestHeader(value = "X-User-Id", required = false) String headerId,
@@ -55,6 +66,11 @@ public class TokenController {
     }
 
     @DeleteMapping("/{token}")
+    @Operation(summary = "Xóa device token theo giá trị token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Xóa token thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh người dùng")
+    })
     public ResponseEntity<Void> removeToken(
             Authentication authentication,
             @RequestHeader(value = "X-User-Id", required = false) String headerId,

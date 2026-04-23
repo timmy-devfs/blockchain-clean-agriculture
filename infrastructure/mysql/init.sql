@@ -11,6 +11,12 @@ CREATE DATABASE IF NOT EXISTS identity_db
 CREATE DATABASE IF NOT EXISTS notification_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+CREATE DATABASE IF NOT EXISTS shipping_db
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS report_db
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 CREATE DATABASE IF NOT EXISTS guest_db
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -20,6 +26,8 @@ CREATE DATABASE IF NOT EXISTS blockchain_db
 -- Grant quyền cho bicap_user
 GRANT ALL PRIVILEGES ON identity_db.*     TO 'bicap_user'@'%';
 GRANT ALL PRIVILEGES ON notification_db.* TO 'bicap_user'@'%';
+GRANT ALL PRIVILEGES ON shipping_db.*     TO 'bicap_user'@'%';
+GRANT ALL PRIVILEGES ON report_db.*       TO 'bicap_user'@'%';
 GRANT ALL PRIVILEGES ON guest_db.*        TO 'bicap_user'@'%';
 GRANT ALL PRIVILEGES ON blockchain_db.*   TO 'bicap_user'@'%';
 

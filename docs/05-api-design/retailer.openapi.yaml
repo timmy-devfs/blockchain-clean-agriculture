@@ -1,0 +1,48 @@
+openapi: 3.0.0
+info:
+  title: BICAP Retailer Service API
+  version: 1.0.0
+  description: Retailer domain API for marketplace browsing, order lifecycle, and profile.
+servers:
+  - url: http://retailer-service:8083
+    description: Docker service
+  - url: http://localhost/docs/retailer
+    description: Gateway docs route
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/v1/retailers:
+    post:
+      summary: Create retailer profile
+      responses:
+        "201":
+          description: Created
+  /api/v1/retailers/search:
+    get:
+      summary: Search retailers
+      responses:
+        "200":
+          description: OK
+  /api/v1/orders:
+    get:
+      summary: List orders
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create order
+      responses:
+        "201":
+          description: Created
+  /api/retail/marketplace/products:
+    get:
+      summary: Browse marketplace products
+      responses:
+        "200":
+          description: OK

@@ -33,6 +33,7 @@ public class SecurityConfig {
             // Quy tắc phân quyền
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()  // Ai cũng gọi được
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
                 .anyRequest().authenticated()                      // Còn lại phải xác thực
             )
 

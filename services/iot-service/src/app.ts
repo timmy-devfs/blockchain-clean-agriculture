@@ -11,6 +11,11 @@ app.use(express.json());
 app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "UP" });
+});
+
 app.use(jwtMiddleware);
 
 app.use(sensorRouter);

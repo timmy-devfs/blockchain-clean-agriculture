@@ -1,23 +1,36 @@
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci || npm install
+# ════════════════════════════════════════════════════════════════
+# BICAP — web-admin Dockerfile (NextJS 14 standalone)
+# ════════════════════════════════════════════════════════════════
 
-FROM node:20-alpine AS build
+FROM node:20-alpine AS builder
+
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+COPY package*.json ./
+RUN npm ci
+
+# Copy source
 COPY . .
+
+# Build NextJS với standalone output
 RUN npm run build
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
+FROM node:20-alpine
 
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/next.config.js ./next.config.js
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/node_modules ./node_modules
+WORKDIR /app
+
+RUN adduser -D app
+
+# Standalone output chứa tất cả dependencies cần thiết
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+RUN chown -R app:app /app
+USER app
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -qO- http://web-shipping:3003 || exit 1
 
 EXPOSE 3003
-CMD ["npm", "run", "start"]
 
+ENTRYPOINT ["node", "server.js"]

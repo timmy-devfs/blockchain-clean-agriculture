@@ -114,14 +114,26 @@ app.get('/test-season-exported', async (req, res) => {
 
 async function bootstrap() {
   try {
-    const thorClient = await connectVeChain();
-    logger.info('VeChain Testnet connected successfully');
+    const vechainOptional = (process.env.VECHAIN_OPTIONAL ?? 'true') === 'true';
+    let thorClient = null;
 
-    initSmartContractService(
-      thorClient,
-      process.env.FARM_TRACE_CONTRACT_ADDRESS   ?? '',
-      process.env.PRODUCT_CERT_CONTRACT_ADDRESS ?? ''
-    );
+    try {
+      thorClient = await connectVeChain();
+      logger.info('VeChain Testnet connected successfully');
+    } catch (vechainError) {
+      if (!vechainOptional) {
+        throw vechainError;
+      }
+      logger.warn('VeChain unavailable, starting in degraded mode');
+    }
+
+    if (thorClient) {
+      initSmartContractService(
+        thorClient,
+        process.env.FARM_TRACE_CONTRACT_ADDRESS   ?? '',
+        process.env.PRODUCT_CERT_CONTRACT_ADDRESS ?? ''
+      );
+    }
 
     await initKafka();
     logger.info('Kafka consumer group registered: blockchain-service');

@@ -1,0 +1,393 @@
+﻿openapi: 3.0.1
+info:
+  title: BICAP ??? Notification Service API
+  description: Push notifications via Firebase FCM. Kafka consumer cho 5 event types.
+  version: 1.0.0
+servers:
+  - url: http://notification-service:8085
+    description: Generated server url
+security:
+  - bearerAuth: []
+tags:
+  - name: Device Tokens
+    description: Manage FCM device tokens per user
+  - name: Notifications
+    description: Read/update notifications and admin broadcast
+paths:
+  /notifications/{id}/read:
+    put:
+      tags:
+        - Notifications
+      summary: ????nh d???u m???t th??ng b??o ???? ?????c
+      operationId: markAsRead
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "404":
+          description: Notification kh??ng t???n t???i
+        "401":
+          description: Thi???u ?????nh danh user
+        "200":
+          description: ????nh d???u th??nh c??ng
+  /notifications/read-all:
+    put:
+      tags:
+        - Notifications
+      summary: ????nh d???u t???t c??? th??ng b??o ???? ?????c
+      operationId: markAllAsRead
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "401":
+          description: Thi???u ?????nh danh user
+        "200":
+          description: ????nh d???u th??nh c??ng
+  /notifications/broadcast:
+    post:
+      tags:
+        - Notifications
+      summary: Admin broadcast th??ng b??o t???i role m???c ti??u
+      operationId: broadcast
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: string
+        required: true
+      responses:
+        "403":
+          description: Kh??ng c?? quy???n admin
+          content:
+            '*/*':
+              schema:
+                type: string
+        "200":
+          description: Broadcast ???????c x??? l??
+          content:
+            '*/*':
+              schema:
+                type: string
+  /api/notify/tokens:
+    post:
+      tags:
+        - Device Tokens
+      summary: ????ng k?? ho???c c???p nh???t device token
+      operationId: registerToken
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenUpsertRequest'
+        required: true
+      responses:
+        "200":
+          description: L??u token th??nh c??ng
+        "400":
+          description: Payload kh??ng h???p l???
+        "401":
+          description: Thi???u ?????nh danh ng?????i d??ng
+  /tokens:
+    post:
+      tags:
+        - Device Tokens
+      summary: ????ng k?? ho???c c???p nh???t device token
+      operationId: registerToken_1
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenUpsertRequest'
+        required: true
+      responses:
+        "200":
+          description: L??u token th??nh c??ng
+        "400":
+          description: Payload kh??ng h???p l???
+        "401":
+          description: Thi???u ?????nh danh ng?????i d??ng
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: L???y danh s??ch th??ng b??o c???a user
+      operationId: getMyNotifications
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: isRead
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: pageable
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pageable'
+      responses:
+        "200":
+          description: L???y danh s??ch th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/PageNotification'
+        "401":
+          description: Thi???u ?????nh danh user
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/PageNotification'
+  /notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: ?????m s??? th??ng b??o ch??a ?????c
+      operationId: getUnreadCount
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tr??? v??? s??? l?????ng unread
+          content:
+            '*/*':
+              schema:
+                type: integer
+                format: int64
+        "400":
+          description: Thi???u ?????nh danh user
+          content:
+            '*/*':
+              schema:
+                type: integer
+                format: int64
+  /notifications/{id}:
+    delete:
+      tags:
+        - Notifications
+      summary: X??a th??ng b??o theo ID
+      operationId: delete
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "404":
+          description: Notification kh??ng t???n t???i
+        "401":
+          description: Thi???u ?????nh danh user
+        "204":
+          description: X??a th??nh c??ng
+  /api/notify/tokens/{token}:
+    delete:
+      tags:
+        - Device Tokens
+      summary: X??a device token theo gi?? tr??? token
+      operationId: removeToken
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "401":
+          description: Thi???u ?????nh danh ng?????i d??ng
+        "204":
+          description: X??a token th??nh c??ng
+  /tokens/{token}:
+    delete:
+      tags:
+        - Device Tokens
+      summary: X??a device token theo gi?? tr??? token
+      operationId: removeToken_1
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: false
+          schema:
+            type: string
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "401":
+          description: Thi???u ?????nh danh ng?????i d??ng
+        "204":
+          description: X??a token th??nh c??ng
+components:
+  schemas:
+    TokenUpsertRequest:
+      required:
+        - platform
+        - token
+      type: object
+      properties:
+        token:
+          type: string
+          description: FCM registration token c???a thi???t b???
+          example: fcm_token_xxx
+        platform:
+          pattern: ANDROID|IOS|WEB
+          type: string
+          description: N???n t???ng thi???t b???
+          example: ANDROID
+          enum:
+            - ANDROID
+            - IOS
+            - WEB
+    Pageable:
+      type: object
+      properties:
+        page:
+          minimum: 0
+          type: integer
+          format: int32
+        size:
+          minimum: 1
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            type: string
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        isRead:
+          type: boolean
+        type:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PageNotification:
+      type: object
+      properties:
+        totalPages:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        first:
+          type: boolean
+        last:
+          type: boolean
+        pageable:
+          $ref: '#/components/schemas/PageableObject'
+        numberOfElements:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        number:
+          type: integer
+          format: int32
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+        empty:
+          type: boolean
+    PageableObject:
+      type: object
+      properties:
+        paged:
+          type: boolean
+        unpaged:
+          type: boolean
+        pageNumber:
+          type: integer
+          format: int32
+        pageSize:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int64
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/SortObject'
+    SortObject:
+      type: object
+      properties:
+        direction:
+          type: string
+        nullHandling:
+          type: string
+        ascending:
+          type: boolean
+        property:
+          type: string
+        ignoreCase:
+          type: boolean
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

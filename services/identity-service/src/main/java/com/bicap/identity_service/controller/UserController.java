@@ -5,6 +5,7 @@ import com.bicap.identity_service.dto.request.*;
 import com.bicap.identity_service.dto.response.*;
 import com.bicap.identity_service.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,10 @@ public class UserController {
      */
     @GetMapping("/me")
     @Operation(summary = "Lấy thông tin user hiện tại (đọc X-User-Id từ Gateway)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy thông tin thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Thiếu hoặc sai JWT")
+    })
     public ApiResponse<UserResponse> getMe(
             @RequestHeader("X-User-Id") String userId) {
 
@@ -41,6 +46,10 @@ public class UserController {
      */
     @PutMapping("/profile")
     @Operation(summary = "Cập nhật profile (fullName, phone, avatar)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Payload không hợp lệ")
+    })
     public ApiResponse<UserResponse> updateProfile(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody UpdateProfileRequest request) {
@@ -54,6 +63,10 @@ public class UserController {
      */
     @PutMapping("/change-password")
     @Operation(summary = "Đổi mật khẩu — cần xác nhận mật khẩu hiện tại")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Đổi mật khẩu thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Mật khẩu không hợp lệ")
+    })
     public ApiResponse<Void> changePassword(
             @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody ChangePasswordRequest request) {
@@ -75,6 +88,10 @@ public class UserController {
      */
     @GetMapping("/admin/users")
     @Operation(summary = "[ADMIN] Danh sách users với filter và phân trang")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Không có quyền admin")
+    })
     public ApiResponse<PageResponse<UserResponse>> getUsers(
             @RequestHeader("X-User-Role") String callerRole,
             @RequestParam(required = false) String role,
@@ -93,6 +110,10 @@ public class UserController {
     @PostMapping("/admin/users")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "[ADMIN] Tạo tài khoản admin mới")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Tạo user thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Payload không hợp lệ")
+    })
     public ApiResponse<UserResponse> adminCreateUser(
             @RequestHeader("X-User-Role") String callerRole,
             @Valid @RequestBody AdminCreateUserRequest request) {
@@ -112,6 +133,10 @@ public class UserController {
      */
     @PutMapping("/admin/users/{id}")
     @Operation(summary = "[ADMIN] Cập nhật role hoặc isActive của user")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "User không tồn tại")
+    })
     public ApiResponse<UserResponse> adminUpdateUser(
             @RequestHeader("X-User-Role") String callerRole,
             @PathVariable String id,
@@ -127,6 +152,10 @@ public class UserController {
      */
     @DeleteMapping("/admin/users/{id}")
     @Operation(summary = "[ADMIN] Soft delete user (isActive=false)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Deactivate thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "User không tồn tại")
+    })
     public ApiResponse<Void> adminDeleteUser(
             @RequestHeader("X-User-Role") String callerRole,
             @PathVariable String id) {

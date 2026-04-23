@@ -1,45 +1,40 @@
 # ════════════════════════════════════════════════════════════════
 # BICAP — identity-service Dockerfile (Multi-stage)
 # Stage 1: Build với Maven
-# Stage 2: Run với JRE slim (image nhỏ hơn ~400MB)
+# Stage 2: Runtime JRE slim — non-root user
 # ════════════════════════════════════════════════════════════════
 
 # ── Stage 1: Build ────────────────────────────────────────────
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
-
-WORKDIR /build
-
-# Copy POM trước để cache Maven dependencies
-COPY pom.xml .
-RUN mvn dependency:go-offline -q
-
-# Copy source và build
-COPY src ./src
-RUN mvn clean package -DskipTests -q
-
-# ── Stage 2: Runtime ──────────────────────────────────────────
-FROM eclipse-temurin:17-jre-jammy
+FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 
 WORKDIR /app
 
-# Non-root user (security best practice)
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+# Cache dependencies riêng — chỉ re-download khi pom.xml thay đổi
+COPY pom.xml .
+RUN mvn dependency:go-offline -B -q
 
-# Copy JAR từ builder stage
-COPY --from=builder /build/target/*.jar app.jar
+# Build JAR
+COPY src ./src
+RUN mvn package -DskipTests -B -q
 
-# Đổi owner
-RUN chown appuser:appgroup app.jar
+# ── Stage 2: Runtime ──────────────────────────────────────────
+FROM eclipse-temurin:17-jre-alpine
 
-USER appuser
+WORKDIR /app
 
-# Health check
+# Non-root user — security best practice
+RUN addgroup -S app && adduser -S app -G app
+
+COPY --from=builder /app/target/*.jar app.jar
+RUN chown app:app app.jar
+
+USER app
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8081/actuator/health || exit 1
+    CMD wget -qO- http://localhost:8081/actuator/health || exit 1
 
 EXPOSE 8081
 
-ENTRYPOINT ["java", \
-    "-Xms256m", "-Xmx512m", \
-    "-Djava.security.egd=file:/dev/./urandom", \
-    "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", \
+            "-Djava.security.egd=file:/dev/./urandom", \
+            "-jar", "app.jar"]

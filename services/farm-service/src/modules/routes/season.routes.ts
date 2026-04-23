@@ -136,3 +136,40 @@ seasonRouter.post("/api/farm/seasons/:id/export", asyncHandler(async (req, res) 
 }));
 
 export { seasonRouter };
+
+/**
+ * Ví dụ JSDoc trong route file src/routes/season.routes.ts:
+ * @openapi
+ * /api/farm/seasons:
+ *   post:
+ *     tags: [Season]
+ *     summary: Tạo vụ mùa mới
+ *     description: Publish SeasonCreatedEvent → Kafka → blockchain-service ghi VeChainThor
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [cropType, startDate]
+ *             properties:
+ *               cropType:
+ *                 type: string
+ *                 example: "Lúa Hè Thu"
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *                 example: "2025-06-01"
+ *               area:
+ *                 type: number
+ *                 example: 5.5
+ *                 description: "Diện tích (hecta)"
+ *     responses:
+ *       201:
+ *         description: Tạo thành công — txHash = null, đang ghi blockchain
+ *       403:
+ *         description: Farm chưa được phê duyệt (ErrorCode 2001)
+ */
+// router.post('/', authMiddleware, createSeason);
