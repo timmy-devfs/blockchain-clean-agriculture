@@ -197,8 +197,18 @@ services:
     ports:
       - "3003:3003"
     environment:
-      # in-browser calls go to host-mapped port; inside container SSR is minimal here
       NEXT_PUBLIC_SHIPPING_API_BASE: http://localhost:8084
+    restart: unless-stopped
+
+  # ── WEB PUBLIC (Next.js) ──────────────────────────────────────
+  web-public:
+    build:
+      context: ./frontend/web-public
+      dockerfile: Dockerfile
+    container_name: bicap-web-public
+    networks: [bicap-network]
+    ports:
+      - "3004:3004"
     restart: unless-stopped
 
   # ── NIFI ──────────────────────────────────────────────────────

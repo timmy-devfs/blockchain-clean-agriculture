@@ -10,9 +10,9 @@ import type { ShipmentListItem } from "@/lib/api";
 type Filter = "TODAY" | "THIS_WEEK" | "ALL";
 
 const FILTERS: { label: string; value: Filter }[] = [
-  { label: "Hôm nay",    value: "TODAY"     },
-  { label: "Tuần này",   value: "THIS_WEEK" },
-  { label: "Tất cả",     value: "ALL"       },
+  { label: "Hôm nay", value: "TODAY" },
+  { label: "Tuần này", value: "THIS_WEEK" },
+  { label: "Tất cả", value: "ALL" },
 ];
 
 // ─── TÍCH HỢP MOCK DATA CHO MÔI TRƯỜNG TEST ─────────────────────────────
@@ -24,7 +24,7 @@ const MOCK_BASE = {
   farmAddress: "123 Đường Xanh, Đà Lạt", farmPhone: "0901234567",
   retailerAddress: "189 Cống Quỳnh, Q1", retailerPhone: "0987654321",
   driverId: "D-1", vehicleId: "V-1",
-  deliveryAddress: "189 Cống Quỳnh, Quận 1, TP.HCM", 
+  deliveryAddress: "189 Cống Quỳnh, Quận 1, TP.HCM",
   estimatedDelivery: new Date(Date.now() + 7200000).toISOString(), // Dự kiến giao sau 2 tiếng
   createdAt: new Date(Date.now() - 86400000).toISOString() // Ngày tạo: Hôm qua
 };
@@ -66,7 +66,7 @@ export default function ShipmentsScreen() {
         return MOCK_ALL_SHIPMENTS.filter(s => new Date(s.scheduledDate).toLocaleDateString("vi-VN") === todayStr);
       }
       // Demo giả lập bộ lọc: Trả về toàn bộ cho THIS_WEEK và ALL
-      return MOCK_ALL_SHIPMENTS; 
+      return MOCK_ALL_SHIPMENTS;
     }
     return data?.pages.flatMap((p) => p.data) ?? [];
   }, [data, filter]);
@@ -82,15 +82,13 @@ export default function ShipmentsScreen() {
           <TouchableOpacity
             key={f.value}
             onPress={() => setFilter(f.value)}
-            className={`rounded-full px-4 py-2 ${
-              filter === f.value
+            className={`rounded-full px-4 py-2 ${filter === f.value
                 ? "bg-green-500"
                 : "bg-gray-100"
-            }`}
+              }`}
           >
-            <Text className={`text-sm font-medium ${
-              filter === f.value ? "text-white" : "text-gray-600"
-            }`}>
+            <Text className={`text-sm font-medium ${filter === f.value ? "text-white" : "text-gray-600"
+              }`}>
               {f.label}
             </Text>
           </TouchableOpacity>
