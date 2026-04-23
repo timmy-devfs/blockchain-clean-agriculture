@@ -35,8 +35,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
-                // THÊM DÒNG NÀY ĐỂ MỞ CỬA CHO CURL TEST
-                .requestMatchers("/notifications/**", "/tokens/**").permitAll() 
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
+                .requestMatchers("/notifications/**", "/tokens/**").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(gatewayHeaderFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

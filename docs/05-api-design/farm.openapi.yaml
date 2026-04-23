@@ -1,0 +1,58 @@
+openapi: 3.0.0
+info:
+  title: BICAP Farm Service API
+  version: 1.0.0
+  description: Farm domain API for farm, season, order, shipment, and marketplace features.
+servers:
+  - url: http://farm-service:8082
+    description: Docker service
+  - url: http://localhost/docs/farm
+    description: Gateway docs route
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/farm/farms:
+    get:
+      summary: List farms
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create farm
+      responses:
+        "201":
+          description: Created
+  /api/farm/seasons:
+    get:
+      summary: List seasons
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create season
+      responses:
+        "201":
+          description: Created
+  /api/farm/marketplace/listings:
+    get:
+      summary: List listings
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create listing
+      responses:
+        "201":
+          description: Created
+  /api/farm/orders:
+    get:
+      summary: List farm orders
+      responses:
+        "200":
+          description: OK

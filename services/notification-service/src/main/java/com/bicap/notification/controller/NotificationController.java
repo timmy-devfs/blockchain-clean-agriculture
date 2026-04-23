@@ -4,6 +4,10 @@ import com.bicap.notification.model.Notification;
 import com.bicap.notification.service.NotificationService;
 import com.bicap.notification.service.TokenCacheService;
 import com.bicap.notification.client.FCMPushClient;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -19,6 +23,7 @@ import org.springframework.data.web.PageableDefault;
 
 @RestController
 @RequestMapping("/notifications")
+@Tag(name = "Notifications", description = "Read/update notifications and admin broadcast")
 public class NotificationController {
 
     private final NotificationService service;
@@ -37,6 +42,11 @@ public class NotificationController {
     }
 
     @GetMapping
+    @Operation(summary = "Lấy danh sách thông báo của user")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lấy danh sách thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh user")
+    })
     public Page<Notification> getMyNotifications(
             Authentication auth, 
             @RequestHeader(value = "X-User-Id", required = false) String headerId,
@@ -50,6 +60,11 @@ public class NotificationController {
     }
 
     @GetMapping("/unread-count")
+    @Operation(summary = "Đếm số thông báo chưa đọc")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Trả về số lượng unread"),
+            @ApiResponse(responseCode = "400", description = "Thiếu định danh user")
+    })
     public ResponseEntity<Long> getUnreadCount(
             Authentication auth,
             @RequestHeader(value = "X-User-Id", required = false) String headerId) {
@@ -61,6 +76,12 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}/read")
+    @Operation(summary = "Đánh dấu một thông báo đã đọc")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đánh dấu thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh user"),
+            @ApiResponse(responseCode = "404", description = "Notification không tồn tại")
+    })
     public ResponseEntity<Void> markAsRead(
             Authentication auth, 
             @RequestHeader(value = "X-User-Id", required = false) String headerId,
@@ -74,6 +95,11 @@ public class NotificationController {
     }
 
     @PutMapping("/read-all")
+    @Operation(summary = "Đánh dấu tất cả thông báo đã đọc")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đánh dấu thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh user")
+    })
     public ResponseEntity<Void> markAllAsRead(
             Authentication auth,
             @RequestHeader(value = "X-User-Id", required = false) String headerId) {
@@ -86,6 +112,12 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa thông báo theo ID")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Xóa thành công"),
+            @ApiResponse(responseCode = "401", description = "Thiếu định danh user"),
+            @ApiResponse(responseCode = "404", description = "Notification không tồn tại")
+    })
     public ResponseEntity<Void> delete(
             Authentication auth, 
             @RequestHeader(value = "X-User-Id", required = false) String headerId,
@@ -100,6 +132,11 @@ public class NotificationController {
 
     @PostMapping("/broadcast")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Admin broadcast thông báo tới role mục tiêu")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Broadcast được xử lý"),
+            @ApiResponse(responseCode = "403", description = "Không có quyền admin")
+    })
     public ResponseEntity<String> broadcast(@RequestBody Map<String, String> req) {
         String role = req.get("targetRole");
         String title = req.get("title");

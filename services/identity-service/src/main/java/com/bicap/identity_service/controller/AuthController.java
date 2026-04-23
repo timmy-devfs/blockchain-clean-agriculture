@@ -69,7 +69,8 @@ public class AuthController {
     @PostMapping("/introspect")
     @Operation(summary = "Validate JWT — API Gateway gọi endpoint này trước mọi request")
     @ApiResponses({
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Kết quả validate (valid=true/false)")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Kết quả validate (valid=true/false)"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Token request không hợp lệ")
     })
     public ApiResponse<IntrospectResponse> introspect(
             @Valid @RequestBody IntrospectRequest request) {

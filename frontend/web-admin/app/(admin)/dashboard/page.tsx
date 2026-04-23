@@ -79,7 +79,7 @@ export default function DashboardPage() {
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip
-                formatter={(v: number) => [`${v.toLocaleString()} tr`, "Doanh thu"]}
+                formatter={(v) => [`${Number(v ?? 0).toLocaleString()} tr`, "Doanh thu"]}
               />
               <Line
                 type="monotone"
@@ -102,7 +102,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number) => [v, "Đơn hàng"]} />
+              <Tooltip formatter={(v) => [Number(v ?? 0), "Đơn hàng"]} />
               <Bar dataKey="orders" fill="#22c55e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

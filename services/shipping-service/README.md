@@ -1,69 +1,35 @@
-# Shipping Service - BICAP
+# Shipping Service
 
-## Cách chạy project
+## Chức năng
+- Quản lý shipment lifecycle và lịch sử trạng thái giao nhận.
+- API cho driver pickup/cập nhật trạng thái theo shipment.
+- Consume Kafka `bicap.order.confirmed` để khởi tạo shipping flow.
 
-### Bước 1: Khởi động PostgreSQL và Kafka bằng Docker
-```bash
-docker-compose up -d
+## Port
+- `8084`
+
+## Swagger / OpenAPI
+- Swagger UI: `http://localhost:8084/swagger-ui/index.html`
+- OpenAPI JSON: `http://localhost:8084/v3/api-docs`
+
+## API Endpoints chính
+- `POST /api/shipping/shipments`
+- `GET /api/shipping/shipments`, `GET /api/shipping/shipments/{id}`
+- `GET /api/shipping/shipments/{id}/history`
+- `POST /api/shipping/driver/shipments/{id}/pickup`
+- `POST /api/shipping/driver/shipments/{id}/status`
+
+## Environment Variables
+```env
+SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/shipping_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+SPRING_DATASOURCE_USERNAME=bicap_user
+SPRING_DATASOURCE_PASSWORD=12123
+SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+SHIPPING_PORT=8084
 ```
-> Chờ khoảng 30 giây để các service khởi động xong
 
-### Bước 2: Chạy Spring Boot
+## Chạy local nhanh
 ```bash
+cd services/shipping-service
 mvn spring-boot:run
 ```
-Hoặc mở VS Code → tìm file `ShippingApplication.java` → nhấn nút ▶ Run
-
-### Bước 3: Kiểm tra service còn sống
-Mở trình duyệt, vào: http://localhost:8084/actuator/health
-
-Nếu thấy `{"status":"UP"}` là thành công ✅
-
----
-
-## Cấu trúc project
-
-```
-shipping-service/
-├── src/main/java/com/bicap/shipping/
-│   ├── ShippingApplication.java       ← Điểm khởi động
-│   ├── config/
-│   │   ├── SecurityConfig.java        ← Cấu hình bảo mật
-│   │   ├── GatewayHeaderFilter.java   ← Đọc X-User-Id, X-User-Role
-│   │   ├── KafkaProducerConfig.java   ← Gửi event: bicap.shipment.updated
-│   │   └── KafkaConsumerConfig.java   ← Nhận event: bicap.order.confirmed
-│   ├── entity/
-│   │   ├── Driver.java                ← Bảng tài xế
-│   │   ├── Vehicle.java               ← Bảng xe
-│   │   ├── Shipment.java              ← Bảng chuyến hàng
-│   │   ├── ShipmentStatusHistory.java ← Bảng lịch sử trạng thái
-│   │   └── ShippingReport.java        ← Bảng báo cáo vận chuyển
-│   ├── constant/
-│   │   ├── ShipmentStatus.java        ← Enum 7 trạng thái
-│   │   └── VehicleType.java           ← Enum 4 loại xe
-│   └── common/
-│       ├── ApiResponse.java           ← Chuẩn hóa response API
-│       └── ErrorCode.java             ← Mã lỗi 4xxx
-├── src/main/resources/
-│   ├── application.yml                ← Cấu hình chính
-│   └── db/migration/
-│       ├── V1__create_drivers.sql
-│       ├── V2__create_vehicles.sql
-│       ├── V3__create_shipments.sql
-│       ├── V4__create_shipment_status_history.sql
-│       └── V5__create_shipping_reports.sql
-├── docker-compose.yml                 ← Chạy PostgreSQL + Kafka
-└── pom.xml                            ← Khai báo thư viện
-```
-
----
-
-## Acceptance Criteria
-
-- [x] `mvn clean compile` không lỗi, Spring context load thành công
-- [x] Kết nối `shipping_db` thành công
-- [x] Flyway: 5 migration files, 5 bảng được tạo đúng foreign keys
-- [x] ShipmentStatus enum: 7 giá trị (CREATED → DELIVERED/CANCELLED)
-- [x] VehicleType enum: 4 giá trị (TRUCK, VAN, MOTORBIKE, REFRIGERATED_TRUCK)
-- [x] Kafka consumer group đăng ký consume topic `bicap.order.confirmed`
-- [x] GET `/actuator/health` trả về `{status: UP}`

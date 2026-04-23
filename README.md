@@ -1,108 +1,171 @@
 # 🌿 BICAP System
 **Blockchain Integration in Clean Agricultural Production**
 
-> Hệ thống truy xuất nguồn gốc nông sản tích hợp blockchain VeChainThor.  
-> Môn: Xây dựng phần mềm hướng đối tượng | Học kỳ 2 — 2026–2027
+Hệ thống truy xuất nguồn gốc nông sản theo kiến trúc microservices, tích hợp Kafka, Redis, MySQL, MongoDB và blockchain service.
 
-## 🏗️ Kiến trúc tổng quan
+## Architecture
+
 ```text
-Client (Web/Mobile)
-       │
-       ▼
-[API Gateway :8080]  ←── JWT Auth via identity-service
-       │
-       ├── identity-service    :8081  (Auth, User)
-       ├── farm-service        :8082  (Farm, Season, IoT)
-       ├── retailer-service    :8083  (Order, QR Scan)
-       ├── shipping-service    :8084  (Shipment, Driver)
-       ├── notification-service:8085  (Firebase FCM)
-       ├── payment-service     :8086  (VNPay, MoMo)
-       ├── iot-service         :8087  (Sensor, Alert)
-       ├── report-service      :8088  (Reports)
-       ├── guest-service       :8089  (Public APIs)
-       └── blockchain-service  :8090  (VeChain NodeJS)
-
-Event Bus: Apache Kafka
-Cache: Redis
-Database: SQL Server 2022
+Web / Mobile Clients
+        |
+     API Gateway (:8080)
+        |
+  -----------------------------------------
+  | identity | farm | retailer | shipping |
+  | notify   | payment | iot | report    |
+  | guest    | blockchain               |
+  -----------------------------------------
+        |
+ Infrastructure: Kafka + Redis + MySQL + Mongo + Nginx + Prometheus + Grafana
 ```
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Backend (10 services) | Java 17 + Spring Boot 3.x |
-| Blockchain service | NodeJS 18 + TypeScript + VeChainThor |
-| Frontend Web | NextJS 14 (App Router) |
-| Mobile | React Native + Expo |
-| Message Broker | Apache Kafka |
-| Cache | Redis 7 |
-| Database | SQL Server 2022 |
-| Container | Docker + Docker Compose |
-| Data Pipeline | Apache NiFi |
+| Layer | Main technologies |
+|---|---|
+| Backend services | Java Spring Boot 3.x, Node.js TypeScript |
+| Frontend apps | Next.js, React |
+| API Docs | SpringDoc OpenAPI, Swagger UI Express |
+| Messaging | Apache Kafka |
+| Cache | Redis |
+| Databases | MySQL, MongoDB |
+| Gateway | Spring Cloud Gateway |
+| Observability | Prometheus, Grafana |
+| Containerization | Docker, Docker Compose |
 
+## Docker Compose Strategy
 
-## 👥 Team
+Repository dùng 3 file compose riêng theo môi trường:
 
-| ID | Role | Phụ trách |
-|----|------|-----------|
-| DEV-01 | Team Lead | api-gateway, identity-service, web-admin |
-| DEV-02 | Backend Dev | farm-service, iot-service, web-farm |
-| DEV-03 | Backend Dev | retailer-service, payment-service, web-retailer |
-| DEV-04 | Backend Dev | shipping-service, report-service, web-shipping, web-public |
-| DEV-05 | Backend Dev | blockchain-service, notification-service, guest-service, mobile-driver |
+- `docker-compose.yml`: dev cũ (giữ nguyên để tương thích workflow hiện tại của team).
+- `docker-compose.demo.yml`: chạy full stack local để demo trên 1 máy.
+- `docker-compose.prod.yml`: chạy production/staging với `.env.prod`, resource limits và logging chuẩn.
 
-## 🚀 Quick Start
+Không gộp 3 file vào 1 file duy nhất để tránh trộn config giữa dev/demo/prod.
 
-### Yêu cầu
-- Docker Desktop (đang chạy)
-- Git
-- Java 17+ (cho development)
-- NodeJS 18+ (cho blockchain-service và frontend)
+## Requirements
 
-### Clone & Start
-git clone https://github.com/timmy-devfs/blockchain-clean-agriculture.git
-cd blockchain-clean-agriculture
+- Docker Desktop
+- Docker Compose v2+
+- Node.js 18+ (nếu chạy frontend local bằng `npm`/`pnpm`)
+- Java 17+ (nếu chạy service local không qua Docker)
 
-# Copy env template
-copy .env.example .env
-# Mở .env và điền các giá trị cần thiết
+## Run Full Stack (Demo Local)
 
-# Khởi động infrastructure
-make up
-
-# Kiểm tra trạng thái
-make ps
-
-### Verify
-- Kafka: `localhost:9092`
-- Redis: `localhost:6379`
-- SQL Server: `localhost:1433`
-- NiFi UI: `https://localhost:8443`
-
-## 📁 Cấu trúc dự án
-```text
-bicap-system/
-├── services/          # 11 microservices (Java + NodeJS)
-├── contracts/         # Kafka schemas + OpenAPI specs
-├── frontend/          # 5 web apps + 2 mobile apps
-├── infrastructure/    # Docker, Kafka, Redis, Nginx, NiFi config
-└── docs/              # Tài liệu học thuật
+```bash
+docker-compose -f docker-compose.demo.yml config
+docker-compose -f docker-compose.demo.yml up -d --build
+docker-compose -f docker-compose.demo.yml ps
 ```
 
-## 🌿 Branch Strategy
+Hoặc dùng Makefile:
 
-| Branch | Mục đích |
-|--------|---------|
-| `main` | Production-ready, protected — require PR + 1 review |
-| `develop` | Integration branch — merge feature branches vào đây |
-| `feature/BIC-xxx-ten-tinh-nang` | Mỗi task 1 branch riêng |
+```bash
+make demo-build
+make demo-up
+make demo-topics
+make demo-ps
+```
 
-# Bắt đầu 1 task mới
-git checkout develop
-git pull origin develop
-git checkout -b feature/BIC-001-init-monorepo
-# ... làm việc ...
-git push origin feature/BIC-001-init-monorepo
-# Tạo PR vào develop trên GitHub
-# ... cập nhật ...
+Health endpoint:
+
+- Nginx: [http://localhost/nginx-health](http://localhost/nginx-health)
+
+## API Documentation (BIC-043)
+
+Swagger/OpenAPI cho 5 service chính đã được expose qua Gateway + Nginx:
+
+- Identity: [http://localhost/docs/identity/swagger-ui/index.html](http://localhost/docs/identity/swagger-ui/index.html)
+- Farm: [http://localhost/docs/farm/swagger-ui](http://localhost/docs/farm/swagger-ui)
+- Retailer: [http://localhost/docs/retailer/swagger-ui](http://localhost/docs/retailer/swagger-ui)
+- Shipping: [http://localhost/docs/shipping/swagger-ui/index.html](http://localhost/docs/shipping/swagger-ui/index.html)
+- Notification: [http://localhost/docs/notification/swagger-ui/index.html](http://localhost/docs/notification/swagger-ui/index.html)
+
+OpenAPI specs được lưu tại:
+
+- `docs/05-api-design/identity.openapi.yaml`
+- `docs/05-api-design/farm.openapi.yaml`
+- `docs/05-api-design/retailer.openapi.yaml`
+- `docs/05-api-design/shipping.openapi.yaml`
+- `docs/05-api-design/notification.openapi.yaml`
+
+Quick verify:
+
+```bash
+curl -I http://localhost/docs/farm/swagger-ui
+curl -I http://localhost/docs/retailer/swagger-ui
+curl -I http://localhost/docs/identity/swagger-ui/index.html
+curl -I http://localhost/docs/shipping/swagger-ui/index.html
+curl -I http://localhost/docs/notification/swagger-ui/index.html
+```
+
+Stop stack:
+
+```bash
+docker-compose -f docker-compose.demo.yml down
+```
+
+## Run Production-like Stack
+
+```bash
+docker-compose --env-file .env.prod -f docker-compose.prod.yml config
+docker-compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+docker-compose --env-file .env.prod -f docker-compose.prod.yml ps
+```
+
+Stop stack:
+
+```bash
+docker-compose --env-file .env.prod -f docker-compose.prod.yml down
+```
+
+## Run Frontend in Local Dev Mode
+
+Nếu bạn cần vòng lặp code nhanh cho UI, có thể chỉ chạy backend/infrastructure bằng Docker, còn frontend chạy local:
+
+```bash
+cd frontend
+pnpm install
+pnpm --filter bicap-web-admin dev
+```
+
+Hoặc với app dùng `npm`:
+
+```bash
+cd frontend/web-public
+npm install
+npm run dev
+```
+
+## Shipping Service Cleanup (One-time)
+
+`shipping-service` đã được chuẩn hóa lại migration sang MySQL (không dùng workaround tắt Flyway nữa).
+
+Nếu máy của bạn từng chạy bản cũ và bị lỗi Flyway history, reset riêng DB `shipping_db` một lần:
+
+```bash
+docker exec bicap-mysql mysql -uroot -p12123 -e "DROP DATABASE IF EXISTS shipping_db; CREATE DATABASE shipping_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON shipping_db.* TO 'bicap_user'@'%'; FLUSH PRIVILEGES;"
+docker-compose -f docker-compose.demo.yml up -d shipping-service
+```
+
+## Pre-push Checklist (Docker/DevOps)
+
+```bash
+docker-compose -f docker-compose.demo.yml config
+docker-compose --env-file .env.prod -f docker-compose.prod.yml config
+docker-compose -f docker-compose.demo.yml build shipping-service notification-service api-gateway
+docker-compose -f docker-compose.demo.yml ps
+```
+
+Mục tiêu trước khi push:
+
+- Build pass cho các service chính.
+- Container chạy với non-root user.
+- Healthcheck của các service chuyển sang `healthy`.
+- Nginx route được và `/nginx-health` trả về `{"status":"UP"}`.
+
+## Test Runbook (BIC-038 + BIC-043)
+
+Runbook chi tiết để test end-to-end nằm tại:
+
+- `docs/BIC-038-043-TEST-RUNBOOK.md`

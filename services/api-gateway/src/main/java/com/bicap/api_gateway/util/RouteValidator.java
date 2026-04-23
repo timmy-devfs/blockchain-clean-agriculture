@@ -21,7 +21,9 @@ public class RouteValidator {
             "/api/chain/trace/",     // QR trace — người tiêu dùng scan
             "/api/chain/qr/",        // QR image — public
             "/actuator",
-            "/fallback"
+            "/fallback",
+            "/docs/",           // ← Swagger UI — không cần auth
+            "/nginx-health"
     );
 
     public boolean isWhitelisted(String path) {

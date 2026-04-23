@@ -1,8 +1,9 @@
 -- Tạo bảng xe
 CREATE TABLE vehicles (
-    id             BIGSERIAL PRIMARY KEY,
+    id             BIGINT NOT NULL AUTO_INCREMENT,
     license_plate  VARCHAR(20) NOT NULL,
-    type           VARCHAR(50) NOT NULL,   -- TRUCK, VAN, MOTORBIKE, REFRIGERATED_TRUCK
+    type           ENUM('truck','van','motorbike','refrigerated_truck') NOT NULL,
     capacity       DOUBLE PRECISION,
-    is_active      BOOLEAN DEFAULT TRUE
+    is_active      BOOLEAN DEFAULT TRUE,
+    PRIMARY KEY (id)
 );

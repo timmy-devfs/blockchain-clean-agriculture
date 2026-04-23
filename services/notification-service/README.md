@@ -1,52 +1,38 @@
-## notification-service (BIC-027)
+# Notification Service
 
-### Chức năng
-- Quản lý device token: lưu MySQL + cache Redis set `tokens:{userId}`
-- Consume Kafka events → lookup tokens Redis → push Firebase FCM
+## Chức năng
+- Quản lý device token theo user để push notification.
+- Lưu notification, đánh dấu đọc/chưa đọc và thống kê unread.
+- Broadcast notification theo role và consume event để push qua Firebase FCM.
 
-### Yêu cầu
-- JDK 17
-- MySQL có database `notif_db`
-- Redis `localhost:6379`
-- Kafka `localhost:9092`
-- Firebase Admin service account JSON
+## Port
+- `8085`
 
-### Cấu hình Firebase
-1. Lấy Service Account Key (Backend)
-Truy cập Firebase Console > Project Settings > Service Accounts.
-Nhấn Generate new private key.
-Lưu file thành service-account.json trong src/main/resources/.
+## Swagger / OpenAPI
+- Swagger UI: `http://localhost:8085/swagger-ui/index.html`
+- OpenAPI JSON: `http://localhost:8085/v3/api-docs`
 
-2. Lấy VAPID Key (Frontend)
-Tại Project Settings > Cloud Messaging > Web configuration.
-Copy chuỗi Key Pair để điền vào index.html.
+## API Endpoints chính
+- `POST /api/notify/tokens`, `DELETE /api/notify/tokens/{token}`
+- `GET /notifications`, `GET /notifications/unread-count`
+- `PUT /notifications/{id}/read`, `PUT /notifications/read-all`
+- `DELETE /notifications/{id}`
+- `POST /notifications/broadcast`
 
-### Cách đặt `service-account.json`
-Đặt file tại:
-- `services/notification-service/service-account.json`
-
-Hoặc set env:
-- `FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/service-account.json`
-
-### Run (CMD)
-```
-mvnw.cmd spring-boot:run // docker-compose up -d
+## Environment Variables
+```env
+SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/notification_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+SPRING_DATASOURCE_USERNAME=bicap_user
+SPRING_DATASOURCE_PASSWORD=12123
+SPRING_DATA_REDIS_HOST=redis
+SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+FIREBASE_SERVICE_ACCOUNT_PATH=/app/service-account.json
+PORT=8085
 ```
 
-### Test nhanh bằng CMD
-Register token:
-```bat
-curl -X POST "http://localhost:8085/tokens" ^
-  -H "Content-Type: application/json" ^
-  -H "X-User-Id: farm-1" ^
-  -H "X-User-Role: FARM_MANAGER" ^
-  -d "{\"token\":\"token-farm-1\",\"platform\":\"ANDROID\"}"
-```
-
-Remove token:
-```bat
-curl -X DELETE "http://localhost:8085/tokens/token-farm-1" ^
-  -H "X-User-Id: farm-1" ^
-  -H "X-User-Role: FARM_MANAGER"
+## Chạy local nhanh
+```bash
+cd services/notification-service
+mvn spring-boot:run
 ```
 

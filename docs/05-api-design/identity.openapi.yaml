@@ -1,0 +1,663 @@
+﻿openapi: 3.1.0
+info:
+  title: BICAP - Identity Service API
+  description: Authentication, user profile and admin user management APIs.
+  version: 1.0.0
+servers:
+  - url: http://identity-service:8081
+    description: Generated server url
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+    description: ????ng k??, ????ng nh???p, refresh token, introspect JWT
+  - name: User
+    description: User profile & Admin user management
+paths:
+  /api/auth/profile:
+    put:
+      tags:
+        - User
+      summary: C???p nh???t profile (fullName, phone, avatar)
+      operationId: updateProfile
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+        required: true
+      responses:
+        "200":
+          description: C???p nh???t th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+        "400":
+          description: Payload kh??ng h???p l???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+  /api/auth/change-password:
+    put:
+      tags:
+        - User
+      summary: ?????i m???t kh???u ??? c???n x??c nh???n m???t kh???u hi???n t???i
+      operationId: changePassword
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      responses:
+        "200":
+          description: ?????i m???t kh???u th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "400":
+          description: M???t kh???u kh??ng h???p l???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+  /api/auth/admin/users/{id}:
+    put:
+      tags:
+        - User
+      summary: '[ADMIN] C???p nh???t role ho???c isActive c???a user'
+      operationId: adminUpdateUser
+      parameters:
+        - name: X-User-Role
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateUserRequest'
+        required: true
+      responses:
+        "200":
+          description: C???p nh???t th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+        "404":
+          description: User kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+    delete:
+      tags:
+        - User
+      summary: '[ADMIN] Soft delete user (isActive=false)'
+      operationId: adminDeleteUser
+      parameters:
+        - name: X-User-Role
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deactivate th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          description: User kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: ????ng k?? t??i kho???n m???i
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      responses:
+        "201":
+          description: ????ng k?? th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+        "400":
+          description: Email ???? t???n t???i (ErrorCode 1001)
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+  /api/auth/refresh-token:
+    post:
+      tags:
+        - Auth
+      summary: Rotate refresh token ??? token c?? b??? revoke, t???o c???p token m???i
+      operationId: refreshToken
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+        required: true
+      responses:
+        "200":
+          description: Token m???i tr??? v???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseTokenResponse'
+        "401":
+          description: Token invalid/revoked/expired
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseTokenResponse'
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: ????ng nh???p ??? tr??? v??? accessToken + refreshToken
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        "200":
+          description: ????ng nh???p th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseTokenResponse'
+        "401":
+          description: Sai credentials (ErrorCode 1002)
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseTokenResponse'
+  /api/auth/introspect:
+    post:
+      tags:
+        - Auth
+      summary: Validate JWT ??? API Gateway g???i endpoint n??y tr?????c m???i request
+      operationId: introspect
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntrospectRequest'
+        required: true
+      responses:
+        "200":
+          description: K???t qu??? validate (valid=true/false)
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseIntrospectResponse'
+        "400":
+          description: Token request kh??ng h???p l???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseIntrospectResponse'
+  /api/auth/admin/users:
+    get:
+      tags:
+        - User
+      summary: '[ADMIN] Danh s??ch users v???i filter v?? ph??n trang'
+      operationId: getUsers
+      parameters:
+        - name: X-User-Role
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        "200":
+          description: L???y danh s??ch th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageResponseUserResponse'
+        "403":
+          description: Kh??ng c?? quy???n admin
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageResponseUserResponse'
+    post:
+      tags:
+        - User
+      summary: '[ADMIN] T???o t??i kho???n admin m???i'
+      operationId: adminCreateUser
+      parameters:
+        - name: X-User-Role
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminCreateUserRequest'
+        required: true
+      responses:
+        "201":
+          description: T???o user th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+        "400":
+          description: Payload kh??ng h???p l???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+  /api/auth/me:
+    get:
+      tags:
+        - User
+      summary: L???y th??ng tin user hi???n t???i (?????c X-User-Id t??? Gateway)
+      operationId: getMe
+      parameters:
+        - name: X-User-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: L???y th??ng tin th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+        "401":
+          description: Thi???u ho???c sai JWT
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseUserResponse'
+components:
+  schemas:
+    UpdateProfileRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          description: H??? t??n m???i
+          example: Tran Thi B
+          maxLength: 255
+          minLength: 2
+        phone:
+          type: string
+          description: S??? ??i???n tho???i m???i
+          example: "0987654321"
+          pattern: ^[0-9]{10,11}$
+        avatarUrl:
+          type: string
+          description: URL ???nh ?????i di???n
+          example: https://cdn.bicap.vn/avatar/user-1.png
+          maxLength: 500
+          minLength: 0
+    ApiResponseUserResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/UserResponse'
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ?????nh danh user
+          example: 8f6b507e-1c54-45b7-96fa-2f3c11a8ac4d
+        email:
+          type: string
+          description: Email ????ng nh???p
+          example: user@bicap.vn
+        fullName:
+          type: string
+          description: H??? t??n hi???n th???
+          example: Nguyen Van A
+        phone:
+          type: string
+          description: S??? ??i???n tho???i
+          example: "0912345678"
+        role:
+          type: string
+          description: Role h??? th???ng
+          example: ADMIN
+        isActive:
+          type: boolean
+          description: Tr???ng th??i ho???t ?????ng
+          example: true
+        avatarUrl:
+          type: string
+          description: Avatar URL
+          example: https://cdn.bicap.vn/avatar/u1.png
+        createdAt:
+          type: string
+          format: date-time
+          description: Th???i ??i???m t???o t??i kho???n
+          example: 2026-04-20T10:30:00
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          description: M???t kh???u hi???n t???i
+          example: OldPass123!
+          minLength: 1
+        newPassword:
+          type: string
+          description: M???t kh???u m???i
+          example: NewPass456!
+          maxLength: 100
+          minLength: 6
+    ApiResponseVoid:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: object
+    AdminUpdateUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          description: Role m???i c???a user (null = gi??? nguy??n)
+          enum:
+            - ADMIN
+            - FARM_MANAGER
+            - RETAILER
+            - SHIPPER
+          example: RETAILER
+        isActive:
+          type: boolean
+          description: Tr???ng th??i active c???a user (null = gi??? nguy??n)
+          example: true
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Email ????ng nh???p duy nh???t
+          example: user@bicap.vn
+          maxLength: 255
+          minLength: 0
+        password:
+          type: string
+          description: M???t kh???u raw tr?????c khi hash
+          example: StrongPass123!
+          maxLength: 100
+          minLength: 6
+        fullName:
+          type: string
+          description: H??? t??n hi???n th??? c???a user
+          example: Nguyen Van A
+          maxLength: 255
+          minLength: 2
+        phone:
+          type: string
+          description: S??? ??i???n tho???i 10-11 ch??? s???
+          example: "0912345678"
+          pattern: ^[0-9]{10,11}$
+        role:
+          type: string
+          description: Vai tr?? h??? th???ng
+          enum:
+            - ADMIN
+            - FARM_MANAGER
+            - RETAILER
+            - SHIPPER
+          example: FARM_MANAGER
+      required:
+        - role
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Refresh token opaque string
+          example: rt_4f93fd7b...
+          minLength: 1
+    ApiResponseTokenResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/TokenResponse'
+    TokenResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token ????? g???i API
+          example: eyJhbGciOiJIUzI1NiJ9...
+        refreshToken:
+          type: string
+          description: Refresh token ????? rotate
+          example: rt_d20f6455...
+        expiresIn:
+          type: integer
+          format: int64
+          description: Th???i gian s???ng c???a access token (gi??y)
+          example: 900
+        role:
+          type: string
+          description: Vai tr?? c???a user
+          example: ADMIN
+        user:
+          $ref: '#/components/schemas/UserResponse'
+          description: Th??ng tin user ????ng nh???p
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Email ????ng nh???p
+          example: admin@bicap.vn
+          minLength: 1
+        password:
+          type: string
+          description: M???t kh???u ????ng nh???p
+          example: StrongPass123!
+          minLength: 1
+    IntrospectRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token c???n validate
+          example: eyJhbGciOiJIUzI1NiJ9...
+          minLength: 1
+    ApiResponseIntrospectResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/IntrospectResponse'
+    IntrospectResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: Token c?? h???p l??? hay kh??ng
+          example: true
+        userId:
+          type: string
+          description: User ID n???u token h???p l???
+          example: 8f6b507e-1c54-45b7-96fa-2f3c11a8ac4d
+        email:
+          type: string
+          description: Email n???u token h???p l???
+          example: user@bicap.vn
+        role:
+          type: string
+          description: Role n???u token h???p l???
+          example: FARM_MANAGER
+    AdminCreateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          description: Email t??i kho???n c???n t???o
+          example: new-admin@bicap.vn
+          minLength: 1
+        password:
+          type: string
+          description: M???t kh???u t???m th???i
+          example: AdminPass123!
+          maxLength: 100
+          minLength: 6
+        fullName:
+          type: string
+          description: T??n hi???n th??? c???a t??i kho???n
+          example: BICAP Admin
+          minLength: 1
+        phone:
+          type: string
+          description: S??? ??i???n tho???i li??n h???
+          example: "0900000000"
+          pattern: ^[0-9]{10,11}$
+        role:
+          type: string
+          description: Role m???c ?????nh lu??n l?? ADMIN cho endpoint n??y
+          enum:
+            - ADMIN
+            - FARM_MANAGER
+            - RETAILER
+            - SHIPPER
+          example: ADMIN
+    ApiResponsePageResponseUserResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/PageResponseUserResponse'
+    PageResponseUserResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          description: Danh s??ch ph???n t??? c???a trang hi???n t???i
+          items:
+            $ref: '#/components/schemas/UserResponse'
+        page:
+          type: integer
+          format: int32
+          description: Ch??? s??? trang (b???t ?????u t??? 0)
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: K??ch th?????c trang
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: T???ng s??? ph???n t???
+          example: 150
+        totalPages:
+          type: integer
+          format: int32
+          description: T???ng s??? trang
+          example: 8
+        last:
+          type: boolean
+          description: ????y c?? ph???i trang cu???i kh??ng
+          example: false
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
