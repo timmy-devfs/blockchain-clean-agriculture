@@ -4,47 +4,11 @@
 
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { getDemoTraceData, type TraceData } from '../../../data/public-trace-demo';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface TraceData {
-  id: string;
-  productName: string;
-  farmName: string;
-  farmLocation: string;
-  farmOwner: string;
-  harvestDate: string;
-  certNo: string;
-  blockchainTxId: string;
-  status: string;
-  timeline: { time: string; label: string; desc: string; icon: string }[];
-}
-
-// ── Server-side fetch (thay URL khi có guest-service:8089) ────────────────────
+// ── Server-side fetch (thay bằng guest-service khi có API) ────────────────────
 async function fetchTraceData(qrCode: string): Promise<TraceData | null> {
-  // TODO: thay bằng fetch(`http://guest-service:8089/api/public/trace/${qrCode}`)
-  // Demo data để SSR render ngay
-  if (qrCode === 'demo' || qrCode.startsWith('LH') || qrCode.startsWith('SP')) {
-    return {
-      id: qrCode,
-      productName: 'Gạo ST25 Sóc Trăng',
-      farmName: 'Farm Mekong Delta',
-      farmLocation: 'Sóc Trăng, Việt Nam',
-      farmOwner: 'Nguyễn Văn An',
-      harvestDate: '15/03/2026',
-      certNo: 'VietGAP-2026-00412',
-      blockchainTxId: '0xa1b092c5f371090db09899f1a61bc78a08ddabcd',
-      status: 'Đã giao',
-      timeline: [
-        { time: '01/03/2026 06:00', label: 'Bắt đầu mùa vụ', desc: 'Gieo sạ tại cánh đồng A3, diện tích 2.5 ha', icon: '🌱' },
-        { time: '08/03/2026 14:30', label: 'Kiểm tra sinh trưởng', desc: 'Cây lúa phát triển tốt, không phát hiện sâu bệnh', icon: '🔬' },
-        { time: '15/03/2026 07:00', label: 'Thu hoạch', desc: 'Thu hoạch đạt 6.2 tấn/ha, độ ẩm 14%', icon: '🌾' },
-        { time: '15/03/2026 15:00', label: 'Đóng gói & Niêm phong', desc: 'Đóng gói 500 bao 25kg, dán QR blockchain', icon: '📦' },
-        { time: '16/03/2026 08:00', label: 'Xuất kho vận chuyển', desc: 'Bàn giao cho đơn vị vận chuyển AgriChain', icon: '🚚' },
-        { time: '18/03/2026 10:30', label: 'Giao hàng thành công', desc: 'Nhận hàng tại siêu thị Co.opmart Hà Nội', icon: '✅' },
-      ],
-    };
-  }
-  return null;
+  return getDemoTraceData(qrCode);
 }
 
 // ── generateMetadata (SSR SEO) ────────────────────────────────────────────────
@@ -73,15 +37,13 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
   const data = await fetchTraceData(qrCode);
 
   const styles = `
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+3:wght@300;400;600;700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Source Sans 3', sans-serif; background: #fafaf7; color: #1a1a0e; }
-    .tl-line { position: absolute; left: 19px; top: 28px; bottom: 0; width: 2px; background: linear-gradient(to bottom, #2d6a2d, #a8d5a8); }
+    body { font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; color: #1a1a0e; }
     .chain-link {
       display: inline-flex; align-items: center; gap: 8px;
       background: #e8f5e9; border: 1px solid #a8d5a8; border-radius: 8px;
       padding: 10px 16px; text-decoration: none;
-      font-family: 'Source Sans 3', sans-serif; font-size: 13px; font-weight: 600; color: #1a3d1a;
+      font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; font-weight: 600; color: #1a3d1a;
       word-break: break-all; transition: background 0.2s;
     }
     .chain-link:hover { background: #c8e6c9; }
@@ -97,7 +59,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
       <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
         <style>{styles}</style>
         <div style={{ fontSize: 64, marginBottom: 20 }}>🔍</div>
-        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 700, color: '#1a1a0e', marginBottom: 12 }}>
+        <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 28, fontWeight: 700, color: '#1a1a0e', marginBottom: 12 }}>
           Không tìm thấy lô hàng
         </h1>
         <p style={{ fontSize: 15, color: '#888', marginBottom: 32, maxWidth: 400 }}>
@@ -111,14 +73,14 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#fafaf7', fontFamily: 'Source Sans 3, sans-serif' }}>
+    <main style={{ minHeight: '100vh', background: '#fafaf7', fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <style>{styles}</style>
 
       {/* ── HEADER ── */}
       <header style={{ background: '#1a3d1a', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 20 }}>🌿</span>
-          <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>BICAP</span>
+          <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>BICAP</span>
         </Link>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Truy xuất nguồn gốc</span>
       </header>
@@ -138,7 +100,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
               {data.status}
             </span>
           </div>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(24px, 5vw, 38px)', fontWeight: 700, color: '#fff', marginBottom: 8, lineHeight: 1.2 }}>
+          <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 'clamp(22px, 4.5vw, 36px)', fontWeight: 700, color: '#fff', marginBottom: 8, lineHeight: 1.25 }}>
             {data.productName}
           </h1>
           <p style={{ fontSize: 15, color: 'rgba(255,255,255,.75)', marginBottom: 4 }}>🏡 {data.farmName} · {data.farmLocation}</p>
@@ -150,7 +112,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
 
         {/* ── FARM INFO ── */}
         <section style={{ background: '#fff', border: '1px solid #e8e8d8', borderRadius: 16, padding: '24px 28px', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#1a1a0e', marginBottom: 20 }}>🌾 Thông tin nông trại</h2>
+          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 19, fontWeight: 700, color: '#1a1a0e', marginBottom: 20 }}>🌾 Thông tin nông trại</h2>
           <div className="info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {[
               { label: 'Nông trại', value: data.farmName },
@@ -169,7 +131,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
 
         {/* ── TIMELINE ── */}
         <section style={{ background: '#fff', border: '1px solid #e8e8d8', borderRadius: 16, padding: '24px 28px', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#1a1a0e', marginBottom: 24 }}>📋 Hành trình lô hàng</h2>
+          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 19, fontWeight: 700, color: '#1a1a0e', marginBottom: 24 }}>📋 Hành trình lô hàng</h2>
           <div style={{ position: 'relative' }}>
             {data.timeline.map((ev, i) => (
               <div key={i} style={{ display: 'flex', gap: 20, paddingBottom: i < data.timeline.length - 1 ? 28 : 0, position: 'relative' }}>
@@ -194,7 +156,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
 
         {/* ── BLOCKCHAIN CERT ── */}
         <section style={{ background: '#1a3d1a', borderRadius: 16, padding: '24px 28px', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>⛓ Chứng nhận Blockchain</h2>
+          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 19, fontWeight: 700, color: '#fff', marginBottom: 8 }}>⛓ Chứng nhận Blockchain</h2>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,.6)', marginBottom: 20 }}>
             Dữ liệu được ghi vĩnh viễn trên VeChainThor — không thể sửa đổi hay xóa.
           </p>
@@ -218,7 +180,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
 
         {/* ── BACK ── */}
         <div style={{ textAlign: 'center', paddingBottom: 40 }}>
-          <Link href="/" style={{ fontFamily: 'Source Sans 3, sans-serif', fontSize: 14, fontWeight: 600, color: '#2d6a2d', textDecoration: 'none', borderBottom: '2px solid #2d6a2d', paddingBottom: 2 }}>
+          <Link href="/" style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 14, fontWeight: 600, color: '#2d6a2d', textDecoration: 'none', borderBottom: '2px solid #2d6a2d', paddingBottom: 2 }}>
             ← Về trang chủ
           </Link>
         </div>
