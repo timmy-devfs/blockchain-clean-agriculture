@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { useSyncOrders } from '../hooks/useSyncOrders';
+import { resolveProvinceCoords } from '../../lib/vn-province-coords';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Order {
@@ -198,116 +200,223 @@ function TLItem({ ev, isFirst, isLast }: { ev: Order['timeline'][0]; isFirst: bo
   );
 }
 
-// ─── Map Page Component (Leaflet — chỉ hiện marker xe, không vẽ route) ────────
+// ─── Danh sách 63 tỉnh/thành Việt Nam ────────────────────────────────────────
+const VN_PROVINCES = [
+  'An Giang','Bà Rịa - Vũng Tàu','Bạc Liêu','Bắc Giang','Bắc Kạn','Bắc Ninh',
+  'Bến Tre','Bình Dương','Bình Định','Bình Phước','Bình Thuận','Cà Mau',
+  'Cao Bằng','Cần Thơ','Đà Nẵng','Đắk Lắk','Đắk Nông','Điện Biên',
+  'Đồng Nai','Đồng Tháp','Gia Lai','Hà Giang','Hà Nam','Hà Nội','Hà Tĩnh',
+  'Hải Dương','Hải Phòng','Hậu Giang','Hòa Bình','Hưng Yên','Khánh Hòa',
+  'Kiên Giang','Kon Tum','Lai Châu','Lạng Sơn','Lào Cai','Lâm Đồng',
+  'Long An','Nam Định','Nghệ An','Ninh Bình','Ninh Thuận','Phú Thọ',
+  'Phú Yên','Quảng Bình','Quảng Nam','Quảng Ngãi','Quảng Ninh','Quảng Trị',
+  'Sóc Trăng','Sơn La','Tây Ninh','Thái Bình','Thái Nguyên','Thanh Hóa',
+  'Thừa Thiên Huế','Tiền Giang','TP. Hồ Chí Minh','Trà Vinh','Tuyên Quang',
+  'Vĩnh Long','Vĩnh Phúc','Yên Bái',
+];
 
-// Bảng tọa độ cố định cho các tỉnh/thành phố VN phổ biến
-const VN_COORDS: Record<string, [number, number]> = {
-  'hà nội': [21.0285, 105.8542], 'hanoi': [21.0285, 105.8542],
-  'hồ chí minh': [10.8231, 106.6297], 'hcm': [10.8231, 106.6297], 'sài gòn': [10.8231, 106.6297],
-  'đà nẵng': [16.0544, 108.2022], 'da nang': [16.0544, 108.2022],
-  'cần thơ': [10.0452, 105.7469], 'can tho': [10.0452, 105.7469],
-  'hải phòng': [20.8449, 106.6881], 'hai phong': [20.8449, 106.6881],
-  'huế': [16.4637, 107.5909], 'hue': [16.4637, 107.5909],
-  'nha trang': [12.2388, 109.1967],
-  'vũng tàu': [10.4113, 107.1362], 'vung tau': [10.4113, 107.1362],
-  'đà lạt': [11.9404, 108.4583], 'da lat': [11.9404, 108.4583],
-  'buôn ma thuột': [12.6797, 108.0502],
-  'quy nhơn': [13.7765, 109.2237],
-  'vinh': [18.6796, 105.6813], 'nghệ an': [18.6796, 105.6813],
-  'thanh hóa': [19.8069, 105.7852],
-  'hải dương': [20.9373, 106.3147],
-  'nam định': [20.4388, 106.1621],
-  'thái nguyên': [21.5671, 105.8252],
-  'bắc giang': [21.2820, 106.1975],
-  'bắc ninh': [21.1861, 106.0763],
-  'quảng ninh': [21.0064, 107.2925],
-  'lào cai': [22.4856, 103.9751],
-  'điện biên': [21.3862, 103.0175],
-  'sơn la': [21.3256, 103.9188],
-  'hòa bình': [20.8133, 105.3383],
-  'ninh bình': [20.2506, 105.9745],
-  'hà tĩnh': [18.3559, 105.8877],
-  'quảng bình': [17.4828, 106.5997],
-  'quảng trị': [16.7403, 107.1854],
-  'quảng nam': [15.5393, 108.0191],
-  'quảng ngãi': [15.1201, 108.7924],
-  'bình định': [13.7765, 109.2237],
-  'phú yên': [13.0882, 109.0928],
-  'khánh hòa': [12.2388, 109.1967],
-  'ninh thuận': [11.5644, 108.9884],
-  'bình thuận': [10.9281, 108.1007],
-  'kon tum': [14.3544, 107.9820],
-  'gia lai': [13.9810, 108.0000],
-  'đắk lắk': [12.6797, 108.0502],
-  'đắk nông': [12.0047, 107.6877],
-  'lâm đồng': [11.9404, 108.4583],
-  'bình phước': [11.7512, 106.7235],
-  'tây ninh': [11.3553, 106.1099],
-  'bình dương': [11.1496, 106.5264],
-  'đồng nai': [11.0686, 107.1676],
-  'bà rịa': [10.4113, 107.1362],
-  'long an': [10.6956, 106.2431],
-  'tiền giang': [10.4493, 106.3420],
-  'bến tre': [10.2433, 106.3756],
-  'trà vinh': [9.9477, 106.3419],
-  'vĩnh long': [10.2395, 105.9572],
-  'đồng tháp': [10.4938, 105.6882],
-  'an giang': [10.5215, 105.1259],
-  'kiên giang': [10.0125, 105.0809],
-  'hậu giang': [9.7574, 105.6412],
-  'sóc trăng': [9.6036, 105.9739],
-  'bạc liêu': [9.2941, 105.7219],
-  'cà mau': [9.1769, 105.1503],
-  'cao bằng': [22.6666, 106.2516], 'cao bắng': [22.6666, 106.2516],
-  'lạng sơn': [21.8537, 106.7615],
-  'bắc kạn': [22.1470, 105.8344],
-  'tuyên quang': [21.8240, 105.2140],
-  'hà giang': [22.8233, 104.9836],
-  'yên bái': [21.7051, 104.8746],
-  'phú thọ': [21.3989, 105.2289],
-  'vĩnh phúc': [21.3087, 105.6047],
-  'hưng yên': [20.8526, 106.0168],
-  'hà nam': [20.5835, 105.9224],
-  'thái bình': [20.4463, 106.3366],
-  'gao': [10.8231, 106.6297], // fallback HCM nếu nhập tên hàng hóa
-};
+function ProvinceInput({ label, value, onChange, placeholder = '' }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
 
-function lookupCoord(text: string): [number, number] | null {
-  const normalized = text.toLowerCase().trim();
-  // Tìm exact match trước
-  if (VN_COORDS[normalized]) return VN_COORDS[normalized];
-  // Tìm partial match
-  for (const [key, coord] of Object.entries(VN_COORDS)) {
-    if (normalized.includes(key) || key.includes(normalized)) return coord;
+  // Sync khi value thay đổi từ ngoài (vd: xóa form)
+  useEffect(() => { setQuery(value); }, [value]);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const suggestions = query.trim().length === 0
+    ? VN_PROVINCES
+    : VN_PROVINCES.filter(p =>
+        p.toLowerCase().includes(query.toLowerCase()) ||
+        p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+          .includes(query.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase())
+      );
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 5 }}>{label}</label>
+      <input
+        style={{ width: '100%', padding: '9px 12px', border: `1px solid ${open ? '#16a34a' : '#e0e0e0'}`,
+          borderRadius: 8, fontSize: 13, outline: 'none', fontFamily: 'inherit',
+          boxSizing: 'border-box' as const, background: '#fff',
+          boxShadow: open ? '0 0 0 3px rgba(22,163,74,.1)' : 'none', transition: 'all .15s' }}
+        placeholder={placeholder}
+        value={query}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && suggestions.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+          background: '#fff', border: '1px solid #e0e0e0', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,.12)', marginTop: 4,
+          maxHeight: 220, overflowY: 'auto',
+        }}>
+          {suggestions.map(p => (
+            <div key={p}
+              onMouseDown={e => { e.preventDefault(); setQuery(p); onChange(p); setOpen(false); }}
+              style={{
+                padding: '8px 12px', fontSize: 13, cursor: 'pointer',
+                background: p === value ? '#f0fdf4' : 'transparent',
+                color: p === value ? '#16a34a' : '#333',
+                fontWeight: p === value ? 600 : 400,
+                borderBottom: '1px solid #f5f5f5',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f0fdf4')}
+              onMouseLeave={e => (e.currentTarget.style.background = p === value ? '#f0fdf4' : 'transparent')}
+            >
+              📍 {p}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+// Cache geocoding / tuyến đường
+const geocodeCache: Record<string, [number, number]> = {};
+const routeCache: Record<string, [number, number][]> = {};
+
+/** Khoảng cách km (đại cương) giữa hai điểm [lat, lon] */
+function geoDistKm(a: [number, number], b: [number, number]): number {
+  const R = 6371;
+  const dLat = ((b[0] - a[0]) * Math.PI) / 180;
+  const dLon = ((b[1] - a[1]) * Math.PI) / 180;
+  const la1 = (a[0] * Math.PI) / 180;
+  const la2 = (b[0] * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Điểm trên polyline theo tỷ lệ quãng đường t ∈ [0,1] — dùng đặt icon xe trên lộ trình thật */
+function pointAlongPolyline(coords: [number, number][], t: number): [number, number] {
+  if (coords.length === 0) return [16.2, 107.4];
+  if (coords.length === 1) return coords[0];
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const d = geoDistKm(coords[i - 1], coords[i]);
+    segs.push(d);
+    total += d;
   }
+  if (total < 1e-6) return coords[Math.floor(coords.length / 2)];
+  let target = Math.max(0, Math.min(1, t)) * total;
+  for (let i = 0; i < segs.length; i++) {
+    if (target <= segs[i]) {
+      const frac = segs[i] < 1e-9 ? 0 : target / segs[i];
+      return [
+        coords[i][0] + frac * (coords[i + 1][0] - coords[i][0]),
+        coords[i][1] + frac * (coords[i + 1][1] - coords[i][1]),
+      ];
+    }
+    target -= segs[i];
+  }
+  return coords[coords.length - 1];
+}
+
+async function fetchJsonTimeout(url: string, timeoutMs: number): Promise<unknown> {
+  const ctrl = new AbortController();
+  const tid = window.setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      return {};
+    }
+  } catch {
+    return {};
+  } finally {
+    window.clearTimeout(tid);
+  }
+}
+
+async function geocodeAddress(address: string): Promise<[number, number] | null> {
+  const key = address.trim();
+  if (!key) return null;
+  if (geocodeCache[key]) return geocodeCache[key];
+
+  // Bước 1: tra bảng tỉnh/thành ngay — không cần mạng
+  const local = resolveProvinceCoords(key);
+  if (local) {
+    geocodeCache[key] = local;
+    return local;
+  }
+
+  // Bước 2: gọi Nominatim qua proxy server
+  try {
+    const data = (await fetchJsonTimeout(`/api/geocode?q=${encodeURIComponent(key)}`, 12_000)) as {
+      lat: number | null;
+      lon: number | null;
+    };
+    if (typeof data.lat === 'number' && typeof data.lon === 'number') {
+      const coord: [number, number] = [data.lat, data.lon];
+      geocodeCache[key] = coord;
+      return coord;
+    }
+  } catch {}
+
+  console.warn('[map] Không tìm được tọa độ cho:', key);
   return null;
 }
 
-// Biên giới VN (lat: 8.4–23.4, lng: 102.1–109.5)
-const VN_LAT = [8.4, 23.4];
-const VN_LNG = [102.1, 109.5];
-function clampToVN(coord: [number, number]): [number, number] {
-  return [
-    Math.max(VN_LAT[0], Math.min(VN_LAT[1], coord[0])),
-    Math.max(VN_LNG[0], Math.min(VN_LNG[1], coord[1])),
-  ];
+async function getRoute(from: [number, number], to: [number, number]): Promise<[number, number][]> {
+  const key = `${from[0]},${from[1]}-${to[0]},${to[1]}`;
+  if (routeCache[key]) return routeCache[key];
+  try {
+    const params = new URLSearchParams({
+      fromLon: String(from[1]),
+      fromLat: String(from[0]),
+      toLon: String(to[1]),
+      toLat: String(to[0]),
+    });
+    const data = (await fetchJsonTimeout(`/api/osrm?${params}`, 14_000)) as {
+      code?: string;
+      routes?: { geometry: { coordinates: [number, number][] } }[];
+    };
+    if (data.code === 'Ok' && data.routes?.[0]) {
+      const coords: [number, number][] = data.routes[0].geometry.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]]
+      );
+      routeCache[key] = coords;
+      return coords;
+    }
+  } catch {}
+  return [from, to];
 }
-// Vị trí xe: luôn đặt tại điểm đi (from), nếu không có thì điểm đến
-function truckPosition(from: [number, number] | null, to: [number, number] | null): [number, number] | null {
-  if (from) return from;
-  if (to)   return to;
-  return null;
-}
+const ROUTE_COLORS = ['#16a34a', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#ea580c'];
 
 function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const markersRef = useRef<any[]>([]);
+  const [geocoding, setGeocoding] = useState(false);
+  // Lưu layers theo từng order id để có thể highlight/remove riêng lẻ
+  const orderLayersRef = useRef<Record<string, any[]>>({});
+  // Ref để tránh stale closure trong script.onload
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
 
-  // Lô hàng đang vận chuyển có tài xế
-  const activeOrders = orders.filter(o => o.status === 'Đang vận chuyển' && o.driver);
+  // Tất cả lô hàng "Đang vận chuyển" — hiện hết lên map
+  const activeOrders = orders.filter(o => o.status === 'Đang vận chuyển');
+  // Tất cả lô hàng "Đã giao" — hiện icon xe tại điểm đến
+  const deliveredOrders = orders.filter(o => o.status === 'Đã giao');
+
   const stats = {
     total:   drivers.length,
     onRoute: drivers.filter(d => orders.some(o => o.driver === d.name && o.status === 'Đang vận chuyển')).length,
@@ -315,139 +424,169 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
     orders:  activeOrders.length,
   };
 
-  // Xóa tất cả marker cũ
-  function clearMarkers() {
-    markersRef.current.forEach(m => {
-      try { mapInstanceRef.current?.removeLayer(m); } catch {}
+  // Xóa layers của 1 order cụ thể
+  function clearOrderLayers(orderId: string) {
+    const layers = orderLayersRef.current[orderId] || [];
+    layers.forEach(l => {
+      try { mapInstanceRef.current?.removeLayer(l); } catch {}
     });
-    markersRef.current = [];
+    delete orderLayersRef.current[orderId];
   }
 
-  // Đặt marker xe lên bản đồ cho 1 lô hàng (không vẽ route)
-  function showTruckMarker(order: Order) {
+  // Xóa toàn bộ layers
+  function clearAllLayers() {
+    Object.keys(orderLayersRef.current).forEach(id => clearOrderLayers(id));
+  }
+
+  // Vẽ lại toàn bộ lô lên map (mỗi lần gọi: xóa cũ → vẽ mới — tránh trùng layer / race)
+  async function drawAllOrders(allOrders: Order[]) {
     const L = (window as any).L;
-    const map = mapInstanceRef.current;
-    if (!L || !map) return;
-
-    clearMarkers();
-
-    const fromCoord = lookupCoord(order.from);
-    const toCoord   = lookupCoord(order.to);
-
-    // Vị trí xe = trung điểm từ → đến (hoặc dùng điểm tìm được)
-    let truckPos: [number, number];
-    if (fromCoord && toCoord) {
-      truckPos = truckPosition(fromCoord, toCoord)!;
-      map.fitBounds([fromCoord, toCoord], { padding: [80, 80], animate: true, maxZoom: 9 });
-    } else if (fromCoord) {
-      truckPos = fromCoord;
-      map.setView(fromCoord, 8, { animate: true });
-    } else if (toCoord) {
-      truckPos = toCoord;
-      map.setView(toCoord, 8, { animate: true });
-    } else {
-      // fallback: trung tâm VN
-      truckPos = [16.5, 107.5];
-      map.setView(truckPos, 6, { animate: true });
+    let map = mapInstanceRef.current;
+    if (!L || !map) {
+      setGeocoding(false);
+      return;
     }
 
-    // Icon xe tải
-    const truckIcon = L.divIcon({
-      className: '',
-      html: `<div style="
-        width:44px;height:44px;background:#16a34a;
-        border-radius:50%;border:3px solid #fff;
-        box-shadow:0 4px 16px rgba(22,163,74,0.5);
-        display:flex;align-items:center;justify-content:center;
-        font-size:20px;
-      ">🚚</div>`,
-      iconSize: [44, 44],
-      iconAnchor: [22, 22],
-    });
+    setGeocoding(true);
+    try {
+      clearAllLayers();
 
-    const truckMarker = L.marker(truckPos, { icon: truckIcon, zIndexOffset: 1000 })
-      .addTo(map)
-      .bindPopup(`
-        <div style="padding:12px 14px;min-width:190px;">
-          <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:6px;">🚚 ${order.driver}</div>
-          <div style="font-size:11px;color:#16a34a;font-weight:600;margin-bottom:8px;">● Đang vận chuyển</div>
-          <div style="font-size:11px;color:#555;margin-bottom:3px;"><b>Lô:</b> ${order.id}</div>
-          <div style="font-size:11px;color:#555;margin-bottom:3px;"><b>Hàng:</b> ${order.cargo}</div>
+      if (allOrders.length === 0) {
+        map = mapInstanceRef.current;
+        if (map) map.setView([16.2, 107.4], 6);
+        return;
+      }
+
+      const allCoords: [number, number][] = [];
+
+      for (let i = 0; i < allOrders.length; i++) {
+        map = mapInstanceRef.current;
+        if (!map || !L) break;
+
+        const order = allOrders[i];
+        const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+        const isDelivered = order.status === 'Đã giao';
+
+        const layers: any[] = [];
+        const fromCoord = await geocodeAddress(order.from);
+        const toCoord = await geocodeAddress(order.to);
+
+        // Fallback: dùng điểm giữa Việt Nam nếu không tìm được (để vẫn vẽ, không bỏ qua)
+        const FC: [number, number] = fromCoord ?? [16.5, 107.0];
+        const TC: [number, number] = toCoord ?? [16.5, 108.0];
+        const validFrom = !!fromCoord;
+        const validTo = !!toCoord;
+        if (!validFrom) {
+          console.warn('[map] fallback tọa độ cho:', order.from);
+        }
+        if (!validTo) {
+          console.warn('[map] fallback tọa độ cho:', order.to);
+        }
+
+        if (validFrom) allCoords.push(FC);
+        if (validTo) allCoords.push(TC);
+
+        const routeCoords = await getRoute(FC, TC);
+
+        try {
+          const routeLine = L.polyline(routeCoords, {
+            color: isDelivered ? '#9ca3af' : color,
+            weight: isDelivered ? 2 : 3,
+            opacity: isDelivered ? 0.45 : 0.82,
+            dashArray: isDelivered ? '4, 8' : undefined,
+          }).addTo(map);
+          layers.push(routeLine);
+
+          const fromIcon = L.divIcon({
+            className: '',
+            html: `<div style="background:${isDelivered ? '#9ca3af' : color};color:#fff;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2);">📍 ${order.from}</div>`,
+            iconAnchor: [0, 10],
+          });
+          layers.push(L.marker(FC, { icon: fromIcon }).addTo(map));
+
+          const toIcon = L.divIcon({
+            className: '',
+            html: `<div style="background:#dc2626;color:#fff;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2);">🏁 ${order.to}</div>`,
+            iconAnchor: [0, 10],
+          });
+          layers.push(L.marker(TC, { icon: toIcon }).addTo(map));
+
+          const truckPos: [number, number] = isDelivered
+            ? TC
+            : pointAlongPolyline(routeCoords, 0.46);
+
+          const truckIcon = L.divIcon({
+            className: '',
+            html: `<div style="
+          width:36px;height:36px;
+          background:${isDelivered ? '#10b981' : color};
+          border-radius:50%;border:3px solid #fff;
+          box-shadow:0 3px 10px rgba(0,0,0,0.28);
+          display:flex;align-items:center;justify-content:center;
+          font-size:17px;
+        ">🚚</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          });
+
+          const popupContent = `
+        <div style="padding:10px 13px;min-width:170px;">
+          <div style="font-weight:700;font-size:12px;color:${color};margin-bottom:4px;">${order.id}</div>
+          <div style="font-weight:600;font-size:12px;color:#111;margin-bottom:5px;">🚚 ${order.driver || 'Chưa phân công'}</div>
+          <div style="font-size:11px;color:${isDelivered ? '#10b981' : '#3b82f6'};font-weight:600;margin-bottom:6px;">
+            ${isDelivered ? '✅ Đã giao' : '● Đang vận chuyển'}
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:2px;"><b>Hàng:</b> ${order.cargo}</div>
           <div style="font-size:11px;color:#555;"><b>Tuyến:</b> ${order.from} → ${order.to}</div>
         </div>
-      `, { className: 'map-driver-popup', maxWidth: 240 })
-      .openPopup();
-    markersRef.current.push(truckMarker);
+      `;
 
-    // Marker điểm xuất phát (nếu tìm được)
-    if (fromCoord) {
-      const fromIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:#16a34a;color:#fff;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.2);">📍 ${order.from}</div>`,
-        iconAnchor: [0, 10],
-      });
-      markersRef.current.push(L.marker(fromCoord, { icon: fromIcon }).addTo(map));
-    }
+          const truckMarker = L.marker(truckPos, { icon: truckIcon, zIndexOffset: 1000 })
+            .addTo(map)
+            .bindPopup(popupContent, { className: 'map-driver-popup', maxWidth: 220 });
+          layers.push(truckMarker);
 
-    // Marker điểm đến (nếu tìm được)
-    if (toCoord) {
-      const toIcon = L.divIcon({
-        className: '',
-        html: `<div style="background:#dc2626;color:#fff;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.2);">🏁 ${order.to}</div>`,
-        iconAnchor: [0, 10],
-      });
-      markersRef.current.push(L.marker(toCoord, { icon: toIcon }).addTo(map));
+          orderLayersRef.current[order.id] = layers;
+        } catch (layerErr) {
+          console.warn('[map] layer error', order.id, layerErr);
+        }
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      map = mapInstanceRef.current;
+      if (map && allCoords.length > 0) {
+        try {
+          const bounds = L.latLngBounds(allCoords.map(c => L.latLng(c[0], c[1])));
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [48, 48], animate: true, maxZoom: 11 });
+          }
+        } catch (e) {
+          console.warn('fitBounds error:', e);
+        }
+      } else if (map) {
+        try {
+          map.setView([16.2, 107.4], 6);
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('[map] drawAllOrders', e);
+    } finally {
+      setGeocoding(false);
     }
   }
 
-  // Hiện tất cả xe trên map (overview)
-  function showAllTrucks() {
+  // Focus vào 1 lô hàng cụ thể khi click
+  async function focusOrder(order: Order) {
     const L = (window as any).L;
     const map = mapInstanceRef.current;
-    if (!L || !map) return;
-
-    clearMarkers();
-    const bounds: [number, number][] = [];
-
-    activeOrders.forEach(order => {
-      const fromCoord = lookupCoord(order.from);
-      const toCoord   = lookupCoord(order.to);
-      let truckPos: [number, number] | null = null;
-
-      if (fromCoord && toCoord) { truckPos = truckPosition(fromCoord, toCoord)!; }
-      else if (fromCoord)       { truckPos = fromCoord; }
-      else if (toCoord)         { truckPos = toCoord; }
-
-      if (!truckPos) return;
-      bounds.push(truckPos);
-
-      const truckIcon = L.divIcon({
-        className: '',
-        html: `<div style="
-          width:40px;height:40px;background:#16a34a;
-          border-radius:50%;border:3px solid #fff;
-          box-shadow:0 4px 14px rgba(22,163,74,0.45);
-          display:flex;align-items:center;justify-content:center;font-size:18px;
-        ">🚚</div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
-      });
-
-      const m = L.marker(truckPos, { icon: truckIcon, zIndexOffset: 1000 })
-        .addTo(map)
-        .bindPopup(`
-          <div style="padding:10px 12px;min-width:170px;">
-            <div style="font-weight:700;font-size:13px;color:#111;margin-bottom:5px;">🚚 ${order.driver}</div>
-            <div style="font-size:11px;color:#16a34a;font-weight:600;margin-bottom:6px;">● Đang vận chuyển</div>
-            <div style="font-size:11px;color:#555;margin-bottom:2px;"><b>Lô:</b> ${order.id}</div>
-            <div style="font-size:11px;color:#555;"><b>Tuyến:</b> ${order.from} → ${order.to}</div>
-          </div>
-        `, { className: 'map-driver-popup', maxWidth: 220 });
-      markersRef.current.push(m);
-    });
-
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [60, 60], animate: true, maxZoom: 9 });
+    if (!map || !L) return;
+    const fromCoord = await geocodeAddress(order.from);
+    const toCoord   = await geocodeAddress(order.to);
+    if (fromCoord && toCoord) {
+      try {
+        const bounds = L.latLngBounds([L.latLng(fromCoord[0], fromCoord[1]), L.latLng(toCoord[0], toCoord[1])]);
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [80, 80], animate: true });
+      } catch (e) { console.warn(e); }
     }
   }
 
@@ -478,14 +617,12 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
 
       mapInstanceRef.current = map;
       setMapReady(true);
-
-      // Tự động hiện tất cả xe khi vào trang
-      setTimeout(() => showAllTrucks(), 300);
+      // Vẽ lô hàng do useEffect([orders, mapReady]) đảm nhiệm — tránh gọi draw 2 lần (race / layer trùng)
     };
     document.head.appendChild(script);
 
     return () => {
-      clearMarkers();
+      clearAllLayers();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -493,13 +630,23 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
     };
   }, []);
 
+  // Khi orders / map sẵn sàng: vẽ lại (debounce nhẹ để tránh hai lần render liên tiếp)
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current) return;
+    const toShow = [...orders.filter(o => o.status === 'Đang vận chuyển'), ...orders.filter(o => o.status === 'Đã giao')];
+    const t = window.setTimeout(() => {
+      void drawAllOrders(toShow);
+    }, 280);
+    return () => window.clearTimeout(t);
+  }, [orders, mapReady]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, color: '#111' }}>Bản đồ Vận chuyển</div>
-          <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>Theo dõi vị trí xe · OpenStreetMap</div>
+          <div style={{ fontSize: 12, color: '#aaa', marginTop: 3 }}>Theo dõi lộ trình lô hàng · OpenStreetMap + Nominatim</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           {[
@@ -522,56 +669,79 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
         {/* Order list panel */}
         <div style={{ width: 250, flexShrink: 0, background: '#fff', borderRadius: 12, border: '1px solid #e8eaf0', overflowY: 'auto', maxHeight: 580, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', fontSize: 13, fontWeight: 700, color: '#111', flexShrink: 0 }}>
-            📦 Lô đang vận chuyển
+            📦 Lô hàng vận chuyển
           </div>
 
-          {/* Nút xem tất cả */}
-          {activeOrders.length > 0 && (
-            <div
-              onClick={() => { setSelectedOrder(null); showAllTrucks(); }}
-              style={{
-                padding: '9px 14px', borderBottom: '1px solid #f5f5f5', cursor: 'pointer',
-                background: selectedOrder === null ? '#eff6ff' : 'transparent',
-                borderLeft: selectedOrder === null ? '3px solid #3b82f6' : '3px solid transparent',
-                fontSize: 12, color: '#1d4ed8', fontWeight: 600,
-              }}
-            >
-              🗺 Xem tất cả xe
-            </div>
-          )}
-
-          {activeOrders.length === 0 ? (
+          {activeOrders.length === 0 && deliveredOrders.length === 0 ? (
             <div style={{ padding: '40px 16px', textAlign: 'center', color: '#ccc' }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📦</div>
-              <div style={{ fontSize: 12 }}>Chưa có lô hàng nào đang vận chuyển.<br />Tạo lô hàng và gán trạng thái <b>"Đang vận chuyển"</b>.</div>
+              <div style={{ fontSize: 12 }}>Chưa có lô hàng nào.<br />Tạo lô hàng và gán trạng thái <b>"Đang vận chuyển"</b>.</div>
             </div>
           ) : (
-            activeOrders.map(o => {
-              const isSelected = selectedOrder === o.id;
-              return (
-                <div key={o.id}
-                  onClick={() => { setSelectedOrder(o.id); showTruckMarker(o); }}
-                  style={{
-                    padding: '11px 14px', borderBottom: '1px solid #f5f5f5', cursor: 'pointer',
-                    background: isSelected ? '#f0fdf4' : 'transparent',
-                    borderLeft: isSelected ? '3px solid #16a34a' : '3px solid transparent',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                    <b style={{ fontFamily: 'monospace', fontSize: 12, color: '#16a34a' }}>{o.id}</b>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>📦 {o.cargo}</div>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>📍 {o.from}</div>
-                  <div style={{ fontSize: 11, color: '#dc2626' }}>🏁 {o.to}</div>
-                  {o.driver && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>🚚 {o.driver}</div>}
+            <>
+              {activeOrders.length > 0 && (
+                <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '.5px', background: '#eff6ff' }}>
+                  🔵 Đang vận chuyển ({activeOrders.length})
                 </div>
-              );
-            })
+              )}
+              {activeOrders.map((o, i) => {
+                const isSelected = selectedOrder === o.id;
+                const color = ROUTE_COLORS[orders.filter(x => x.status === 'Đang vận chuyển').indexOf(o) % ROUTE_COLORS.length];
+                return (
+                  <div key={o.id}
+                    onClick={() => { setSelectedOrder(o.id); focusOrder(o); }}
+                    style={{
+                      padding: '10px 14px', borderBottom: '1px solid #f5f5f5', cursor: 'pointer',
+                      background: isSelected ? '#f0fdf4' : 'transparent',
+                      borderLeft: `3px solid ${isSelected ? color : 'transparent'}`,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <b style={{ fontFamily: 'monospace', fontSize: 11, color: '#16a34a' }}>{o.id}</b>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>📦 {o.cargo}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginBottom: 1 }}>📍 {o.from}</div>
+                    <div style={{ fontSize: 11, color: '#dc2626' }}>🏁 {o.to}</div>
+                    {o.driver && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>🚚 {o.driver}</div>}
+                  </div>
+                );
+              })}
+
+              {deliveredOrders.length > 0 && (
+                <div style={{ padding: '6px 14px', fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '.5px', background: '#f0fdf4' }}>
+                  ✅ Đã giao ({deliveredOrders.length})
+                </div>
+              )}
+              {deliveredOrders.map(o => {
+                const isSelected = selectedOrder === o.id;
+                return (
+                  <div key={o.id}
+                    onClick={() => { setSelectedOrder(o.id); focusOrder(o); }}
+                    style={{
+                      padding: '10px 14px', borderBottom: '1px solid #f5f5f5', cursor: 'pointer',
+                      background: isSelected ? '#f0fdf4' : 'transparent',
+                      borderLeft: `3px solid ${isSelected ? '#10b981' : 'transparent'}`,
+                      opacity: 0.75, transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                      <b style={{ fontFamily: 'monospace', fontSize: 11, color: '#10b981' }}>{o.id}</b>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 3 }}>📦 {o.cargo}</div>
+                    <div style={{ fontSize: 11, color: '#888', marginBottom: 1 }}>📍 {o.from}</div>
+                    <div style={{ fontSize: 11, color: '#dc2626' }}>🏁 {o.to}</div>
+                  </div>
+                );
+              })}
+            </>
           )}
 
+          {/* Hint */}
           <div style={{ padding: '10px 14px', borderTop: '1px solid #f0f0f0', fontSize: 11, color: '#bbb', flexShrink: 0 }}>
-            💡 Click vào lô hàng để xem vị trí xe
+            💡 Click vào lô hàng để zoom tới vị trí
           </div>
         </div>
 
@@ -583,11 +753,21 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
               <div style={{ fontSize: 13, color: '#9ca3af' }}>Đang tải bản đồ...</div>
             </div>
           )}
+          {geocoding && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 14px', fontSize: 12, color: '#92400e', fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,.1)', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div style={{ width: 14, height: 14, border: '2px solid #fbbf24', borderTopColor: '#f59e0b', borderRadius: '50%', animation: 'spinRing .7s linear infinite' }} />
+              Đang tìm tọa độ địa chỉ...
+            </div>
+          )}
           <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: 500 }} />
 
           {/* Legend */}
           <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 1000, background: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: '10px 14px', border: '1px solid #e8eaf0', boxShadow: '0 2px 8px rgba(0,0,0,.08)', fontSize: 12 }}>
             <div style={{ fontWeight: 700, color: '#111', marginBottom: 6 }}>Chú thích</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+              <div style={{ width: 24, height: 3, background: '#16a34a', borderRadius: 2 }} />
+              <span style={{ color: '#555' }}>Lộ trình vận chuyển</span>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
               <span style={{ fontSize: 14 }}>📍</span>
               <span style={{ color: '#555' }}>Điểm xuất phát</span>
@@ -596,14 +776,18 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
               <span style={{ fontSize: 14 }}>🏁</span>
               <span style={{ color: '#555' }}>Điểm đến</span>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+              <span style={{ fontSize: 14 }}>🚚</span>
+              <span style={{ color: '#555' }}>Xe đang giao (giữa tuyến)</span>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <span style={{ fontSize: 14 }}>🚚</span>
-              <span style={{ color: '#555' }}>Vị trí xe hiện tại</span>
+              <span style={{ color: '#10b981' }}>Xe đã giao (tại điểm đến)</span>
             </div>
           </div>
 
           <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 1000, background: 'rgba(255,255,255,0.92)', borderRadius: 8, padding: '6px 10px', border: '1px solid #e8eaf0', fontSize: 11, color: '#888' }}>
-            🗺 OpenStreetMap
+            🗺 OpenStreetMap · Nominatim
           </div>
         </div>
       </div>
@@ -625,6 +809,9 @@ export default function ShippingDashboard() {
   const [navHover, setNavHover] = useState('');
   const [editDriver, setEditDriver] = useState<{ idx: number; data: Driver } | null>(null);
   const [toast, setToast]     = useState('');
+
+  // Sync orders → shared/orders.json để web-public đọc
+  useSyncOrders(orders);
 
   const [traceQ, setTraceQ]         = useState('');
   const [traceResult, setTraceResult] = useState<Order | 'not-found' | null>(null);
@@ -1082,8 +1269,8 @@ export default function ShippingDashboard() {
                     <Field label="Số kiện" value={form.qty} onChange={v => setForm(f => ({ ...f, qty: v }))} placeholder="10" type="number" />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <Field label="Điểm xuất phát *" value={form.from} onChange={v => setForm(f => ({ ...f, from: v }))} placeholder="TP. Hồ Chí Minh" />
-                    <Field label="Điểm đến *" value={form.to} onChange={v => setForm(f => ({ ...f, to: v }))} placeholder="Hà Nội" />
+                    <ProvinceInput label="Điểm xuất phát *" value={form.from} onChange={v => setForm(f => ({ ...f, from: v }))} placeholder="Chọn tỉnh/thành..." />
+                    <ProvinceInput label="Điểm đến *" value={form.to} onChange={v => setForm(f => ({ ...f, to: v }))} placeholder="Chọn tỉnh/thành..." />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
                     <Field label="Ngày giao" value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" />
@@ -1299,13 +1486,13 @@ export default function ShippingDashboard() {
               borderRadius: 12, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
             }}>
               <div style={{ flexShrink: 0, background: '#fff', padding: 10, borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
-              <QRCodeCanvas
-  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/trace?id=${detail.id}`}
-  size={110}
-  level="M"
-  includeMargin={false}
-  id={`qr-${detail.id}`}
-/>
+                <QRCodeCanvas
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/trace?id=${detail.id}`}
+                  size={110}
+                  level="M"
+                  includeMargin={false}
+                  id={`qr-${detail.id}`}
+                />
               </div>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#14532d', marginBottom: 4 }}>🔲 QR Code lô hàng</div>

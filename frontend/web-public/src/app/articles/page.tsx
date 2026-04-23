@@ -57,13 +57,12 @@ const CATEGORIES = ['Tất cả', 'Blockchain', 'Công nghệ', 'Câu chuyện s
 
 export default function ArticlesPage() {
   const styles = `
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Sans+3:wght@300;400;600;700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Source Sans 3', sans-serif; background: #fafaf7; }
+    body { font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; }
     .article-card { background: #fff; border: 1px solid #e8e8d8; border-radius: 16px; overflow: hidden; transition: box-shadow 0.2s, transform 0.2s; text-decoration: none; display: block; }
-    .article-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.08); transform: translateY(-3px); }
-    .cat-tag { display: inline-block; background: #e8f5e9; color: #2d6a2d; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; letter-spacing: .5px; }
-    .nav-link { color: #3a3a2e; font-size: 14px; font-weight: 600; text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; transition: border-color 0.2s, color 0.2s; }
+    .article-card:hover { box-shadow: 0 10px 36px rgba(0,0,0,.09); transform: translateY(-3px); }
+    .cat-tag { display: inline-block; background: #e8f5e9; color: #2d6a2d; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; letter-spacing: .5px; font-family: 'Be Vietnam Pro', sans-serif; }
+    .nav-link { color: #3a3a2e; font-size: 14px; font-weight: 500; text-decoration: none; padding: 6px 0; border-bottom: 2px solid transparent; transition: border-color 0.2s, color 0.2s; font-family: 'Be Vietnam Pro', sans-serif; }
     .nav-link:hover { color: #2d6a2d; border-bottom-color: #2d6a2d; }
   `;
 
@@ -76,7 +75,7 @@ export default function ArticlesPage() {
         <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
           <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 20 }}>🌿</span>
-            <span style={{ fontFamily: 'Playfair Display, serif', fontWeight: 700, fontSize: 16, color: '#1a1a0e' }}>BICAP</span>
+            <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 16, color: '#1a1a0e' }}>BICAP</span>
           </Link>
           <div style={{ display: 'flex', gap: 24 }}>
             <Link href="/#how-it-works" className="nav-link">Cách hoạt động</Link>
@@ -90,7 +89,7 @@ export default function ArticlesPage() {
       <section style={{ background: 'linear-gradient(135deg, #1a3d1a, #2d6a2d)', padding: '56px 24px 48px' }}>
         <div style={{ maxWidth: 1080, margin: '0 auto' }}>
           <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,255,255,.5)', marginBottom: 12 }}>Kiến thức</p>
-          <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 42, fontWeight: 700, color: '#fff', marginBottom: 12 }}>Tin tức & Bài viết</h1>
+          <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 40, fontWeight: 700, color: '#fff', marginBottom: 12 }}>Tin tức & Bài viết</h1>
           <p style={{ fontSize: 15, color: 'rgba(255,255,255,.65)' }}>Blockchain, nông nghiệp sạch và công nghệ truy xuất nguồn gốc</p>
         </div>
       </section>
@@ -105,7 +104,7 @@ export default function ArticlesPage() {
               border: c === 'Tất cả' ? '2px solid #2d6a2d' : '2px solid #e8e8d8',
               background: c === 'Tất cả' ? '#2d6a2d' : '#fff',
               color: c === 'Tất cả' ? '#fff' : '#666',
-              fontFamily: 'Source Sans 3, sans-serif',
+              fontFamily: 'Be Vietnam Pro, sans-serif',
             }}>{c}</button>
           ))}
         </div>
@@ -121,7 +120,7 @@ export default function ArticlesPage() {
                 <span className="cat-tag">{ARTICLES[0].category}</span>
                 <span style={{ fontSize: 12, color: '#aaa' }}>{ARTICLES[0].date} · {ARTICLES[0].readTime} đọc</span>
               </div>
-              <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: 28, fontWeight: 700, color: '#1a1a0e', marginBottom: 12, lineHeight: 1.3 }}>{ARTICLES[0].title}</h2>
+              <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 26, fontWeight: 700, color: '#1a1a0e', marginBottom: 12, lineHeight: 1.35 }}>{ARTICLES[0].title}</h2>
               <p style={{ fontSize: 15, color: '#666', lineHeight: 1.7 }}>{ARTICLES[0].excerpt}</p>
               <div style={{ marginTop: 20, fontSize: 14, fontWeight: 700, color: '#2d6a2d' }}>Đọc tiếp →</div>
             </div>
@@ -140,7 +139,7 @@ export default function ArticlesPage() {
                   <span className="cat-tag">{a.category}</span>
                   <span style={{ fontSize: 11, color: '#aaa' }}>{a.readTime} đọc</span>
                 </div>
-                <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: 18, fontWeight: 700, color: '#1a1a0e', marginBottom: 8, lineHeight: 1.35 }}>{a.title}</h3>
+                <h3 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 18, fontWeight: 600, color: '#1a1a0e', marginBottom: 8, lineHeight: 1.4 }}>{a.title}</h3>
                 <p style={{ fontSize: 13, color: '#888', lineHeight: 1.6 }}>{a.excerpt}</p>
                 <div style={{ marginTop: 14, fontSize: 13, fontWeight: 700, color: '#2d6a2d' }}>Đọc tiếp →</div>
               </div>
