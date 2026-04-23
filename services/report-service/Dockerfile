@@ -31,9 +31,9 @@ RUN chown app:app app.jar
 USER app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget -qO- http://localhost:8081/actuator/health || exit 1
+    CMD wget -qO- http://localhost:8088/actuator/health || exit 1
 
-EXPOSE 8081
+EXPOSE 8088
 
 ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", \
             "-Djava.security.egd=file:/dev/./urandom", \

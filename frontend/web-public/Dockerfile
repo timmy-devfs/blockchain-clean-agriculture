@@ -29,8 +29,8 @@ RUN chown -R app:app /app
 USER app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget -qO- http://web-shipping:3003 || exit 1
+    CMD wget -qO- http://web-public:3004 || exit 1
 
-EXPOSE 3003
+EXPOSE 3004
 
 ENTRYPOINT ["node", "server.js"]

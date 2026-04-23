@@ -1,5 +1,8 @@
-# BICAP SYSTEM — Production compose
-# Use: docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+# ════════════════════════════════════════════════════════════════
+# BICAP — Docker Compose Demo (1 máy, dành cho demo thầy)
+# Chạy: docker-compose -f docker-compose.demo.yml up -d
+# Dừng: docker-compose -f docker-compose.demo.yml down
+# ════════════════════════════════════════════════════════════════
 
 networks:
   bicap-backend:
@@ -17,19 +20,28 @@ volumes:
   redis-data:
   mysql-data:
   mongo-data:
+  nifi-data:
+  nifi-logs:
   prometheus-data:
   grafana-data:
 
+# ── Logging mặc định ──────────────────────────────────────────
 x-logging: &default-logging
   driver: json-file
   options:
     max-size: "50m"
     max-file: "3"
 
+# ── Restart policy ────────────────────────────────────────────
 x-restart: &default-restart
   restart: unless-stopped
 
 services:
+
+  # ════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE
+  # ════════════════════════════════════════════════════════════
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: bicap-zookeeper
@@ -70,6 +82,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -110,12 +123,10 @@ services:
     container_name: bicap-mysql
     <<: *default-restart
     networks: [bicap-backend]
-    ports:
-      - "127.0.0.1:3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      MYSQL_USER: ${DB_USERNAME}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: 12123
+      MYSQL_USER: bicap_user
+      MYSQL_PASSWORD: 12123
       MYSQL_CHARACTER_SET_SERVER: utf8mb4
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
@@ -158,6 +169,10 @@ services:
           cpus: "0.5"
     logging: *default-logging
 
+  # ════════════════════════════════════════════════════════════
+  # BACKEND SERVICES — Java Spring Boot
+  # ════════════════════════════════════════════════════════════
+
   identity-service:
     build:
       context: ./services/identity-service
@@ -170,11 +185,11 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/identity_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ACCESS_TOKEN_EXPIRY: ${JWT_ACCESS_TOKEN_EXPIRY}
-      JWT_REFRESH_TOKEN_EXPIRY: ${JWT_REFRESH_TOKEN_EXPIRY}
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+      JWT_SECRET: bicap-super-secret-jwt-key-2025-demo
+      JWT_ACCESS_TOKEN_EXPIRY: 900000
+      JWT_REFRESH_TOKEN_EXPIRY: 604800000
     deploy:
       resources:
         limits:
@@ -190,10 +205,8 @@ services:
     <<: *default-restart
     networks: [bicap-backend, bicap-frontend]
     depends_on:
-      identity-service:
-        condition: service_started
-      redis:
-        condition: service_healthy
+      - identity-service
+      - redis
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
@@ -219,8 +232,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shipping_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     deploy:
       resources:
@@ -232,7 +245,7 @@ services:
   notification-service:
     build:
       context: ./services/notification-service
-      dockerfile: dockerfile
+      dockerfile: Dockerfile
     container_name: bicap-notification
     <<: *default-restart
     networks: [bicap-backend]
@@ -245,8 +258,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/notification_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
     deploy:
@@ -268,8 +281,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/report_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
     deploy:
       resources:
         limits:
@@ -291,8 +304,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/guest_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_DATA_REDIS_HOST: redis
       SERVICES_FARM_URL: http://farm-service:8082
       SERVICES_BLOCKCHAIN_URL: http://blockchain-service:8090
@@ -302,6 +315,10 @@ services:
           memory: 512m
           cpus: "0.5"
     logging: *default-logging
+
+  # ════════════════════════════════════════════════════════════
+  # BACKEND SERVICES — NodeJS/TypeScript
+  # ════════════════════════════════════════════════════════════
 
   farm-service:
     build:
@@ -375,15 +392,15 @@ services:
     environment:
       DATABASE_URL: mongodb://mongo:27017/payment_db
       KAFKA_BROKERS: kafka:29092
-      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-DEMO_VNPAY}
-      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-DEMO_VNPAY_SECRET}
-      VNPAY_URL: ${VNPAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost/api/payment/callback/vnpay}
-      MOMO_PARTNER_CODE: ${MOMO_PARTNER_CODE:-MOMODEMO2026}
-      MOMO_ACCESS_KEY: ${MOMO_ACCESS_KEY:-MOMO_ACCESS_DEMO}
-      MOMO_SECRET_KEY: ${MOMO_SECRET_KEY:-MOMO_SECRET_DEMO}
-      MOMO_ENDPOINT: ${MOMO_ENDPOINT:-https://test-payment.momo.vn/v2/gateway/api/create}
-      MOMO_RETURN_URL: ${MOMO_RETURN_URL:-http://localhost/api/payment/callback/momo}
+      VNPAY_TMN_CODE: DEMO_VNPAY
+      VNPAY_HASH_SECRET: DEMO_VNPAY_SECRET
+      VNPAY_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      VNPAY_RETURN_URL: http://localhost/api/payment/callback/vnpay
+      MOMO_PARTNER_CODE: MOMODEMO2026
+      MOMO_ACCESS_KEY: MOMO_ACCESS_DEMO
+      MOMO_SECRET_KEY: MOMO_SECRET_DEMO
+      MOMO_ENDPOINT: https://test-payment.momo.vn/v2/gateway/api/create
+      MOMO_RETURN_URL: http://localhost/api/payment/callback/momo
       PORT: "8086"
     deploy:
       resources:
@@ -421,17 +438,16 @@ services:
   blockchain-service:
     build:
       context: ./services/blockchain-service
-      dockerfile: dockerfile
+      dockerfile: Dockerfile
     container_name: bicap-blockchain
     <<: *default-restart
-    env_file: [.env.prod]
     networks: [bicap-backend]
     depends_on:
       kafka:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:29092
-      VECHAIN_TESTNET_RPC: ${VECHAIN_NODE_URL}
+      VECHAIN_TESTNET_RPC: https://testnet.veblocks.net
       VECHAIN_OPTIONAL: "true"
       PORT: "8090"
     deploy:
@@ -441,6 +457,10 @@ services:
           cpus: "0.5"
     logging: *default-logging
 
+  # ════════════════════════════════════════════════════════════
+  # FRONTEND — NextJS Web Apps
+  # ════════════════════════════════════════════════════════════
+
   web-admin:
     build:
       context: ./frontend
@@ -449,7 +469,7 @@ services:
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3000"
     deploy:
       resources:
@@ -466,7 +486,7 @@ services:
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3001"
     deploy:
       resources:
@@ -483,7 +503,7 @@ services:
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3002"
     deploy:
       resources:
@@ -500,7 +520,7 @@ services:
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3003"
     deploy:
       resources:
@@ -517,7 +537,7 @@ services:
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3004"
     deploy:
       resources:
@@ -526,6 +546,10 @@ services:
           cpus: "0.25"
     logging: *default-logging
 
+  # ════════════════════════════════════════════════════════════
+  # NGINX — Layer 1: Route tất cả traffic
+  # ════════════════════════════════════════════════════════════
+
   nginx:
     image: nginx:1.25-alpine
     container_name: bicap-nginx
@@ -533,10 +557,8 @@ services:
     networks: [bicap-backend, bicap-frontend]
     ports:
       - "80:80"
-      - "443:443"
     volumes:
-      - ./infrastructure/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./infrastructure/nginx/nginx.demo.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - api-gateway
       - web-public
@@ -547,20 +569,23 @@ services:
           cpus: "0.25"
     logging: *default-logging
 
+  # ════════════════════════════════════════════════════════════
+  # MONITORING
+  # ════════════════════════════════════════════════════════════
+
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: bicap-prometheus
     <<: *default-restart
     networks: [bicap-backend]
     ports:
-      - "127.0.0.1:9090:9090"
+      - "9090:9090"
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.time=7d"
     deploy:
       resources:
         limits:
@@ -574,10 +599,10 @@ services:
     <<: *default-restart
     networks: [bicap-backend]
     ports:
-      - "127.0.0.1:3100:3000"
+      - "3100:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
       - grafana-data:/var/lib/grafana
     deploy:

@@ -4,33 +4,33 @@
 
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY package*.json ./
-RUN npm ci
+RUN corepack enable
 
-# Copy source
-COPY . .
+# Workspace-aware install để web-admin thấy @bicap/* packages
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages ./packages
+COPY web-admin ./web-admin
 
-# Build NextJS với standalone output
-RUN npm run build
+RUN pnpm install --no-frozen-lockfile
+RUN pnpm --filter bicap-web-admin build
 
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /workspace
 
 RUN adduser -D app
+RUN corepack enable
 
-# Standalone output chứa tất cả dependencies cần thiết
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /workspace /workspace
 
-RUN chown -R app:app /app
+RUN chown -R app:app /workspace
 USER app
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget -qO- http://web-shipping:3003 || exit 1
+    CMD wget -qO- http://localhost:3000 || exit 1
 
-EXPOSE 3003
+EXPOSE 3000
 
-ENTRYPOINT ["node", "server.js"]
+ENTRYPOINT ["pnpm", "--filter", "bicap-web-admin", "start"]
