@@ -3,15 +3,92 @@ import dayjs from "dayjs";
 import { NotificationItem, Product, RetailOrder, RetailOrderStatus, SearchFilters, TraceResult } from "../types";
 
 const retailApi = axios.create({
-  baseURL: import.meta.env.VITE_RETAIL_API_BASE_URL ?? "http://localhost:3007/api/retail",
+  baseURL: import.meta.env.VITE_RETAIL_API_BASE_URL ?? "http://localhost/api/retail",
   timeout: 8000
 });
 
-const authHeaders = {
+/** Cùng key với web-farm để dùng chung JWT sau khi login qua Gateway. */
+const ACCESS_TOKEN_KEY = "bicap_access_token";
+
+const demoHeadersWhenNoJwt: Record<string, string> = {
   Authorization: "Bearer retailer-secret",
   "X-User-Id": "retailer-user-01",
   "X-User-Role": "RETAILER"
 };
+
+let autoLoginPromise: Promise<void> | null = null;
+
+function gatewayOrigin(): string {
+  const base = import.meta.env.VITE_RETAIL_API_BASE_URL ?? "http://localhost/api/retail";
+  const stripped = base.replace(/\/api\/retail\/?$/i, "");
+  return stripped.length > 0 ? stripped : "http://localhost";
+}
+
+export function getRetailAuthHeaders(): Record<string, string> {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim();
+    if (token) {
+      return { Authorization: `Bearer ${token}` };
+    }
+  }
+  return { ...demoHeadersWhenNoJwt };
+}
+
+export function getStoredRetailerUserIdFromJwt(): string | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim();
+  if (!token) return null;
+  try {
+    const b64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+    if (!b64) return null;
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(padded)) as { sub?: string };
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Đăng nhập identity qua Gateway, lưu access token cho các request `/api/retail/**`. */
+export async function loginRetailer(email: string, password: string): Promise<void> {
+  const { data } = await axios.post<unknown>(`${gatewayOrigin()}/api/auth/login`, { email, password });
+  const body = data as { data?: { accessToken?: string }; accessToken?: string };
+  const token = body?.data?.accessToken ?? body?.accessToken;
+  if (!token) {
+    throw new Error("No access token in login response");
+  }
+  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+}
+
+async function ensureRetailToken(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const existing = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim();
+  if (existing) return;
+  if (!autoLoginPromise) {
+    autoLoginPromise = (async () => {
+      // Try seed account first, then user-created demo account.
+      try {
+        await loginRetailer("retailer@bicap.io", "password");
+        return;
+      } catch {
+        await loginRetailer("retail1@bicap.io", "123456");
+      }
+    })().finally(() => {
+      autoLoginPromise = null;
+    });
+  }
+  await autoLoginPromise;
+}
+
+retailApi.interceptors.request.use(async (config) => {
+  await ensureRetailToken();
+  const token = typeof window !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY)?.trim() : null;
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 const mockProducts: Product[] = Array.from({ length: 60 }).map((_, idx) => ({
   id: `prod-${idx + 1}`,
@@ -96,6 +173,28 @@ const applyFilters = (items: Product[], filters: SearchFilters): Product[] =>
     return true;
   });
 
+const PLACEHOLDER_IMAGE = "https://picsum.photos/seed/retail-placeholder/480/280";
+
+function normalizeProduct(raw: unknown): Product {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  const images = Array.isArray(row.imageUrls)
+    ? row.imageUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+    : [];
+
+  return {
+    id: String(row.id ?? ""),
+    title: String(row.title ?? row.productName ?? "Unknown product"),
+    province: String(row.province ?? "Unknown"),
+    category: String(row.category ?? "Unknown"),
+    price: Number(row.price ?? row.unitPrice ?? 0),
+    certified: Boolean(row.certified ?? false),
+    imageUrls: images.length > 0 ? images : [PLACEHOLDER_IMAGE],
+    farmId: String(row.farmId ?? ""),
+    seasonId: String(row.seasonId ?? ""),
+    txHash: typeof row.txHash === "string" && row.txHash.length > 0 ? row.txHash : undefined
+  };
+}
+
 export const searchProducts = async (
   filters: SearchFilters,
   page: number,
@@ -103,11 +202,18 @@ export const searchProducts = async (
 ): Promise<{ items: Product[]; nextPage: number | null }> => {
   try {
     const response = await retailApi.get("/marketplace/products", {
-      headers: authHeaders,
+      headers: getRetailAuthHeaders(),
       params: { ...filters, page, size }
     });
 
-    const items = (response.data?.items ?? response.data ?? []) as Product[];
+    const source = Array.isArray(response.data?.items)
+      ? response.data.items
+      : Array.isArray(response.data?.content)
+        ? response.data.content
+        : Array.isArray(response.data)
+          ? response.data
+          : [];
+    const items = source.map((row: unknown) => normalizeProduct(row));
     const hasNext = (response.data?.totalPages ?? page + 1) > page + 1;
     return { items, nextPage: hasNext ? page + 1 : null };
   } catch {
@@ -121,10 +227,10 @@ export const searchProducts = async (
 
 export const getProductDetail = async (id: string): Promise<Product> => {
   try {
-    const response = await retailApi.get(`/marketplace/products/${id}`, { headers: authHeaders });
-    return response.data as Product;
+    const response = await retailApi.get(`/marketplace/products/${id}`, { headers: getRetailAuthHeaders() });
+    return normalizeProduct(response.data);
   } catch {
-    return mockProducts.find((item) => item.id === id) ?? mockProducts[0];
+    return mockProducts.find((item) => item.id === id) ?? normalizeProduct({});
   }
 };
 
@@ -138,7 +244,7 @@ export const createOrder = async (payload: {
     const response = await retailApi.post(
       "/orders",
       {
-        retailerId: "retailer-user-01",
+        retailerId: getStoredRetailerUserIdFromJwt() ?? "retailer-user-01",
         farmId: payload.product.farmId,
         listingId: payload.product.id,
         productName: payload.product.title,
@@ -148,7 +254,7 @@ export const createOrder = async (payload: {
         deliveryAddress: payload.address,
         gateway: payload.gateway
       },
-      { headers: authHeaders }
+      { headers: getRetailAuthHeaders() }
     );
     return {
       orderId: response.data?.order?.id ?? response.data?.id ?? `ord-${Date.now()}`,
@@ -183,7 +289,7 @@ export const callbackPaymentSuccess = async (orderId: string, gateway: "VNPAY" |
         transactionId: `${gateway}-tx-${Date.now()}`,
         amount: 1
       },
-      { headers: authHeaders }
+      { headers: getRetailAuthHeaders() }
     );
   } catch {
     mockOrders = mockOrders.map((order) =>
@@ -200,7 +306,7 @@ export const callbackPaymentSuccess = async (orderId: string, gateway: "VNPAY" |
 export const getOrdersByStatus = async (status: RetailOrderStatus): Promise<RetailOrder[]> => {
   try {
     const response = await retailApi.get("/orders", {
-      headers: authHeaders,
+      headers: getRetailAuthHeaders(),
       params: { status }
     });
     return (response.data ?? []) as RetailOrder[];
@@ -211,7 +317,7 @@ export const getOrdersByStatus = async (status: RetailOrderStatus): Promise<Reta
 
 export const getShippingTimeline = async (orderId: string): Promise<RetailOrder["shipmentTimeline"]> => {
   try {
-    const response = await retailApi.get(`/orders/${orderId}/shipping`, { headers: authHeaders });
+    const response = await retailApi.get(`/orders/${orderId}/shipping`, { headers: getRetailAuthHeaders() });
     return (response.data?.timeline ?? []) as RetailOrder["shipmentTimeline"];
   } catch {
     return mockOrders.find((item) => item.id === orderId)?.shipmentTimeline ?? [];
@@ -220,7 +326,7 @@ export const getShippingTimeline = async (orderId: string): Promise<RetailOrder[
 
 export const qrScanTrace = async (qrCode: string): Promise<TraceResult> => {
   try {
-    const response = await retailApi.post("/qr/scan", { qrCode }, { headers: authHeaders });
+    const response = await retailApi.post("/qr/scan", { qrCode }, { headers: getRetailAuthHeaders() });
     return response.data as TraceResult;
   } catch {
     return {
@@ -244,10 +350,7 @@ export const confirmDelivery = async (orderId: string, recipientNote: string, fi
 
   try {
     await retailApi.post(`/orders/${orderId}/confirm-delivery`, form, {
-      headers: {
-        ...authHeaders,
-        "Content-Type": "multipart/form-data"
-      }
+      headers: getRetailAuthHeaders()
     });
   } catch {
     mockOrders = mockOrders.map((item) =>

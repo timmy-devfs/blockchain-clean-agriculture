@@ -76,8 +76,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await axiosInstance.post("/api/auth/logout");
     } finally {
       tokenStorage.clearTokens();
+      // Xóa cookie để middleware Edge Runtime không còn pass
+      if (typeof document !== "undefined") {
+        document.cookie = "bicap_access_token=; path=/; max-age=0; SameSite=Strict";
+      }
       setUser(null);
       setRole(null);
+      // Redirect về login
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   }, []);
 

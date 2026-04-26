@@ -10,3 +10,7 @@ export { ConfirmDialog } from "./components/ConfirmDialog";
 export { FormInput } from "./components/FormInput";
 export { FileUpload } from "./components/FileUpload";
 export { QRDisplay } from "./components/QRDisplay";
+export { SearchInput } from "./components/SearchInput";
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "./components/ui/card";
+export { Button } from "./components/ui/button";
+export { Badge } from "./components/ui/badge";

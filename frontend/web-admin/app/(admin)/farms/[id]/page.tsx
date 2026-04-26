@@ -2,22 +2,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
 import { ConfirmDialog, Toast } from "@bicap/ui";
 import { getFarmDetail, approveFarm, rejectFarm } from "@/lib/api";
 import { RejectModal } from "@/components/farms/RejectModal";
 import { useParams, useRouter } from "next/navigation";
 
-// Worker cho react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
 export default function FarmDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
-  const [numPages, setNumPages] = useState<number>(0);
   const [showApprove, setShowApprove] = useState(false);
   const [showReject,  setShowReject]  = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -102,22 +95,44 @@ export default function FarmDetailPage() {
       {/* PDF Viewer — giấy phép kinh doanh */}
       <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
         <h2 className="mb-4 font-semibold text-gray-800">Giấy phép kinh doanh</h2>
-        {farm.rejectReason ? (
-          <p className="text-sm text-gray-500">Không có giấy phép</p>
-        ) : (
-          <div className="flex flex-col items-center overflow-auto rounded-lg bg-gray-100 p-4">
-            <Document
-              file={`/api/farm/admin/farms/${id}/license`}
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              loading={<p className="text-sm text-gray-400">Đang tải PDF...</p>}
-              error={<p className="text-sm text-red-400">Không tải được file PDF</p>}
-            >
-              {Array.from({ length: numPages }, (_, i) => (
-                <Page key={i + 1} pageNumber={i + 1} width={600} className="mb-4 shadow-md" />
-              ))}
-            </Document>
-          </div>
-        )}
+        {(() => {
+          const license = (farm as unknown as {
+            businessLicense?: {
+              licenseNumber?: string;
+              issuedBy?: string | null;
+              issuedAt?: string | null;
+              expiresAt?: string | null;
+            } | null;
+          }).businessLicense;
+          if (!license) {
+            return <p className="text-sm text-gray-500">Chưa có thông tin giấy phép.</p>;
+          }
+
+          return (
+            <div className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Mã giấy phép</span>
+                <span className="font-medium text-gray-900">{license.licenseNumber ?? "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Nơi cấp</span>
+                <span className="font-medium text-gray-900">{license.issuedBy ?? "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Ngày cấp</span>
+                <span className="font-medium text-gray-900">
+                  {license.issuedAt ? new Date(license.issuedAt).toLocaleDateString("vi-VN") : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Hết hạn</span>
+                <span className="font-medium text-gray-900">
+                  {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString("vi-VN") : "—"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Modals */}
