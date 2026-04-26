@@ -11,6 +11,9 @@ import {
   createListing,
   deleteListing,
   getAvailablePackages,
+  getPublicFarmProfile,
+  getPublicListingById,
+  getPublicListings,
   getMyCurrentPackage,
   getMyListings,
   subscribePackage,
@@ -65,6 +68,42 @@ marketplaceRouter.get("/api/farm/marketplace/listings", asyncHandler(async (req,
 
   const listings = await getMyListings(userId, parsed.data);
   return res.json(listings);
+}));
+
+marketplaceRouter.get("/api/farm/marketplace/products", asyncHandler(async (req, res) => {
+  const page = Number(req.query.page ?? 0);
+  const size = Number(req.query.size ?? 20);
+  const keyword = typeof req.query.keyword === "string" ? req.query.keyword : undefined;
+  const farmId = typeof req.query.farmId === "string" ? req.query.farmId : undefined;
+  const seasonId = typeof req.query.seasonId === "string" ? req.query.seasonId : undefined;
+
+  const data = await getPublicListings({
+    page: Number.isFinite(page) && page >= 0 ? page : 0,
+    size: Number.isFinite(size) && size > 0 ? size : 20,
+    keyword,
+    farmId,
+    seasonId
+  });
+
+  return res.json(data);
+}));
+
+marketplaceRouter.get("/api/farm/marketplace/products/:id", asyncHandler(async (req, res) => {
+  const item = await getPublicListingById(req.params.id);
+  if (!item) {
+    return res.status(404).json({ message: "Product not found" });
+  }
+
+  return res.json(item);
+}));
+
+marketplaceRouter.get("/api/farm/marketplace/farms/:farmId", asyncHandler(async (req, res) => {
+  const farm = await getPublicFarmProfile(req.params.farmId);
+  if (!farm) {
+    return res.status(404).json({ message: "Farm not found" });
+  }
+
+  return res.json(farm);
 }));
 
 marketplaceRouter.get("/api/farm/marketplace/listings/my", asyncHandler(async (req, res) => {
@@ -168,7 +207,11 @@ marketplaceRouter.get("/api/farm/packages/my", asyncHandler(async (req, res) => 
   }
 
   if (result.type === "NO_ACTIVE_PACKAGE") {
-    return res.status(404).json({ message: "No active package" });
+    return res.json({
+      subscription: null,
+      expiryDate: null,
+      countdownSeconds: null
+    });
   }
 
   return res.json({

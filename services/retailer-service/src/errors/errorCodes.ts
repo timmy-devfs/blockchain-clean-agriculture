@@ -3,6 +3,7 @@ export const errorCodes = {
   ORDER_NOT_FOUND: { code: 3002, message: "Order not found", status: 404 },
   INVALID_ORDER_STATUS_FLOW: { code: 3003, message: "Invalid order status transition", status: 400 },
   UNAUTHORIZED: { code: 3004, message: "Unauthorized", status: 401 },
+  FORBIDDEN: { code: 3017, message: "Forbidden", status: 403 },
   QR_SCAN_FAILED: { code: 3005, message: "QR scan failed", status: 422 },
   DOWNSTREAM_SERVICE_ERROR: { code: 3006, message: "Downstream service error", status: 502 },
   INVALID_REQUEST: { code: 3007, message: "Invalid request payload", status: 400 },

@@ -4,15 +4,178 @@ import type {
   PageResponse,
   User,
   Farm,
-  Notification,
+  Order,
+  Shipment,
 } from "@bicap/types";
+
+function unwrapBody<T>(body: unknown): T {
+  if (body != null && typeof body === "object" && "data" in body) {
+    const d = (body as { data: unknown }).data;
+    if (d !== undefined) return d as T;
+  }
+  return body as T;
+}
+
+/** Java `PageResponse`: `content`, `totalElements`, … → shared `PageResponse` */
+function normalizeJavaPage<T>(raw: unknown): PageResponse<T> {
+  if (raw == null) {
+    return { data: [], total: 0, page: 0, size: 20, totalPages: 0 };
+  }
+  if (Array.isArray(raw)) {
+    const arr = raw as T[];
+    const n = arr.length;
+    return { data: arr, total: n, page: 0, size: n || 20, totalPages: n ? 1 : 0 };
+  }
+  const o = raw as Record<string, unknown>;
+  const data = (
+    Array.isArray(o.content)
+      ? o.content
+      : Array.isArray(o.data)
+        ? o.data
+        : []
+  ) as T[];
+  const total =
+    typeof o.totalElements === "number"
+      ? o.totalElements
+      : typeof o.total === "number"
+        ? o.total
+        : data.length;
+  const page = typeof o.page === "number" ? o.page : 0;
+  const size = typeof o.size === "number" ? o.size : 20;
+  const totalPages =
+    typeof o.totalPages === "number"
+      ? o.totalPages
+      : Math.ceil(total / Math.max(size, 1));
+  return { data, total, page, size, totalPages };
+}
+
+/** Phân trang phía client khi backend trả cả mảng (retailer/shipping demo). */
+function slicePage<T>(rows: T[], page: number, size: number): PageResponse<T> {
+  const safeSize = Math.max(size, 1);
+  const total = rows.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / safeSize);
+  const start = page * safeSize;
+  return {
+    data: rows.slice(start, start + safeSize),
+    total,
+    page,
+    size,
+    totalPages,
+  };
+}
+
+function toIsoString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date().toISOString();
+}
+
+/** Chuẩn hóa đơn từ retailer-service (Mongo) → `Order` dùng trên admin UI. */
+function mapAdminOrderRow(row: Record<string, unknown>): Order {
+  const totalPrice =
+    typeof row.totalPrice === "number"
+      ? row.totalPrice
+      : typeof row.totalAmount === "number"
+        ? row.totalAmount
+        : 0;
+  return {
+    id: String(row.id ?? row._id ?? ""),
+    listingId: String(row.listingId ?? ""),
+    retailerId: String(row.retailerId ?? ""),
+    farmId: String(row.farmId ?? ""),
+    quantity: Number(row.quantity ?? 0),
+    totalPrice,
+    depositAmount: Number(row.depositAmount ?? 0),
+    status: row.status as Order["status"],
+    deliveryAddress: String(row.deliveryAddress ?? ""),
+    statusHistory: Array.isArray(row.statusHistory)
+      ? (row.statusHistory as Order["statusHistory"])
+      : [],
+    createdAt: toIsoString(row.createdAt),
+  };
+}
+
+/** Chuẩn hóa shipment từ shipping-service (Java record) → `Shipment` admin UI. */
+function mapShipmentRow(row: Record<string, unknown>): Shipment {
+  const sched = row.scheduledDate;
+  const est =
+    sched == null || sched === ""
+      ? ""
+      : String(sched).includes("T")
+        ? String(sched).split("T")[0]!
+        : String(sched);
+  const createdAt = est ? `${est}T00:00:00.000Z` : new Date().toISOString();
+  return {
+    id: String(row.id ?? ""),
+    orderId: String(row.orderId ?? ""),
+    driverId: row.driverId != null ? String(row.driverId) : "—",
+    vehicleId: String(row.vehicleId ?? ""),
+    status: String(row.status ?? "CREATED") as Shipment["status"],
+    pickupImageUrls: [],
+    deliveryImageUrls: [],
+    statusHistory: [],
+    estimatedDelivery: est,
+    createdAt,
+  };
+}
+
+function mapFarmRow(f: Record<string, unknown>): Farm {
+  const created = f.createdAt;
+  const createdAt =
+    typeof created === "string"
+      ? created
+      : created instanceof Date
+        ? created.toISOString()
+        : new Date().toISOString();
+
+  // Derive status: backend có thể trả enum string hoặc boolean
+  let status: "PENDING" | "APPROVED" | "REJECTED" = "PENDING";
+  if (typeof f.status === "string" && ["PENDING", "APPROVED", "REJECTED"].includes(f.status)) {
+    status = f.status as "PENDING" | "APPROVED" | "REJECTED";
+  } else if (Boolean(f.isApproved)) {
+    status = "APPROVED";
+  } else if (f.rejectReason != null) {
+    status = "REJECTED";
+  }
+
+  return {
+    id: String(f.id ?? ""),
+    ownerId: String(f.ownerId ?? ""),
+    farmName: String(f.farmName ?? f.name ?? ""),
+    province: String(f.province ?? ""),
+    address: String(f.address ?? ""),
+    totalArea: Number(f.totalArea ?? f.area ?? 0),
+    status,
+    isApproved: Boolean(f.isApproved),
+    rejectReason: f.rejectReason != null ? String(f.rejectReason) : undefined,
+    createdAt,
+    ...(f.businessLicense != null && typeof f.businessLicense === "object"
+      ? { businessLicense: f.businessLicense }
+      : {}),
+  };
+}
 
 // ─── Auth / Accounts ──────────────────────────────────────────────────────
 
-export const getAdminUsers = (params?: { role?: string; isActive?: boolean }) =>
+export const getAdminUsers = (params?: {
+  role?: string;
+  isActive?: boolean;
+  search?: string;
+  page?: number;
+  size?: number;
+}) =>
   axiosInstance
-    .get<ApiResponse<PageResponse<User>>>("/api/auth/admin/users", { params })
-    .then((r) => r.data.data);
+    .get<unknown>("/api/auth/admin/users", {
+      params: {
+        ...params,
+        page: params?.page ?? 0,
+        size: params?.size ?? 20,
+      },
+    })
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      return normalizeJavaPage<User>(inner);
+    });
 
 export const createAdminUser = (body: {
   email: string;
@@ -32,15 +195,25 @@ export const updateUser = (id: string, body: Partial<{ role: string; isActive: b
 
 export type FarmStatus = "PENDING" | "APPROVED" | "REJECTED";
 
-export const getAdminFarms = (status: FarmStatus) =>
-  axiosInstance
-    .get<ApiResponse<PageResponse<Farm>>>("/api/farm/admin/farms", { params: { status } })
-    .then((r) => r.data.data);
+export const getAdminFarms = (status: FarmStatus, params?: { page?: number; size?: number }) =>
+  axiosInstance.get<unknown>("/api/farm/admin/farms", {
+    params: { status, page: params?.page ?? 0, size: params?.size ?? 50 },
+  }).then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    const page = normalizeJavaPage<Record<string, unknown>>(inner);
+    return {
+      ...page,
+      data: page.data.map((row) => mapFarmRow(row)),
+    } as PageResponse<Farm>;
+  });
 
 export const getFarmDetail = (id: string) =>
   axiosInstance
-    .get<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}`)
-    .then((r) => r.data.data);
+    .get<unknown>(`/api/farm/admin/farms/${id}`)
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      return mapFarmRow(raw);
+    });
 
 export const approveFarm = (id: string) =>
   axiosInstance
@@ -51,6 +224,43 @@ export const rejectFarm = (id: string, rejectReason: string) =>
   axiosInstance
     .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
     .then((r) => r.data.data);
+
+// ─── Orders ───────────────────────────────────────────────────────────────
+
+export const getAdminOrders = (params?: {
+  status?: string;
+  page?: number;
+  size?: number;
+}) =>
+  axiosInstance
+    .get<unknown>("/api/order/admin/orders", {
+      params: { status: params?.status },
+    })
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      const arr = Array.isArray(inner) ? (inner as Record<string, unknown>[]) : [];
+      const mapped = arr.map(mapAdminOrderRow);
+      return slicePage(mapped, params?.page ?? 0, params?.size ?? 20);
+    });
+
+// ─── Shipments ────────────────────────────────────────────────────────────
+
+export const getAdminShipments = (params?: {
+  status?: string;
+  page?: number;
+  size?: number;
+}) =>
+  axiosInstance
+    .get<unknown>("/api/shipping/shipments")
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      const arr = Array.isArray(inner) ? (inner as Record<string, unknown>[]) : [];
+      const filtered = params?.status
+        ? arr.filter((x) => String(x.status) === params.status)
+        : arr;
+      const mapped = filtered.map(mapShipmentRow);
+      return slicePage(mapped, params?.page ?? 0, params?.size ?? 20);
+    });
 
 // ─── Blockchain / Contracts ───────────────────────────────────────────────
 
@@ -63,7 +273,11 @@ export interface ContractStatus {
 export const getContractsStatus = () =>
   axiosInstance
     .get<ApiResponse<ContractStatus>>("/api/chain/contracts/status")
-    .then((r) => r.data.data);
+    .then((r) => r.data?.data ?? {
+      farmTraceAddress: "",
+      productCertAddress: "",
+      lastDeployedAt: "",
+    });
 
 export interface DeployResult {
   txHash: string;
@@ -97,8 +311,11 @@ export const getAdminReports = (params?: {
   role?: string;
 }) =>
   axiosInstance
-    .get<ApiResponse<PageResponse<Report>>>("/api/reports/admin", { params })
-    .then((r) => r.data.data);
+    .get<unknown>("/api/reports/admin", { params })
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      return normalizeJavaPage<Report>(inner);
+    });
 
 export const resolveReport = (id: string, adminNote: string) =>
   axiosInstance

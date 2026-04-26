@@ -42,9 +42,9 @@ export function DataTable<T extends object>({
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            {columns.map((col) => (
+            {columns.map((col, colIdx) => (
               <th
-                key={String(col.key)}
+                key={`${String(col.key)}-${colIdx}`}
                 className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600"
               >
                 {col.header}
@@ -70,8 +70,8 @@ export function DataTable<T extends object>({
           ) : (
             data.map((row) => (
               <tr key={String(row[keyField])} className="hover:bg-gray-50 transition-colors">
-                {columns.map((col) => (
-                  <td key={String(col.key)} className="px-4 py-3 text-sm text-gray-700">
+                {columns.map((col, colIdx) => (
+                  <td key={`${String(col.key)}-${colIdx}`} className="px-4 py-3 text-sm text-gray-700">
                     {col.render
                       ? col.render(row[col.key as keyof T], row)
                       : String(row[col.key as keyof T] ?? "")}

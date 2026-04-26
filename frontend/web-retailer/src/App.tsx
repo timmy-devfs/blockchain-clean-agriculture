@@ -57,6 +57,7 @@ import {
   getOrdersByStatus,
   getProductDetail,
   getShippingTimeline,
+  loginRetailer,
   qrScanTrace,
   searchProducts
 } from "./services/api";
@@ -121,6 +122,9 @@ function NotificationBell() {
 function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
+  const [signEmail, setSignEmail] = useState("retailer@bicap.io");
+  const [signPassword, setSignPassword] = useState("password");
+  const [authBusy, setAuthBusy] = useState(false);
 
   const next = async () => {
     if (step === 0) {
@@ -129,8 +133,34 @@ function OnboardingPage() {
     setStep((v) => Math.min(v + 1, 2));
   };
 
+  const onDemoLogin = async () => {
+    setAuthBusy(true);
+    try {
+      await loginRetailer(signEmail.trim(), signPassword);
+      message.success("Đăng nhập thành công — có thể dùng Search / Orders qua Gateway.");
+    } catch {
+      message.error("Đăng nhập thất bại. Kiểm tra Gateway (port 80/8080) và tài khoản demo.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   return (
-    <Card title="Register + Onboarding">
+    <Card title="Đăng nhập & Onboarding">
+      <Alert
+        type="info"
+        showIcon
+        className="mb-4"
+        message="Demo E2E: đăng nhập retailer@bicap.io / password (seed V4). Cần Gateway + identity-service."
+      />
+      <Space direction="vertical" size="middle" className="mb-6" style={{ width: "100%", maxWidth: 360 }}>
+        <Input value={signEmail} onChange={(e) => setSignEmail(e.target.value)} placeholder="Email" />
+        <Input.Password value={signPassword} onChange={(e) => setSignPassword(e.target.value)} placeholder="Mật khẩu" />
+        <Button type="primary" loading={authBusy} onClick={() => void onDemoLogin()}>
+          Đăng nhập hệ thống
+        </Button>
+      </Space>
+      <Divider />
       <Steps current={step} items={[{ title: "Info" }, { title: "Address" }, { title: "Finish" }]} />
       <div className="section-gap">
         {step < 2 ? (
@@ -262,7 +292,7 @@ function SearchPage() {
               {products.map((item) => (
                 <Col span={8} key={item.id}>
                   <Card
-                    cover={<Image preview={false} src={item.imageUrls[0]} className="card-image" />}
+                    cover={<Image preview={false} src={item.imageUrls?.[0]} className="card-image" />}
                     extra={<Tag color={item.certified ? "green" : "default"}>{item.certified ? "CERT" : "RAW"}</Tag>}
                   >
                     <Card.Meta title={item.title} description={`${item.province} · ${item.category}`} />
@@ -318,7 +348,7 @@ function ProductDetailPage() {
       <Row gutter={16}>
         <Col span={14}>
           <Carousel autoplay>
-            {data.imageUrls.map((url) => (
+            {(data.imageUrls ?? []).map((url) => (
               <Image key={url} src={url} preview={false} className="carousel-image" />
             ))}
           </Carousel>

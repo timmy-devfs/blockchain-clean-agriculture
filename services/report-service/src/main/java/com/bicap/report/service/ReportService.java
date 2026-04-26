@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -66,6 +68,23 @@ public class ReportService {
         report.setAdminNote(adminNote);
         report.setResolvedAt(LocalDateTime.now());
         return Optional.of(reportRepository.save(report));
+    }
+
+    public Map<String, Object> buildAdminDashboard() {
+        long pending = reportRepository.countByStatus(ReportStatus.PENDING);
+        long resolved = reportRepository.countByStatus(ReportStatus.RESOLVED);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("approvedFarms", 0);
+        payload.put("totalRetailers", 0);
+        payload.put("ordersToday", 0);
+        payload.put("revenueThisMonth", 0);
+        payload.put("revenueByMonth", List.of());
+        payload.put("ordersByMonth", List.of());
+        payload.put("pendingReports", pending);
+        payload.put("resolvedReports", resolved);
+        payload.put("totalReports", pending + resolved);
+        return payload;
     }
 
     private String toJson(List<String> imageUrls) {

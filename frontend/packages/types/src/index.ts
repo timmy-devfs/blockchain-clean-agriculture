@@ -28,6 +28,7 @@ export enum OrderStatus {
 }
 
 export enum ShipmentStatus {
+  CREATED = "CREATED",
   ASSIGNED = "ASSIGNED",
   PICKED_UP = "PICKED_UP",
   IN_TRANSIT = "IN_TRANSIT",
@@ -95,6 +96,8 @@ export interface Farm {
   province: string;
   address: string;
   totalArea: number; // hectare
+  /** Enum từ backend — derive từ isApproved + rejectReason nếu backend chưa trả */
+  status: "PENDING" | "APPROVED" | "REJECTED";
   isApproved: boolean;
   rejectReason?: string;
   createdAt: string;

@@ -1,0 +1,232 @@
+# GIAI THICH DEMO API-GATEWAY (THUYET MINH BAO VE)
+
+Project: blockchain-clean-agriculture
+Tai lieu nay dung de giai thich ro flow demo trong file `docs/test-apigateway-final.txt`.
+
+====================================================================
+1) TONG QUAN KIEN TRUC VA CAC TANG
+====================================================================
+
+He thong demo theo mo hinh nhieu tang:
+
+- Layer 0 (Client):
+  Nguoi dung/Postman/curl gui request HTTP.
+
+- Layer 1 (Edge Proxy - Nginx):
+  Nhan request tu ben ngoai qua `http://localhost`.
+  Chuc nang:
+  1) diem vao duy nhat ben ngoai
+  2) reverse proxy vao Layer 2 (API Gateway)
+  3) co endpoint health rieng `GET /nginx-health`
+
+- Layer 2 (API Gateway):
+  Chay tai `http://localhost:8080`.
+  Chuc nang:
+  1) dinh tuyen request den dung service phia sau
+  2) xu ly xac thuc token cho protected routes
+  3) cache ket qua xac thuc JWT trong Redis
+  4) ap dung rate limiting
+  5) tong hop health cua toan he thong qua `GET /api/gateway/health`
+
+- Layer 3 (Backend Services):
+  Vi du:
+  - identity-service (`:8081`) cho auth, user
+  - farm-service (`:8082`) cho nghiep vu nong trai
+  - retailer/shipping/report...
+
+- Layer 4 (Infrastructure):
+  Redis, MySQL, Kafka, Mongo, Postgres...
+  Day la lop luu tru, cache, queue cho cac service.
+
+Tom tat duong di chinh:
+Client -> Nginx (Layer 1) -> API Gateway (Layer 2) -> Service dich (Layer 3) -> DB/Redis/Kafka (Layer 4)
+
+====================================================================
+2) GIAI THICH CAC ENDPOINT QUAN TRONG TRONG DEMO
+====================================================================
+
+2.1 `GET /nginx-health`
+- URL: `http://localhost/nginx-health`
+- Y nghia: kiem tra Layer 1 (Nginx) co song khong.
+- Neu 200: cua ngo ben ngoai dang hoat dong.
+- Neu fail: khong the demo chain Layer 1 -> Layer 2.
+
+2.2 `GET /actuator/health` (Identity hoac Gateway)
+- URL:
+  - `http://localhost:8081/actuator/health` (identity)
+  - `http://localhost:8080/actuator/health` (gateway)
+- Y nghia: health cua tung app Spring Boot.
+- Thuong tra ve trang thai `UP` neu app + dependency chinh san sang.
+- Day la health "tung service", khac voi health tong hop cua gateway.
+
+2.3 `GET /api/gateway/health`
+- URL: `http://localhost:8080/api/gateway/health`
+- Y nghia: health tong hop toan canh tu Gateway.
+- Gateway thu ping/call cac service lien quan va tra map ket qua.
+- Neu mot service chua chay: map co the hien `DOWN` cho service do,
+  nhung gateway van co the `UP`.
+
+2.4 `POST /api/auth/register`
+- Co the goi truc tiep identity (`:8081`) de tao user demo.
+- Y nghia trong demo: tao du lieu dau vao cho login/introspect.
+
+2.5 `POST /api/auth/login`
+- Co 3 cach minh hoa:
+  1) goi truc tiep identity: `:8081`
+  2) goi qua gateway: `:8080`
+  3) goi qua nginx: `http://localhost/api/...`
+- Neu ca 3 cach deu login thanh cong => routing da dung o moi tang.
+
+2.6 `POST /api/auth/introspect`
+- Muc dich: kiem tra token co hop le khong.
+- Ket qua mong doi:
+  - token dung -> `valid=true`, co thong tin user/role
+  - token sai -> `valid=false`
+- Y nghia trong kien truc:
+  - Identity la noi "xac nhan su that" cua token.
+  - Gateway co the dua vao thong tin nay de cho/chan protected route.
+
+2.7 `POST /api/auth/refresh-token`
+- Muc dich: doi refresh token lay cap token moi.
+- Y nghia demo: he thong auth khong chi login 1 lan, ma co co che duy tri phien.
+
+2.8 Protected route vi du `GET /api/farm/farms`
+- Khong token -> phai `401 Unauthorized`.
+- Co token hop le -> khong con 401.
+- Neu service dich dang loi/chua chay co the tra 503, nhung dieu quan trong la:
+  da qua duoc lop auth o gateway.
+
+====================================================================
+3) FLOW THUC TE KHI CHAY DEMO (GOI NHAU THEO TUNG BUOC)
+====================================================================
+
+3.1 Flow A - Login qua Gateway (Layer 2)
+1) Client goi `POST http://localhost:8080/api/auth/login`
+2) Gateway route sang identity-service
+3) Identity xac thuc tai khoan
+4) Identity tra accessToken + refreshToken
+5) Gateway tra nguoc ve client
+
+Ket luan trinh bay:
+"Gateway dang lam dung vai tro central router cho auth APIs."
+
+3.2 Flow B - Login qua Nginx (Layer 1 -> Layer 2)
+1) Client goi `POST http://localhost/api/auth/login`
+2) Nginx nhan request va proxy vao gateway
+3) Gateway route vao identity
+4) Identity tra token ve nguoc lai theo cung duong
+
+Ket luan trinh bay:
+"Chuoi edge-to-core da thong: Nginx -> Gateway -> Identity."
+
+3.3 Flow C - Protected route voi JWT
+1) Client goi protected API khong token -> gateway chan ngay 401
+2) Client gui lai co `Authorization: Bearer <accessToken>`
+3) Gateway goi logic xac thuc token
+4) Neu token hop le, gateway cho request di tiep den farm-service
+
+Ket luan trinh bay:
+"Security duoc enforce ngay tai Gateway, khong cho request an danh vao service."
+
+3.4 Flow D - JWT cache tren Redis (MISS -> HIT)
+1) Lan dau voi token moi:
+   - Gateway chua co cache -> MISS
+   - Gateway can xu ly xac thuc token
+   - Luu ket qua vao Redis key `jwt:*`
+2) Lan sau cung token:
+   - Gateway doc Redis -> HIT
+   - Giam chi phi goi/xu ly xac thuc lap lai
+
+Ket luan trinh bay:
+"Cache giup toi uu hieu nang cho protected traffic."
+
+3.5 Flow E - Rate limiting
+1) Gui lien tiep >100 request/phut vao endpoint gateway health
+2) He thong ban dau cho 200
+3) Vuot nguong -> tra 429 Too Many Requests
+
+Ket luan trinh bay:
+"Gateway co co che bao ve truoc request burst/flood."
+
+====================================================================
+4) TAI SAO KET QUA TEST PASS CHUNG MINH DUNG KIEN TRUC
+====================================================================
+
+Khi ban test pass toan bo, y nghia ky thuat la:
+
+1) Health pass:
+   Cac thanh phan cot loi (Nginx, Gateway, Identity) dang song.
+
+2) Login pass o 3 diem vao:
+   Routing da thong suot o ca direct path va proxy path.
+
+3) Introspect pass:
+   Co bo may kiem tra token ro rang (valid/invalid phan biet dung).
+
+4) Protected route dung 401/non-401:
+   Co enforcement auth tai Gateway.
+
+5) Redis co key `jwt:*` + quan sat MISS/HIT:
+   Co cache JWT hoat dong dung y do thiet ke.
+
+6) Rate limit co 429:
+   Co lop bao ve API Gateway khi bi goi vuot nguong.
+
+=> Tong hop lai: luong da chay dung nhu muc tieu ban dau
+   "Edge (Nginx) -> Gateway (security, routing, resilience) -> Services".
+
+====================================================================
+5) KICH BAN THUYET TRINH GOI Y (NGAN GON 5-7 PHUT)
+====================================================================
+
+Buoc 1 - Gioi thieu kien truc (1 phut):
+"He thong em chia thanh Layer 1 Nginx, Layer 2 API Gateway, Layer 3 microservices."
+
+Buoc 2 - Chay health (1 phut):
+- Show `/nginx-health`
+- Show `/actuator/health` gateway + identity
+- Show `/api/gateway/health`
+
+Buoc 3 - Chay auth flow (2 phut):
+- register -> login -> introspect -> refresh
+- nhan manh token hop le/khong hop le
+
+Buoc 4 - Chay security/performance flow (2 phut):
+- protected route khong token (401)
+- protected route co token (qua auth)
+- cache MISS -> HIT
+- rate limit 200 -> 429
+
+Buoc 5 - Ket luan (30s):
+"Demo xac nhan dung luong ban dau: routing dung, auth dung, cache dung,
+rate limiting dung, va chain qua cac layer van hanh on dinh."
+
+====================================================================
+6) CAC CAU HOI THAY THUONG HOI (GOI Y TRA LOI NHANH)
+====================================================================
+
+Hoi: "Actuator health va gateway health khac nhau gi?"
+Tra loi: "Actuator health la suc khoe tung app; gateway health la buc tranh tong hop
+gateway check cac service con."
+
+Hoi: "Sao co luc protected route tra 503?"
+Tra loi: "503 la do service dich chua san sang, nhung neu da qua buoc 401 thi auth layer
+tai gateway dang dung."
+
+Hoi: "Introspect dung de lam gi?"
+Tra loi: "Introspect xac nhan token valid/invalid va thong tin user-role, la co so de
+gateway cho phep protected API."
+
+Hoi: "Cache JWT co y nghia gi?"
+Tra loi: "Giam latency va tai xac thuc lap lai; token da verify duoc tai su dung nhanh hon."
+
+Hoi: "Rate limit chung minh dieu gi?"
+Tra loi: "Gateway co lop phong thu truoc burst traffic, tranh nghen/he thong bi lam dung."
+
+====================================================================
+7) REFERENCE
+====================================================================
+
+- Tai lieu test chinh: `docs/test-apigateway-final.txt`
+- Tai lieu nguon tong hop: `docs/test-apigateway.txt`, `docs/Test_Flows_API_Gateway.md`
+

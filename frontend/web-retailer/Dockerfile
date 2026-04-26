@@ -4,6 +4,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ARG VITE_RETAIL_API_BASE_URL=http://localhost/api/retail
+ENV VITE_RETAIL_API_BASE_URL=$VITE_RETAIL_API_BASE_URL
+
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 

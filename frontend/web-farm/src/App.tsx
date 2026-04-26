@@ -48,6 +48,7 @@ import {
   getFarmProfile,
   getIotDashboard,
   getMarketplace,
+  getMyFarms,
   getOrdersByStatus,
   getPackages,
   getSeasonUpdates,
@@ -59,6 +60,9 @@ import {
   uploadFarmLicense
 } from "./services/farmApi";
 import { AlertItem, IotDashboard, MarketplaceItem, Order, OrderStatus, PackageInfo, Season, SeasonUpdate } from "./types";
+import { getAccessToken } from "./services/gateway";
+import { FarmLogin } from "./components/FarmLogin";
+import { fetchMe, logoutFarm, type FarmMeUser } from "./services/authFarm";
 
 const { Header, Content, Sider } = Layout;
 
@@ -71,8 +75,32 @@ type ScreenKey =
   | "orders"
   | "packages";
 
-function App( ) {
-  const [screen, setScreen] = useState<ScreenKey>("onboarding");
+function App() {
+  const [authed, setAuthed] = useState(() => !!getAccessToken());
+  if (!authed) {
+    return <FarmLogin onSuccess={() => setAuthed(true)} />;
+  }
+  return <FarmConsole />;
+}
+
+function FarmConsole() {
+  const [screen, setScreen] = useState<ScreenKey>("dashboard");
+  const [me, setMe] = useState<FarmMeUser | null>(null);
+
+  useEffect(() => {
+    void fetchMe()
+      .then((user) => {
+        if (user.role !== "FARM_MANAGER") {
+          message.error("Tài khoản này không có quyền vào web-farm. Vui lòng dùng FARM_MANAGER.");
+          logoutFarm();
+          return;
+        }
+        setMe(user);
+      })
+      .catch(() => {
+        logoutFarm();
+      });
+  }, []);
 
   return (
     <Layout className="app-layout">
@@ -85,7 +113,7 @@ function App( ) {
           items={[
             { key: "onboarding", icon: <FileTextOutlined />, label: "Onboarding" },
             { key: "dashboard", icon: <DashboardOutlined />, label: "Dashboard" },
-            { key: "seasons", icon: <AppstoreOutlined />, label: "Seasons" },
+            { key: "seasons", icon: <AppstoreOutlined />, label: "Vụ mùa" },
             { key: "season-updates", icon: <FileTextOutlined />, label: "Season Updates" },
             { key: "marketplace", icon: <ShopOutlined />, label: "Marketplace" },
             { key: "orders", icon: <FileTextOutlined />, label: "Orders" },
@@ -94,10 +122,18 @@ function App( ) {
         />
       </Sider>
       <Layout>
-        <Header className="header">Web Farm - DEV-02</Header>
+        <Header className="header flex items-center justify-between px-4">
+          <span>Web Farm — Gateway</span>
+          <Space>
+            <span className="text-sm font-normal opacity-90">{me?.fullName ?? "…"}</span>
+            <Button size="small" onClick={() => logoutFarm()}>
+              Đăng xuất
+            </Button>
+          </Space>
+        </Header>
         <Content className="content">
           {screen === "onboarding" && <OnboardingPage />}
-          {screen === "dashboard" && <DashboardPage />}
+          {screen === "dashboard" && <DashboardPage user={me} />}
           {screen === "seasons" && <SeasonsPage />}
           {screen === "season-updates" && <SeasonUpdatesPage />}
           {screen === "marketplace" && <MarketplacePage />}
@@ -243,7 +279,7 @@ function OnboardingPage( ) {
   );
 }
 
-function DashboardPage( ) {
+function DashboardPage({ user }: { user: FarmMeUser | null }) {
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState<IotDashboard | null>(null);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -274,6 +310,26 @@ function DashboardPage( ) {
 
   return (
     <Spin spinning={loading}>
+      {user ? (
+        <Card className="mb-4" title="Tài khoản (demo)">
+          <Space align="start" size="large">
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-700 text-lg font-bold text-white">
+                {(user.fullName || user.email || "?").slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <div className="text-lg font-semibold">{user.fullName}</div>
+              <div className="text-sm text-gray-500">{user.email}</div>
+              <Tag color="blue" className="mt-1">
+                {user.role}
+              </Tag>
+            </div>
+          </Space>
+        </Card>
+      ) : null}
       <Row gutter={[16, 16]}>
         <Col span={16}>
           <Card title="IoT Radial Gauge (polling 10s)">
@@ -333,9 +389,10 @@ function DashboardPage( ) {
   );
 }
 
-function SeasonsPage( ) {
+function SeasonsPage() {
   const [loading, setLoading] = useState(false);
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Season | null>(null);
   const [form] = Form.useForm();
@@ -353,17 +410,30 @@ function SeasonsPage( ) {
     void load();
   }, []);
 
+  useEffect(() => {
+    void (async () => {
+      const list = await getMyFarms();
+      setFarms(list);
+    })();
+  }, []);
+
   const save = async () => {
     const values = await form.validateFields();
     if (editing) {
       await updateSeason(editing.id, values);
-      message.success("Cap nhat season thanh cong");
+      message.success("Cập nhật vụ mùa thành công");
     } else {
-      await createSeason({
-        ...values,
-        farmId: "farm-001"
+      const created = await createSeason({
+        farmId: values.farmId,
+        cropType: values.cropType,
+        startDate: values.startDate,
+        estimatedEndDate: values.estimatedEndDate || undefined
       });
-      message.success("Tao season thanh cong");
+      message.success(
+        created.txHash
+          ? `Tạo vụ mùa thành công. TxHash: ${created.txHash}`
+          : "Tạo vụ mùa thành công. TxHash đang chờ ghi blockchain (Kafka → chain)."
+      );
     }
     setModalOpen(false);
     setEditing(null);
@@ -405,8 +475,18 @@ function SeasonsPage( ) {
   return (
     <Card title="Seasons - DataTable CRUD + blockchain timeline">
       <Space style={{ marginBottom: 12 }}>
-        <Button type="primary" onClick={() => { setEditing(null); setModalOpen(true); }}>
-          Create Season
+        <Button
+          type="primary"
+          onClick={() => {
+            setEditing(null);
+            form.resetFields();
+            if (farms[0]) {
+              form.setFieldsValue({ farmId: farms[0].id });
+            }
+            setModalOpen(true);
+          }}
+        >
+          Tạo vụ mùa
         </Button>
       </Space>
       <Table rowKey="id" loading={loading} columns={cols} dataSource={seasons} pagination={{ pageSize: 6 }} />
@@ -422,28 +502,45 @@ function SeasonsPage( ) {
         )}
       />
       <Modal
-        title={editing ? "Edit Season" : "Create Season"}
+        title={editing ? "Sửa vụ mùa" : "Tạo vụ mùa"}
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={() => void save()}
       >
         <Form layout="vertical" form={form}>
-          <Form.Item name="cropType" label="Crop Type" rules={[{ required: true }]}>
-            <Input />
+          {!editing ? (
+            <Form.Item name="farmId" label="Trang trại" rules={[{ required: true }]}>
+              <Select
+                placeholder="Chọn farm"
+                options={farms.map((f) => ({ value: f.id, label: f.name }))}
+                showSearch
+                optionFilterProp="label"
+              />
+            </Form.Item>
+          ) : null}
+          <Form.Item name="cropType" label="Loại cây / vụ" rules={[{ required: true }]}>
+            <Input placeholder="VD: Cà chua" />
           </Form.Item>
-          <Form.Item name="status" label="Status" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { value: "PREPARING" },
-                { value: "ACTIVE" },
-                { value: "HARVESTED" },
-                { value: "EXPORTED" }
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="startDate" label="Start Date" rules={[{ required: true }]}>
+          {editing ? (
+            <Form.Item name="status" label="Trạng thái" rules={[{ required: true }]}>
+              <Select
+                options={[
+                  { value: "PREPARING" },
+                  { value: "ACTIVE" },
+                  { value: "HARVESTED" },
+                  { value: "EXPORTED" }
+                ]}
+              />
+            </Form.Item>
+          ) : null}
+          <Form.Item name="startDate" label="Ngày bắt đầu" rules={[{ required: true }]}>
             <Input placeholder="YYYY-MM-DD" />
           </Form.Item>
+          {!editing ? (
+            <Form.Item name="estimatedEndDate" label="Ngày dự kiến kết thúc (tuỳ chọn)">
+              <Input placeholder="YYYY-MM-DD" />
+            </Form.Item>
+          ) : null}
         </Form>
       </Modal>
     </Card>

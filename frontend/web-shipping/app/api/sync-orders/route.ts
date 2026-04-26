@@ -5,8 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-// Đường dẫn tới file shared — relative từ root project
-const SHARED_FILE = path.resolve(process.cwd(), '..', 'shared', 'orders.json');
+// Trong container không đảm bảo có quyền ghi ra thư mục parent.
+// Dùng file tạm ổn định để tránh lỗi 500 khi dashboard auto sync.
+const SHARED_FILE = process.env.SHARED_ORDERS_PATH ?? '/tmp/bicap-shared-orders.json';
 
 export async function POST(req: NextRequest) {
   try {

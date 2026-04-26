@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { DataTable, ConfirmDialog, Toast } from "@bicap/ui";
+import {
+  DataTable,
+  StatusBadge,
+  ConfirmDialog,
+  Toast,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Button,
+  Badge,
+} from "@bicap/ui";
 import type { Column } from "@bicap/ui";
 import type { Farm } from "@bicap/types";
 import { getAdminFarms, approveFarm, rejectFarm, type FarmStatus } from "@/lib/api";
@@ -22,16 +34,26 @@ export default function FarmsPage() {
   const [rejectTarget,  setRejectTarget]  = useState<Farm | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin-farms", activeTab],
-    queryFn: () => getAdminFarms(activeTab),
-  });
+  // Fetch all 3 tabs for count badges
+  const queryPending  = useQuery({ queryKey: ["admin-farms", "PENDING"],  queryFn: () => getAdminFarms("PENDING") });
+  const queryApproved = useQuery({ queryKey: ["admin-farms", "APPROVED"], queryFn: () => getAdminFarms("APPROVED") });
+  const queryRejected = useQuery({ queryKey: ["admin-farms", "REJECTED"], queryFn: () => getAdminFarms("REJECTED") });
+
+  const tabQueries = { PENDING: queryPending, APPROVED: queryApproved, REJECTED: queryRejected };
+  const activeQuery = tabQueries[activeTab];
+  const { data, isLoading, isError, refetch, error } = activeQuery;
+
+  const TAB_STATUS_COLOR: Record<FarmStatus, string> = {
+    PENDING:  "bg-amber-100 text-amber-700",
+    APPROVED: "bg-emerald-100 text-emerald-700",
+    REJECTED: "bg-red-100 text-red-700",
+  };
 
   const approveMut = useMutation({
     mutationFn: (id: string) => approveFarm(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-farms"] });
-      setToast({ msg: "Đã phê duyệt trang trại", type: "success" });
+      setToast({ msg: "Đã phê duyệt trang trại ✓", type: "success" });
       setApproveTarget(null);
     },
     onError: () => setToast({ msg: "Phê duyệt thất bại", type: "error" }),
@@ -48,17 +70,29 @@ export default function FarmsPage() {
     onError: () => setToast({ msg: "Từ chối thất bại", type: "error" }),
   });
 
+  useEffect(() => {
+    if (!isError) return;
+    const message =
+      error instanceof Error
+        ? `Không tải được dữ liệu farm: ${error.message}`
+        : "Không tải được dữ liệu farm, vui lòng thử lại.";
+    setToast({ msg: message, type: "error" });
+  }, [isError, error]);
+
   const COLS: Column<Farm>[] = [
     { key: "farmName",  header: "Tên trang trại" },
     { key: "province",  header: "Tỉnh/Thành" },
-    { key: "totalArea", header: "Diện tích (ha)" },
+    { key: "totalArea", header: "Diện tích (ha)",
+      render: (v) => <span className="font-medium">{v as number} ha</span> },
+    { key: "status",    header: "Trạng thái",
+      render: (v) => <StatusBadge status={v as string} /> },
     { key: "createdAt", header: "Ngày đăng ký",
-      render: (v) => new Date(v as string).toLocaleDateString("vi-VN") },
+      render: (v) => <span className="text-xs text-gray-500">{new Date(v as string).toLocaleDateString("vi-VN")}</span> },
     { key: "id", header: "Chi tiết",
       render: (_, row) => (
         <Link
           href={`/farms/${row.id}`}
-          className="text-sm font-medium text-blue-600 hover:underline"
+          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 transition"
         >
           Xem →
         </Link>
@@ -70,18 +104,21 @@ export default function FarmsPage() {
           header: "Hành động",
           render: (_: unknown, row: Farm) => (
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => setApproveTarget(row)}
-                className="rounded-lg bg-green-500 px-3 py-1 text-xs font-medium text-white hover:bg-green-600"
+                size="sm"
+                className="h-8 bg-emerald-600 text-xs hover:bg-emerald-700"
               >
-                Duyệt
-              </button>
-              <button
+                ✓ Duyệt
+              </Button>
+              <Button
                 onClick={() => setRejectTarget(row)}
-                className="rounded-lg bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600"
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs"
               >
-                Từ chối
-              </button>
+                ✕ Từ chối
+              </Button>
             </div>
           ),
         }]
@@ -89,47 +126,66 @@ export default function FarmsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Quản lý Farm</h1>
-        <p className="text-sm text-gray-500">Phê duyệt đăng ký trang trại</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-gray-100 p-1 w-fit">
-        {TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.value
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <DataTable<Farm>
-        columns={COLS}
-        data={data?.data ?? []}
-        isLoading={isLoading}
-        keyField="id"
-        emptyMessage="Không có farm nào"
-      />
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="space-y-4">
+          <div>
+            <CardTitle className="text-2xl text-slate-900">Quản lý Farm</CardTitle>
+            <CardDescription>Phê duyệt đăng ký trang trại qua API Gateway</CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {TABS.map((tab) => {
+              const count = tabQueries[tab.value].data?.total;
+              const isActive = activeTab === tab.value;
+              return (
+                <Button
+                  key={tab.value}
+                  variant={isActive ? "default" : "outline"}
+                  onClick={() => setActiveTab(tab.value)}
+                  className="gap-2"
+                >
+                  {tab.label}
+                  {count != null && count > 0 && (
+                    <Badge className={isActive ? TAB_STATUS_COLOR[tab.value] : "bg-slate-100 text-slate-600"}>
+                      {count}
+                    </Badge>
+                  )}
+                </Button>
+              );
+            })}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isError ? (
+            <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-rose-200 bg-rose-50/70 p-6 text-center">
+              <p className="text-sm font-medium text-rose-700">Không thể tải danh sách farm cho tab hiện tại.</p>
+              <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+                Thử tải lại
+              </Button>
+            </div>
+          ) : (
+            <DataTable<Farm>
+              columns={COLS}
+              data={data?.data ?? []}
+              isLoading={isLoading}
+              keyField="id"
+              emptyMessage="Không có farm nào"
+            />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Approve Confirm */}
       <ConfirmDialog
         isOpen={!!approveTarget}
         title="Phê duyệt trang trại"
-        message={`Xác nhận phê duyệt "${approveTarget?.farmName}"?`}
+        message={`Xác nhận phê duyệt "${approveTarget?.farmName}"? Farm sẽ có thể hoạt động trên hệ thống.`}
         confirmLabel="Phê duyệt"
+        variant="primary"
         onConfirm={() => approveTarget && approveMut.mutate(approveTarget.id)}
         onCancel={() => setApproveTarget(null)}
       />

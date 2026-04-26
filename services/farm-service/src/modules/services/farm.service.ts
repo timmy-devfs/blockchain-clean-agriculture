@@ -118,6 +118,12 @@ export const getAdminFarms = async (status?: AdminFarmStatusQuery["status"]): Pr
     orderBy: { createdAt: "desc" }
   }) as Promise<FarmWithLicense[]>;
 
+export const getAdminFarmDetail = async (farmId: string): Promise<FarmWithLicense | null> =>
+  prisma.farm.findUnique({
+    where: { id: farmId },
+    include: farmInclude
+  }) as Promise<FarmWithLicense | null>;
+
 export const adminUpdateFarm = async (farmId: string, payload: UpdateFarmInput): Promise<FarmWithLicense | null> => {
   const existing = await prisma.farm.findUnique({
     where: { id: farmId }

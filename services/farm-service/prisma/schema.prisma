@@ -62,6 +62,9 @@ model FarmingSeason {
   estimatedEndDate  DateTime?
   status            SeasonStatus       @default(PREPARING)
   totalYield        Float?
+  /// Ghi nhận từ blockchain-service sau khi ghi chain (hoặc hash demo khi không deploy contract).
+  txHash                  String?
+  blockchainConfirmedAt DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   farm              Farm               @relation(fields: [farmId], references: [id])

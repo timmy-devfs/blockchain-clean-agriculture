@@ -154,6 +154,7 @@ services:
     container_name: bicap-mongo
     <<: *default-restart
     networks: [bicap-backend]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -190,6 +191,12 @@ services:
       JWT_SECRET: bicap-super-secret-jwt-key-2025-demo
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 604800000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     deploy:
       resources:
         limits:
@@ -204,13 +211,26 @@ services:
     container_name: bicap-gateway
     <<: *default-restart
     networks: [bicap-backend, bicap-frontend]
+    ports:
+      - "8080:8080"
     depends_on:
-      - identity-service
-      - redis
+      identity-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATA_REDIS_HOST: redis
       IDENTITY_SERVICE_URL: http://identity-service:8081
+      FARM_SERVICE_URL: http://farm-service:8082
+      RETAILER_SERVICE_URL: http://retailer-service:8083
+      SHIPPING_SERVICE_URL: http://shipping-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      PAYMENT_SERVICE_URL: http://payment-service:8086
+      IOT_SERVICE_URL: http://iot-service:8087
+      REPORT_SERVICE_URL: http://report-service:8088
+      GUEST_SERVICE_URL: http://guest-service:8089
+      BLOCKCHAIN_SERVICE_URL: http://blockchain-service:8090
     deploy:
       resources:
         limits:
@@ -336,8 +356,14 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: mongodb://mongo:27017/farm_db
+      INTERNAL_API_KEY: bicap-demo-internal-key
       KAFKA_OPTIONAL: "true"
       KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC_ORDER_PLACED: bicap.order.placed
+      KAFKA_TOPIC_SEASON_CREATED: bicap.season.created
+      KAFKA_TOPIC_SEASON_UPDATED: bicap.season.updated
+      KAFKA_TOPIC_SEASON_EXPORTED: bicap.season.exported
+      KAFKA_TOPIC_ORDER_CONFIRMED: bicap.order.confirmed
       REDIS_URL: redis://redis:6379
       PORT: "8082"
     deploy:
@@ -392,6 +418,7 @@ services:
     environment:
       DATABASE_URL: mongodb://mongo:27017/payment_db
       KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: retailer-secret
       VNPAY_TMN_CODE: DEMO_VNPAY
       VNPAY_HASH_SECRET: DEMO_VNPAY_SECRET
       VNPAY_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
@@ -447,6 +474,10 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BROKERS: kafka:29092
+      KAFKA_OPTIONAL: "true"
+      KAFKA_CONSUME: "true"
+      FARM_SERVICE_URL: http://farm-service:8082
+      INTERNAL_API_KEY: bicap-demo-internal-key
       VECHAIN_TESTNET_RPC: https://testnet.veblocks.net
       VECHAIN_OPTIONAL: "true"
       PORT: "8090"
@@ -468,6 +499,8 @@ services:
     container_name: bicap-web-admin
     <<: *default-restart
     networks: [bicap-frontend]
+    ports:
+      - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3000"
@@ -482,11 +515,14 @@ services:
     build:
       context: ./frontend/web-farm
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost
     container_name: bicap-web-farm
     <<: *default-restart
     networks: [bicap-frontend]
+    ports:
+      - "3001:3001"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3001"
     deploy:
       resources:
@@ -499,11 +535,12 @@ services:
     build:
       context: ./frontend/web-retailer
       dockerfile: Dockerfile
+      args:
+        VITE_RETAIL_API_BASE_URL: http://localhost/api/retail
     container_name: bicap-web-retailer
     <<: *default-restart
     networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3002"
     deploy:
       resources:

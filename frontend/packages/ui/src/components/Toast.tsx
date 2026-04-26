@@ -11,14 +11,16 @@ interface ToastProps {
   onClose: () => void;
 }
 
-const TOAST_STYLES: Record<ToastType, string> = {
-  success: "bg-green-500",
-  error: "bg-red-500",
-  warning: "bg-orange-500",
-  info: "bg-blue-500",
+const TOAST_CONFIG: Record<ToastType, { bg: string; icon: string }> = {
+  success: { bg: "bg-emerald-600",  icon: "✓" },
+  error:   { bg: "bg-rose-600",     icon: "✕" },
+  warning: { bg: "bg-amber-500",    icon: "⚠" },
+  info:    { bg: "bg-sky-600",      icon: "ℹ" },
 };
 
-export function Toast({ message, type = "info", duration = 3000, onClose }: ToastProps) {
+export function Toast({ message, type = "info", duration = 3500, onClose }: ToastProps) {
+  const { bg, icon } = TOAST_CONFIG[type];
+
   useEffect(() => {
     const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
@@ -26,10 +28,18 @@ export function Toast({ message, type = "info", duration = 3000, onClose }: Toas
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-lg px-4 py-3 text-white shadow-lg ${TOAST_STYLES[type]} animate-slide-in`}
+      className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-3 rounded-xl px-4 py-3 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-sm ${bg} animate-slide-in`}
+      style={{ minWidth: 260 }}
     >
-      <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="text-white/80 hover:text-white">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-sm font-bold">
+        {icon}
+      </span>
+      <span className="flex-1 text-sm font-medium leading-snug">{message}</span>
+      <button
+        onClick={onClose}
+        className="ml-1 rounded-lg p-1 text-white/70 transition hover:bg-white/20 hover:text-white"
+        aria-label="Đóng"
+      >
         ✕
       </button>
     </div>

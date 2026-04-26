@@ -37,8 +37,8 @@ interface SeasonCreatedEvent {
   };
 }
 
-export async function handleSeasonCreated(payload: EachMessagePayload): Promise<void> {
-  const raw = payload.message.value?.toString() ?? '{}';
+export async function handleSeasonCreated(messagePayload: EachMessagePayload): Promise<void> {
+  const raw = messagePayload.message.value?.toString() ?? '{}';
 
   let event: SeasonCreatedEvent;
   try {
@@ -48,35 +48,44 @@ export async function handleSeasonCreated(payload: EachMessagePayload): Promise<
     return;
   }
 
-  const { seasonId, farmId, farmName, cropType, startDate, estimatedEndDate, province, description } = event.payload;
-
-  logger.info(`Processing SeasonCreated: seasonId=${seasonId}, farmId=${farmId}, cropType=${cropType}`);
-
-  if (!process.env.FARM_TRACE_CONTRACT_ADDRESS) {
-    logger.warn('FARM_TRACE_CONTRACT_ADDRESS not set — skipping blockchain write');
+  const eventPayload = event.payload;
+  if (!eventPayload?.seasonId || !eventPayload?.farmId) {
+    logger.warn('SeasonCreated: missing payload.seasonId or payload.farmId');
     return;
   }
 
-  // Gộp thông tin vào initialData để lưu lên FarmTrace.sol
-  // Contract chỉ có 1 field initialData (string) → serialize toàn bộ thông tin vào JSON
-  const initialData = JSON.stringify({
-    farmName,
-    cropType,
-    startDate,
-    estimatedEndDate: estimatedEndDate ?? '',
-    province:         province ?? '',
-    description:      description ?? '',
-  });
+  const { seasonId, farmId, farmName, cropType, startDate, estimatedEndDate, province, description } = eventPayload;
 
-  // Retry 3 lần với backoff ✅
-  const txHash = await retry(
-    () => callCreateSeason(seasonId, farmId, initialData),
-    { maxAttempts: 3, baseDelayMs: 1_000, label: `createSeason(${seasonId})` }
-  );
+  logger.info(`Processing SeasonCreated: seasonId=${seasonId}, farmId=${farmId}, cropType=${cropType}`);
 
-  logger.info(`✅ createSeason confirmed — txHash: ${txHash}`);
+  let txHash: string;
+  if (process.env.FARM_TRACE_CONTRACT_ADDRESS) {
+    const initialData = JSON.stringify({
+      farmName,
+      cropType,
+      startDate,
+      estimatedEndDate: estimatedEndDate ?? '',
+      province:         province ?? '',
+      description:      description ?? '',
+    });
 
-  // Callback về farm-service
+    txHash = await retry(
+      () => callCreateSeason(seasonId, farmId, initialData),
+      { maxAttempts: 3, baseDelayMs: 1_000, label: `createSeason(${seasonId})` }
+    );
+    logger.info(`✅ createSeason on-chain — txHash: ${txHash}`);
+  } else {
+    txHash =
+      process.env.BLOCKCHAIN_DEMO_TX_HASH?.trim() ||
+      '0x0000000000000000000000000000000000000000000000000000000000b1cap';
+    logger.warn(`FARM_TRACE_CONTRACT_ADDRESS not set — using demo txHash (no chain write): ${txHash}`);
+  }
+
+  if (!INTERNAL_KEY) {
+    logger.warn('INTERNAL_API_KEY not set — skip farm callback');
+    return;
+  }
+
   try {
     await axios.put(
       `${FARM_SERVICE_URL}/api/farm/seasons/${seasonId}/blockchain`,
