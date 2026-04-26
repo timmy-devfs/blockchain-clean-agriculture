@@ -8,6 +8,15 @@ spring:
     gateway:
       server:
         webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              "[/**]":
+                allowed-origin-patterns: ["*"]
+                allowed-methods: ["GET","POST","PUT","DELETE","OPTIONS","PATCH"]
+                allowed-headers: ["*"]
+                allow-credentials: false
+                max-age: 3600
           routes:
             - id: identity-service
               uri: http://identity-service:8081
@@ -35,6 +44,27 @@ spring:
               predicates:
                 - Path=/api/retail/**
               filters:
+                - name: CircuitBreaker
+                  args:
+                    name: retailer-cb
+                    fallbackUri: forward:/fallback/retailer
+
+            - id: retailer-service-v1
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/api/v1/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: retailer-cb
+                    fallbackUri: forward:/fallback/retailer
+
+            - id: retailer-service-order-admin
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/api/order/**
+              filters:
+                - RewritePath=/api/order/(?<seg>.*), /api/retail/${seg}
                 - name: CircuitBreaker
                   args:
                     name: retailer-cb

@@ -21,7 +21,50 @@ docker-compose --env-file .env.prod -f docker-compose.prod.yml config
 
 Kỳ vọng: không lỗi parse/yaml.
 
-### 2.2 Build + up demo stack
+### 2.2 Final run order (khuyến nghị)
+
+> Chạy theo đúng thứ tự này để tránh lỗi Kafka topic chưa có, gateway chưa ready, hoặc web test sai cổng.
+
+1) Build + up demo stack
+
+```bash
+docker-compose -f docker-compose.demo.yml up -d --build
+docker-compose -f docker-compose.demo.yml ps
+```
+
+2) Tạo Kafka topics cho demo
+
+```bash
+make demo-topics
+```
+
+3) Restart riêng `blockchain-service` để subscribe lại sau khi topics đã sẵn sàng
+
+```bash
+docker-compose -f docker-compose.demo.yml up -d --build blockchain-service
+```
+
+4) Restart `api-gateway` + `nginx` để làm sạch route/cache DNS nội bộ
+
+```bash
+docker-compose -f docker-compose.demo.yml up -d --build api-gateway nginx
+```
+
+5) Verify nhanh trước khi test web
+
+```bash
+docker-compose -f docker-compose.demo.yml ps
+curl -I http://localhost/nginx-health
+curl -I http://localhost/
+curl -I http://localhost:8080/actuator/health
+```
+
+Kỳ vọng:
+
+- `api-gateway`, `blockchain-service`, `web-admin`, `web-farm`, `nginx` đều `Up`.
+- `/nginx-health`, `/`, `:8080/actuator/health` trả `200`.
+
+### 2.3 Build + up demo stack (manual)
 
 ```bash
 docker-compose -f docker-compose.demo.yml up -d --build
@@ -30,10 +73,10 @@ docker-compose -f docker-compose.demo.yml ps
 
 Kỳ vọng:
 
-- Các container chính `Up`.
+- Các container chính `Up` (hoặc `Up (healthy)` với service có healthcheck).
 - Database/broker chuyển `healthy`.
 
-### 2.3 Create Kafka topics (demo)
+### 2.4 Create Kafka topics (demo)
 
 ```bash
 make demo-topics
@@ -41,7 +84,7 @@ make demo-topics
 
 Kỳ vọng: script tạo topic chạy thành công trong `bicap-kafka`.
 
-### 2.4 Verify core health + routing
+### 2.5 Verify core health + routing
 
 ```bash
 curl -I http://localhost/nginx-health
@@ -53,7 +96,7 @@ Kỳ vọng:
 - `nginx-health` trả `200`.
 - Root route qua Nginx trả `200`.
 
-### 2.5 Optional: production-like smoke test
+### 2.6 Optional: production-like smoke test
 
 ```bash
 docker-compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
@@ -109,6 +152,30 @@ dir docs\05-api-design
 ```
 
 ## 4) Troubleshooting nhanh
+
+### Web test phải đi qua Gateway 8080
+
+- Tất cả luồng API frontend test qua:
+  - `http://localhost:8080/api/...` (direct gateway), hoặc
+  - `http://localhost/api/...` (qua nginx).
+- Không test trực tiếp `8081/8082/...` khi verify luồng web end-to-end.
+
+### Blockchain service "load mãi"
+
+Nếu thấy blockchain không xử lý event:
+
+```bash
+make demo-topics
+docker-compose -f docker-compose.demo.yml up -d --build blockchain-service
+docker logs --tail 80 bicap-blockchain
+```
+
+Log kỳ vọng có:
+
+- `Kafka consumer connected`
+- `Kafka producer connected`
+- `Blockchain service running on port 8090`
+- Không còn lỗi `UNKNOWN_TOPIC_OR_PARTITION` lặp liên tục.
 
 ### Lỗi 502 đồng loạt từ Nginx
 
