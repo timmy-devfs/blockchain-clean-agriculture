@@ -12,6 +12,7 @@ import {
 import {
   adminApproveFarm,
   adminDeleteFarm,
+  getAdminFarmDetail,
   adminRejectFarm,
   adminUpdateFarm,
   createFarm,
@@ -113,6 +114,19 @@ farmRouter.get("/api/farm/admin/farms", asyncHandler(async (req, res) => {
 
   const farms = await getAdminFarms(parsed.data.status);
   return res.json(farms.map(mapFarmToResponse));
+}));
+
+farmRouter.get("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
+  if (!isAdmin(req.user?.userRole)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const farm = await getAdminFarmDetail(req.params.id);
+  if (!farm) {
+    return res.status(404).json({ message: "Farm not found" });
+  }
+
+  return res.json(mapFarmToResponse(farm));
 }));
 
 farmRouter.put("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {

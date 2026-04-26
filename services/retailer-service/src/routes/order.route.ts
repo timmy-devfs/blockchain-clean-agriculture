@@ -13,6 +13,12 @@ const paymentCallbackSchema = z.object({
 
 export const orderRouter = Router();
 
+function hasAdminRole(roleHeader: unknown): boolean {
+  if (typeof roleHeader !== "string") return false;
+  const normalized = roleHeader.trim().toUpperCase();
+  return normalized === "ADMIN" || normalized === "ROLE_ADMIN";
+}
+
 orderRouter.post("/orders", jwtMiddleware, async (req, res, next) => {
   try {
     const result = await orderService.createOrder(req.body);
@@ -34,6 +40,19 @@ orderRouter.post("/orders/payment-callback", async (req, res, next) => {
 
 orderRouter.get("/orders", jwtMiddleware, async (req, res, next) => {
   try {
+    const orders = await orderService.listOrders(req.query);
+    res.json(orders);
+  } catch (error) {
+    next(error);
+  }
+});
+
+orderRouter.get("/admin/orders", jwtMiddleware, async (req, res, next) => {
+  try {
+    if (!hasAdminRole(req.headers["x-user-role"])) {
+      next(new AppError("FORBIDDEN"));
+      return;
+    }
     const orders = await orderService.listOrders(req.query);
     res.json(orders);
   } catch (error) {

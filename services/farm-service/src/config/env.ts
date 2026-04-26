@@ -25,7 +25,9 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
-  REDIS_URL: z.string().min(1)
+  REDIS_URL: z.string().min(1),
+  /** Khớp với blockchain-service — callback PUT /api/farm/seasons/:id/blockchain */
+  INTERNAL_API_KEY: z.string().optional().default("")
 });
 
 export const env = envSchema.parse(process.env);

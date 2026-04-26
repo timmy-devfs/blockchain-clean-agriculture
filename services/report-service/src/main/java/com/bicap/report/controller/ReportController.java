@@ -60,6 +60,14 @@ public class ReportController {
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
+    @GetMapping("/admin/dashboard")
+    public ResponseEntity<ApiResponse<?>> adminDashboard(Authentication auth) {
+        if (!isAdmin(auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ErrorCode.FORBIDDEN));
+        }
+        return ResponseEntity.ok(ApiResponse.success(reportService.buildAdminDashboard()));
+    }
+
     @PutMapping("/{id}/resolve")
     public ResponseEntity<ApiResponse<?>> resolve(
             @PathVariable Long id,

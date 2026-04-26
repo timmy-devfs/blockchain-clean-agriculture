@@ -64,12 +64,25 @@ export const createSeason = async (userId: string, payload: CreateSeasonInput): 
   })) as SeasonWithFarm;
 
   await evictSeasonListCache(userId);
-  await publishFarmEvent(
-    "seasonCreated",
-    buildEventEnvelope("SeasonCreatedEvent", {
-      season: mapSeasonToListItem(season)
-    })
-  );
+  // blockchain-service SeasonCreatedConsumer expects SEASON_CREATED + flat payload (see season-created.schema.json)
+  await publishFarmEvent("seasonCreated", {
+    eventId: randomUUID(),
+    eventType: "SEASON_CREATED",
+    timestamp: new Date().toISOString(),
+    version: "1.0",
+    payload: {
+      seasonId: season.id,
+      farmId: season.farmId,
+      farmName: season.farm.name,
+      cropType: season.cropType,
+      startDate: season.startDate.toISOString().slice(0, 10),
+      estimatedEndDate: season.estimatedEndDate?.toISOString().slice(0, 10),
+      area: season.farm.area ?? undefined,
+      province: season.farm.province ?? "",
+      status: "PREPARING" as const,
+      description: ""
+    }
+  });
 
   return season;
 };
@@ -140,6 +153,34 @@ export const getSeasonDetail = async (seasonId: string, userId: string): Promise
     },
     include: seasonDetailInclude
   }) as Promise<SeasonDetail | null>;
+
+export type ApplySeasonBlockchainResult = { type: "OK" } | { type: "NOT_FOUND" };
+
+/** Gọi từ blockchain-service (X-Internal-Key), không qua gateway. */
+export const applySeasonBlockchainRecord = async (
+  seasonId: string,
+  data: { txHash: string; confirmedAt: Date }
+): Promise<ApplySeasonBlockchainResult> => {
+  const existing = await prisma.farmingSeason.findFirst({
+    where: { id: seasonId },
+    include: { farm: true }
+  });
+
+  if (!existing) {
+    return { type: "NOT_FOUND" };
+  }
+
+  await prisma.farmingSeason.update({
+    where: { id: seasonId },
+    data: {
+      txHash: data.txHash,
+      blockchainConfirmedAt: data.confirmedAt
+    }
+  });
+
+  await evictSeasonListCache(existing.farm.ownerId);
+  return { type: "OK" };
+};
 
 export const updateSeason = async (
   seasonId: string,

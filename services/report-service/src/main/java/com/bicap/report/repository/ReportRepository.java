@@ -16,4 +16,6 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
     List<Report> findByReporterRoleOrderByIdDesc(String reporterRole);
 
     List<Report> findByStatusAndReporterRoleOrderByIdDesc(ReportStatus status, String reporterRole);
+
+    long countByStatus(ReportStatus status);
 }

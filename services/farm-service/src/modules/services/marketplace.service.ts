@@ -16,6 +16,14 @@ type ListingPageResponse = {
   items: ReturnType<typeof mapListingToResponse>[];
 };
 
+type PublicListingQuery = {
+  page: number;
+  size: number;
+  farmId?: string;
+  seasonId?: string;
+  keyword?: string;
+};
+
 const listingInclude = {
   farm: true,
   season: true
@@ -27,13 +35,17 @@ const packageCatalog = [
   { id: "ENTERPRISE", name: "Enterprise", durationDays: 365, price: 2599000 }
 ] as const;
 
+const isLikelyObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
+
 const getOwnedFarm = async (userId: string, farmId: string): Promise<Farm | null> =>
-  prisma.farm.findFirst({
-    where: {
-      id: farmId,
-      ownerId: userId
-    }
-  });
+  isLikelyObjectId(farmId)
+    ? prisma.farm.findFirst({
+        where: {
+          id: farmId,
+          ownerId: userId
+        }
+      })
+    : null;
 
 const getActiveFarmPackage = async (farmId: string): Promise<ServicePackageSubscription | null> => {
   const now = new Date();
@@ -183,6 +195,74 @@ export const getMyListings = async (userId: string, query: ListMyListingsQueryIn
 
   await setCachedMyListings(userId, query, response);
   return response;
+};
+
+export const getPublicListings = async (query: PublicListingQuery): Promise<ListingPageResponse> => {
+  const where: Prisma.MarketplaceListingWhereInput = {
+    isActive: true,
+    farmId: query.farmId,
+    seasonId: query.seasonId,
+    OR: query.keyword
+      ? [
+          {
+            title: {
+              contains: query.keyword,
+              mode: "insensitive"
+            }
+          },
+          {
+            description: {
+              contains: query.keyword,
+              mode: "insensitive"
+            }
+          }
+        ]
+      : undefined
+  };
+
+  const skip = query.page * query.size;
+  const [total, listings] = await Promise.all([
+    prisma.marketplaceListing.count({ where }),
+    prisma.marketplaceListing.findMany({
+      where,
+      include: listingInclude,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: query.size
+    })
+  ]);
+
+  return {
+    page: query.page,
+    limit: query.size,
+    total,
+    items: (listings as ListingWithRelations[]).map(mapListingToResponse)
+  };
+};
+
+export const getPublicListingById = async (listingId: string): Promise<ReturnType<typeof mapListingToResponse> | null> => {
+  const listing = await prisma.marketplaceListing.findFirst({
+    where: {
+      id: listingId,
+      isActive: true
+    },
+    include: listingInclude
+  });
+
+  if (!listing) {
+    return null;
+  }
+
+  return mapListingToResponse(listing as ListingWithRelations);
+};
+
+export const getPublicFarmProfile = async (farmId: string): Promise<Farm | null> => {
+  return prisma.farm.findFirst({
+    where: {
+      id: farmId,
+      isApproved: true
+    }
+  });
 };
 
 export const updateListing = async (

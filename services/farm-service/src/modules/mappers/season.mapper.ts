@@ -17,6 +17,7 @@ export type SeasonListItemResponse = {
   estimatedEndDate: Date | null;
   status: string;
   totalYield: number | null;
+  txHash: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -47,13 +48,14 @@ export const mapSeasonToListItem = (season: SeasonWithFarm): SeasonListItemRespo
   estimatedEndDate: season.estimatedEndDate ?? null,
   status: season.status,
   totalYield: season.totalYield ?? null,
+  txHash: season.txHash ?? null,
   createdAt: season.createdAt,
   updatedAt: season.updatedAt
 });
 
 export const mapSeasonToDetail = (season: SeasonDetail): SeasonDetailResponse => ({
   ...mapSeasonToListItem(season),
-  txHash: null,
+  txHash: season.txHash ?? null,
   farm: {
     id: season.farm.id,
     name: season.farm.name,

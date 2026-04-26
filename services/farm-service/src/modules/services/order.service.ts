@@ -160,6 +160,7 @@ export const confirmOrder = async (userId: string, orderId: string): Promise<Con
       farmOrderId: confirmed.id,
       farmId: confirmed.farmId,
       retailerId: confirmed.retailerId,
+      deliveryAddress: confirmed.deliveryAddress ?? null,
       confirmedAt: confirmed.confirmedAt?.toISOString() ?? null
     }
   });

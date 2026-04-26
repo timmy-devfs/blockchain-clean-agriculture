@@ -31,7 +31,8 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
 
         // Nếu có đủ thông tin thì tạo xác thực
         if (userId != null && userRole != null) {
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + userRole));
+            String normalizedRole = userRole.startsWith("ROLE_") ? userRole : "ROLE_" + userRole;
+            var authorities = List.of(new SimpleGrantedAuthority(normalizedRole));
             var auth = new UsernamePasswordAuthenticationToken(userId, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
         }

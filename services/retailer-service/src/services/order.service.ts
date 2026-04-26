@@ -5,7 +5,7 @@ import { z } from "zod";
 import { OrderStatus, canTransition } from "../constants/orderStatus";
 import { kafkaTopics } from "../constants/kafkaTopics";
 import { connectMongo } from "../config/mongodb";
-import { paymentAxios } from "../config/axios.instances";
+import { farmAxios, paymentAxios } from "../config/axios.instances";
 import { AppError } from "../errors/appError";
 import { publishEvent } from "../config/kafka.producer.config";
 
@@ -20,6 +20,7 @@ type RetailOrderDoc = {
   retailerId: string;
   farmId: string;
   listingId: string;
+  seasonId?: string;
   productName: string;
   quantity: number;
   unit?: string;
@@ -54,6 +55,7 @@ export type RetailOrder = {
   retailerId: string;
   farmId: string;
   listingId: string;
+  seasonId?: string;
   productName: string;
   quantity: number;
   unit?: string;
@@ -121,6 +123,7 @@ function mapOrder(doc: RetailOrderDoc): RetailOrder {
     retailerId: doc.retailerId,
     farmId: doc.farmId,
     listingId: doc.listingId,
+    seasonId: doc.seasonId,
     productName: doc.productName,
     quantity: doc.quantity,
     unit: doc.unit,
@@ -227,6 +230,7 @@ async function publishOrderPlaced(order: RetailOrder): Promise<void> {
       orderId: order.id,
       retailerId: order.retailerId,
       farmId: order.farmId,
+      seasonId: order.seasonId,
       listingId: order.listingId,
       quantity: order.quantity,
       unit: order.unit,
@@ -265,6 +269,21 @@ export const orderService = {
       throw new AppError("RETAILER_NOT_FOUND");
     }
 
+    let seasonId: string | undefined;
+    try {
+      const listingResponse = await farmAxios.get(`/api/farm/marketplace/products/${encodeURIComponent(data.listingId)}`);
+      seasonId =
+        typeof listingResponse.data?.seasonId === "string" && listingResponse.data.seasonId.length > 0
+          ? listingResponse.data.seasonId
+          : undefined;
+    } catch {
+      throw new AppError("INVALID_REQUEST", "listingId is invalid or unavailable");
+    }
+
+    if (!seasonId) {
+      throw new AppError("INVALID_REQUEST", "listingId does not provide seasonId");
+    }
+
     const now = new Date();
     const orderId = randomUUID();
 
@@ -275,6 +294,12 @@ export const orderService = {
         amount: data.depositAmount,
         gateway: data.gateway,
         type: "DEPOSIT"
+      }, {
+        headers: {
+          Authorization: `Bearer ${process.env.JWT_SECRET ?? "retailer-secret"}`,
+          "X-User-Id": data.retailerId,
+          "X-User-Role": "RETAILER"
+        }
       });
       paymentUrl = String(paymentRes.data?.paymentUrl ?? "");
       if (!paymentUrl) {
@@ -292,6 +317,7 @@ export const orderService = {
       retailerId: data.retailerId,
       farmId: data.farmId,
       listingId: data.listingId,
+      seasonId,
       productName: data.productName,
       quantity: data.quantity,
       unit: data.unit,

@@ -33,9 +33,9 @@ public class OrderConfirmedListener {
             JsonNode payload = root.get("payload");
             if (payload == null || payload.isNull()) return;
 
-            Long orderId = payload.hasNonNull("orderId") ? tryLong(payload.get("orderId").asText()) : null;
-            Long farmId = payload.hasNonNull("farmId") ? tryLong(payload.get("farmId").asText()) : null;
-            Long retailerId = payload.hasNonNull("retailerId") ? tryLong(payload.get("retailerId").asText()) : null;
+            Long orderId = payload.hasNonNull("orderId") ? toNumericId(payload.get("orderId").asText()) : null;
+            Long farmId = payload.hasNonNull("farmId") ? toNumericId(payload.get("farmId").asText()) : null;
+            Long retailerId = payload.hasNonNull("retailerId") ? toNumericId(payload.get("retailerId").asText()) : null;
             String deliveryAddress = payload.hasNonNull("deliveryAddress") ? payload.get("deliveryAddress").asText() : null;
 
             if (orderId == null) return;
@@ -65,11 +65,19 @@ public class OrderConfirmedListener {
         }
     }
 
-    private static Long tryLong(String raw) {
+    /**
+     * Backward-compatible ID conversion:
+     * - Numeric IDs: keep original value
+     * - UUID/string IDs from new services: map to deterministic positive long
+     */
+    private static Long toNumericId(String raw) {
         try {
             return Long.parseLong(raw);
         } catch (Exception e) {
-            return null;
+            if (raw == null || raw.isBlank()) {
+                return null;
+            }
+            return (long) Integer.toUnsignedLong(raw.hashCode());
         }
     }
 }

@@ -115,6 +115,7 @@ app.get('/test-season-exported', async (req, res) => {
 async function bootstrap() {
   try {
     const vechainOptional = (process.env.VECHAIN_OPTIONAL ?? 'true') === 'true';
+    const kafkaOptional = (process.env.KAFKA_OPTIONAL ?? 'true') === 'true';
     let thorClient = null;
 
     try {
@@ -135,8 +136,15 @@ async function bootstrap() {
       );
     }
 
-    await initKafka();
-    logger.info('Kafka consumer group registered: blockchain-service');
+    try {
+      await initKafka();
+      logger.info('Kafka consumer group registered: blockchain-service');
+    } catch (kafkaError) {
+      if (!kafkaOptional) {
+        throw kafkaError;
+      }
+      logger.warn('Kafka unavailable, starting in degraded mode');
+    }
 
     app.listen(PORT, () => {
       logger.info(`Blockchain service running on port ${PORT}`);

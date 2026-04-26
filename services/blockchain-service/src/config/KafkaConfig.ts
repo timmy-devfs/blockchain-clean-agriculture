@@ -34,6 +34,12 @@ export async function initKafka(): Promise<void> {
   await producer.connect();
   logger.info('Kafka producer connected');
 
+  const consumeEnabled = process.env.KAFKA_CONSUME !== 'false';
+  if (!consumeEnabled) {
+    logger.info('Consuming disabled (KAFKA_CONSUME=false), skipping topic subscription');
+    return;
+  }
+
   // Import consumers thật từ BICAP-021
   const { handleSeasonCreated }  = await import('../kafka/consumers/SeasonCreatedConsumer');
   const { handleSeasonUpdated }  = await import('../kafka/consumers/SeasonUpdatedConsumer');
@@ -46,11 +52,6 @@ export async function initKafka(): Promise<void> {
   const topics = [...handlers.keys()];
   await consumer.subscribe({ topics, fromBeginning: false });
   logger.info(`Subscribed to: ${topics.join(', ')}`);
-
-  if (process.env.KAFKA_CONSUME === 'false') {
-    logger.info('Consuming paused (KAFKA_CONSUME=false)');
-    return;
-  }
 
   logger.info('Consuming started...');
 
