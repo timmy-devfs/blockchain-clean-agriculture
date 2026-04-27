@@ -415,6 +415,9 @@ services:
       REPORT_SERVICE_BASE_URL: http://report-service:8088
       REDIS_URL: redis://redis:6379
       PORT: "8083"
+      SKIP_ORDER_PAYMENT: "true"
+      INIT_INFRA_ON_BOOT: "true"
+      KAFKAJS_NO_PARTITIONER_WARNING: "1"
     deploy:
       resources:
         limits:

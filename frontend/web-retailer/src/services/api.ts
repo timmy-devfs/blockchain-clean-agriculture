@@ -239,7 +239,7 @@ export const createOrder = async (payload: {
   quantity: number;
   address: string;
   gateway: "VNPAY" | "MOMO";
-}): Promise<{ orderId: string; paymentUrl: string }> => {
+}): Promise<{ orderId: string; paymentUrl: string; skipPayment: boolean }> => {
   try {
     const response = await retailApi.post(
       "/orders",
@@ -256,9 +256,11 @@ export const createOrder = async (payload: {
       },
       { headers: getRetailAuthHeaders() }
     );
+    const paymentUrl = String(response.data?.paymentUrl ?? "");
     return {
       orderId: response.data?.order?.id ?? response.data?.id ?? `ord-${Date.now()}`,
-      paymentUrl: response.data?.paymentUrl ?? `https://sandbox.pay/${payload.gateway.toLowerCase()}`
+      paymentUrl: paymentUrl || "",
+      skipPayment: !paymentUrl
     };
   } catch {
     const orderId = `ord-${Date.now()}`;
@@ -274,7 +276,8 @@ export const createOrder = async (payload: {
     mockOrders = [newOrder, ...mockOrders];
     return {
       orderId,
-      paymentUrl: `${window.location.origin}/retailer/orders/callback?orderId=${orderId}&gateway=${payload.gateway}&status=success`
+      paymentUrl: `${window.location.origin}/retailer/orders/callback?orderId=${orderId}&gateway=${payload.gateway}&status=success`,
+      skipPayment: false
     };
   }
 };

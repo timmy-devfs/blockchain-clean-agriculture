@@ -96,8 +96,13 @@ public class ShipmentController {
             return ApiResponse.error(ErrorCode.FORBIDDEN);
         }
         String userId = authContextService.currentUserIdOrNull();
-        if (userId == null) return ApiResponse.error(ErrorCode.UNAUTHORIZED);
-        Long driverId = Long.parseLong(userId);
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null) {
+            return ApiResponse.success(List.of());
+        }
         return ApiResponse.success(shipmentService.listForDriver(driverId));
     }
 
@@ -110,6 +115,14 @@ public class ShipmentController {
     })
     public ApiResponse<ShipmentResponse> pickup(@PathVariable Long id, @RequestBody(required = false) UpdateShipmentStatusRequest body) {
         if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
             return ApiResponse.error(ErrorCode.FORBIDDEN);
         }
         UpdateShipmentStatusRequest req = body != null
@@ -127,6 +140,14 @@ public class ShipmentController {
     })
     public ApiResponse<ShipmentResponse> updateStatus(@PathVariable Long id, @RequestBody UpdateShipmentStatusRequest req) {
         if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
             return ApiResponse.error(ErrorCode.FORBIDDEN);
         }
         return ApiResponse.success(shipmentService.updateStatus(id, req));

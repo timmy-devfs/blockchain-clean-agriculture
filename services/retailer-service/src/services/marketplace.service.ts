@@ -110,7 +110,17 @@ export const marketplaceService = {
       const response = await farmAxios.get("/api/farm/marketplace/products", {
         params: query
       });
-      await setJsonCache(key, response.data);
+      const body = response.data as { total?: number; items?: unknown[] };
+      const total =
+        typeof body.total === "number"
+          ? body.total
+          : Array.isArray(body.items)
+            ? body.items.length
+            : 0;
+      // Không cache kết quả rỗng: tránh sau khi farm tạo listing mới, retailer vẫn thấy catalog trống 120s.
+      if (total > 0) {
+        await setJsonCache(key, response.data);
+      }
       return response.data;
     } catch (error) {
       throw mapDownstreamError(error, "PRODUCT_NOT_FOUND");

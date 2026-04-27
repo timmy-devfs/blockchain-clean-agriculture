@@ -623,6 +623,9 @@ function MarketplacePage( ) {
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
+  const [farms, setFarms] = useState<{ id: string; name: string }[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const selectedFarmId = Form.useWatch("farmId", form);
 
   const load = async () => setItems(await getMarketplace());
 
@@ -630,23 +633,53 @@ function MarketplacePage( ) {
     void load();
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      try {
+        const [farmsList, seasonsList] = await Promise.all([getMyFarms(), getSeasons()]);
+        setFarms(farmsList);
+        setSeasons(seasonsList);
+        const firstFarm = farmsList[0]?.id;
+        if (firstFarm) {
+          form.setFieldsValue({ farmId: firstFarm, seasonId: undefined });
+        }
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : "Khong tai duoc trang trai / vu mua");
+      }
+    })();
+  }, [open, form]);
+
+  const seasonsForFarm = useMemo(
+    () => (selectedFarmId ? seasons.filter((s) => s.farmId === selectedFarmId) : []),
+    [seasons, selectedFarmId]
+  );
+
   const submit = async () => {
-    const values = await form.validateFields();
-    await createMarketplace({
-      title: values.title,
-      description: values.description,
-      quantity: values.quantity,
-      unitPrice: values.unitPrice,
-      imageUrl: values.imageUrl
-    });
-    setOpen(false);
-    form.resetFields();
-    await load();
+    try {
+      const values = await form.validateFields();
+      const desc = typeof values.description === "string" ? values.description.trim() : "";
+      await createMarketplace({
+        farmId: values.farmId,
+        seasonId: values.seasonId,
+        title: values.title,
+        quantity: values.quantity,
+        unitPrice: values.unitPrice,
+        ...(desc ? { description: desc } : {})
+      });
+      message.success("Da tao tin dang");
+      setOpen(false);
+      form.resetFields();
+      await load();
+    } catch (e) {
+      if (e && typeof e === "object" && "errorFields" in e) return;
+      message.error(e instanceof Error ? e.message : "Tao tin dang that bai");
+    }
   };
 
   return (
     <Card
-      title="Marketplace - grid + CreateListingModal + upload anh"
+      title="Marketplace"
       extra={<Button type="primary" onClick={() => setOpen(true)}>Create Listing</Button>}
     >
       <Row gutter={[12, 12]}>
@@ -668,8 +701,25 @@ function MarketplacePage( ) {
           </Col>
         ))}
       </Row>
-      <Modal title="Create Listing" open={open} onCancel={() => setOpen(false)} onOk={() => void submit()}>
+      <Modal title="Create Listing" open={open} onCancel={() => setOpen(false)} onOk={() => void submit()} destroyOnClose>
         <Form form={form} layout="vertical">
+          <Form.Item name="farmId" label="Trang trai" rules={[{ required: true, message: "Chon trang trai" }]}>
+            <Select
+              options={farms.map((f) => ({ value: f.id, label: f.name }))}
+              placeholder="Chon farm"
+              onChange={() => form.setFieldsValue({ seasonId: undefined })}
+            />
+          </Form.Item>
+          <Form.Item name="seasonId" label="Vu mua" rules={[{ required: true, message: "Chon vu mua" }]}>
+            <Select
+              options={seasonsForFarm.map((s) => ({
+                value: s.id,
+                label: `${s.cropType} (${s.status})`
+              }))}
+              placeholder={selectedFarmId ? "Chon vu mua" : "Chon trang trai truoc"}
+              disabled={!selectedFarmId || seasonsForFarm.length === 0}
+            />
+          </Form.Item>
           <Form.Item name="title" label="Title" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
@@ -682,7 +732,7 @@ function MarketplacePage( ) {
           <Form.Item name="unitPrice" label="Unit Price" rules={[{ required: true }]}>
             <InputNumber style={{ width: "100%" }} min={1000} />
           </Form.Item>
-          <Form.Item name="imageUrl" label="Image URL">
+          <Form.Item name="imageUrl" label="Image URL (hien chua luu DB)">
             <Input placeholder="https://..." />
           </Form.Item>
           <Upload beforeUpload={() => false}>
@@ -710,17 +760,27 @@ function OrdersPage( ) {
   }, [activeTab]);
 
   const confirm = async (id: string) => {
-    await confirmOrder(id);
-    message.success("Da xac nhan don");
-    setActiveTab("CONFIRMED");
+    try {
+      await confirmOrder(id);
+      message.success("Da xac nhan don");
+      setActiveTab("CONFIRMED");
+      await load("CONFIRMED");
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Xac nhan don that bai");
+    }
   };
 
   const submitReject = async () => {
-    await rejectOrder(selectedId, rejectReason);
-    setRejectOpen(false);
-    setRejectReason("");
-    setActiveTab("REJECTED");
-    message.success("Da tu choi don");
+    try {
+      await rejectOrder(selectedId, rejectReason);
+      setRejectOpen(false);
+      setRejectReason("");
+      setActiveTab("REJECTED");
+      message.success("Da tu choi don");
+      await load("REJECTED");
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Tu choi don that bai");
+    }
   };
 
   const cols: ColumnsType<Order> = [
@@ -760,7 +820,7 @@ function OrdersPage( ) {
   ];
 
   return (
-    <Card title="Orders - SectionList 3 tab + confirm/reject modal">
+    <Card title="Orders">
       <Tabs
         activeKey={activeTab}
         onChange={(key) => setActiveTab(key as OrderStatus)}

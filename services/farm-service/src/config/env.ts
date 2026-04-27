@@ -18,7 +18,8 @@ const envSchema = z.object({
   KAFKA_TOPIC_SEASON_CREATED: z.string().default("farm.season-created"),
   KAFKA_TOPIC_SEASON_UPDATED: z.string().default("farm.season-updated"),
   KAFKA_TOPIC_SEASON_EXPORTED: z.string().default("farm.season-exported"),
-  KAFKA_TOPIC_ORDER_CONFIRMED: z.string().default("farm.order-confirmed"),
+  /** Phải khớp topic shipping-service consume (mặc định bicap.order.confirmed). */
+  KAFKA_TOPIC_ORDER_CONFIRMED: z.string().default("bicap.order.confirmed"),
   SHIPPING_SERVICE_BASE_URL: z.string().url().default("http://localhost:8084"),
   SHIPPING_SERVICE_SHIPMENTS_PATH: z.string().default("/api/shipping/shipments"),
   REDIS_OPTIONAL: z

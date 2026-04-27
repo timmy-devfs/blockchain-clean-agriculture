@@ -473,15 +473,28 @@ export const getMarketplace = async (): Promise<MarketplaceItem[]> => {
   }
 };
 
-export const createMarketplace = async (payload: Omit<MarketplaceItem, "id" | "isActive">): Promise<void> => {
+/** Payload khớp createListingSchema trên farm-service. */
+export type CreateListingPayload = {
+  farmId: string;
+  seasonId: string;
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  description?: string;
+};
+
+export const createMarketplace = async (payload: CreateListingPayload): Promise<void> => {
   try {
     await gateway.post("/api/farm/marketplace/listings", payload);
   } catch (error) {
     if (useFarmMockFallback()) {
       mockMarketplace = [
         {
-          ...payload,
           id: `mk-${Date.now()}`,
+          title: payload.title,
+          description: payload.description,
+          quantity: payload.quantity,
+          unitPrice: payload.unitPrice,
           isActive: true
         },
         ...mockMarketplace
@@ -492,12 +505,30 @@ export const createMarketplace = async (payload: Omit<MarketplaceItem, "id" | "i
   }
 };
 
+function mapFarmOrderApiRow(row: Record<string, unknown>): Order {
+  const season = row.season as Record<string, unknown> | undefined;
+  const cropFromSeason = season && typeof season.cropType === "string" ? season.cropType : "";
+  const cropType =
+    typeof row.cropType === "string" && row.cropType.trim() !== "" ? String(row.cropType) : cropFromSeason;
+  return {
+    id: String(row.id),
+    externalOrderId: String(row.externalOrderId ?? ""),
+    retailerId: String(row.retailerId ?? ""),
+    cropType,
+    quantity: Number(row.quantity ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    status: (row.status as Order["status"]) ?? "PENDING",
+    rejectReason: row.rejectReason != null ? String(row.rejectReason) : undefined
+  };
+}
+
 export const getOrdersByStatus = async (status: OrderStatus): Promise<Order[]> => {
   try {
     const { data } = await gateway.get("/api/farm/orders", {
       params: { status, page: 1, limit: 100 }
     });
-    return (data?.items ?? []) as Order[];
+    const raw = (data?.items ?? []) as Record<string, unknown>[];
+    return raw.map(mapFarmOrderApiRow);
   } catch (error) {
     if (useFarmMockFallback()) {
       return mockOrders.filter((item) => item.status === status);

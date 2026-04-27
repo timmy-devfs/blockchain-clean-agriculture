@@ -335,6 +335,12 @@ function ProductDetailPage() {
       address: values.address,
       gateway: values.gateway
     });
+    if (result.skipPayment || !result.paymentUrl) {
+      message.success("Đặt hàng thành công — đã bỏ qua thanh toán, đơn chuyển sang vận chuyển.");
+      navigate(`/retailer/orders?tab=confirmed`);
+      setOpen(false);
+      return;
+    }
     message.success("Order created, redirecting payment...");
     window.location.href = result.paymentUrl;
   };
@@ -445,6 +451,9 @@ function OrdersPage() {
   useEffect(() => {
     if (location.search.includes("tab=shipping")) {
       setActive("SHIPPING");
+    }
+    if (location.search.includes("tab=confirmed")) {
+      setActive("CONFIRMED");
     }
   }, [location.search]);
 

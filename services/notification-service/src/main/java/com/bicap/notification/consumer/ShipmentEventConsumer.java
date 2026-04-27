@@ -44,6 +44,26 @@ public class ShipmentEventConsumer extends BaseJsonConsumer {
                     Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
             );
         }
+
+        String driverUserId = text(payload, "driverUserId");
+        if (driverUserId != null && !driverUserId.isBlank()) {
+            dispatcher.notifyUser(
+                    driverUserId,
+                    "Cap nhat van chuyen (tai xe)",
+                    body,
+                    Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+            );
+        } else {
+            String driverId = text(payload, "driverId");
+            if (driverId != null && !driverId.isBlank()) {
+                dispatcher.notifyUser(
+                        driverId,
+                        "Cap nhat van chuyen (tai xe)",
+                        body,
+                        Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+                );
+            }
+        }
     }
 }
 

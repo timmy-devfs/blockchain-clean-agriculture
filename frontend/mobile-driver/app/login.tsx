@@ -70,7 +70,7 @@ export default function LoginScreen() {
               <TextInput
                 value={email}
                 onChangeText={setEmail}
-                placeholder="driver@bicap.vn"
+                placeholder="driver@bicap.io"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"

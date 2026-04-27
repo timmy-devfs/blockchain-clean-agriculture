@@ -5,6 +5,7 @@ import com.bicap.shipping.entity.Shipment;
 import com.bicap.shipping.entity.ShipmentStatusHistory;
 import com.bicap.shipping.repository.ShipmentRepository;
 import com.bicap.shipping.repository.ShipmentStatusHistoryRepository;
+import com.bicap.shipping.service.ShipmentEventPublisher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,11 +20,18 @@ public class OrderConfirmedListener {
     private final ObjectMapper objectMapper;
     private final ShipmentRepository shipmentRepository;
     private final ShipmentStatusHistoryRepository historyRepository;
+    private final ShipmentEventPublisher shipmentEventPublisher;
 
-    public OrderConfirmedListener(ObjectMapper objectMapper, ShipmentRepository shipmentRepository, ShipmentStatusHistoryRepository historyRepository) {
+    public OrderConfirmedListener(
+            ObjectMapper objectMapper,
+            ShipmentRepository shipmentRepository,
+            ShipmentStatusHistoryRepository historyRepository,
+            ShipmentEventPublisher shipmentEventPublisher
+    ) {
         this.objectMapper = objectMapper;
         this.shipmentRepository = shipmentRepository;
         this.historyRepository = historyRepository;
+        this.shipmentEventPublisher = shipmentEventPublisher;
     }
 
     @KafkaListener(topics = "${bicap.kafka.topics.order-confirmed:bicap.order.confirmed}", containerFactory = "kafkaListenerContainerFactory")
@@ -60,6 +68,13 @@ public class OrderConfirmedListener {
                     .note("Auto-created from ORDER_CONFIRMED")
                     .imageUrls(null)
                     .build());
+
+            shipmentEventPublisher.publishShipmentUpdated(
+                    created,
+                    "Lo hang moi duoc tao tu ORDER_CONFIRMED",
+                    null,
+                    null
+            );
         } catch (Exception e) {
             System.err.println("[shipping-service] Failed to handle order-confirmed: " + e.getMessage());
         }

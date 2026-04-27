@@ -18,7 +18,9 @@ const envSchema = z.object({
   SHIPPING_SERVICE_BASE_URL: z.string().default("http://localhost:8084"),
   PAYMENT_SERVICE_BASE_URL: z.string().default("http://localhost:8086"),
   REPORT_SERVICE_BASE_URL: z.string().default("http://localhost:8088"),
-  JWT_SECRET: z.string().min(6).default("retailer-secret")
+  JWT_SECRET: z.string().min(6).default("retailer-secret"),
+  /** true = bỏ gọi payment-service, đơn vào thẳng PLACED + Kafka (ORDER_PLACED + ORDER_CONFIRMED) để shipping tạo lô hàng */
+  SKIP_ORDER_PAYMENT: z.enum(["true", "false"]).default("false")
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -32,6 +34,7 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   INIT_INFRA_ON_BOOT: parsed.data.INIT_INFRA_ON_BOOT === "true",
+  SKIP_ORDER_PAYMENT: parsed.data.SKIP_ORDER_PAYMENT === "true",
   KAFKA_BROKERS: parsed.data.KAFKA_BROKERS.split(",")
     .map((broker) => broker.trim())
     .filter(Boolean)

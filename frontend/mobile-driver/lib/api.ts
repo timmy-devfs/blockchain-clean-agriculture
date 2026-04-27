@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import type { ApiResponse, PageResponse } from "@bicap/types";
 
 export const TOKEN_KEY = "bicap_access_token";
@@ -12,18 +13,33 @@ export const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 const MOCK_DB = {
   users: [
     {
-      email: "driver@bicap.vn",
-      password: "123123",
+      email: "driver@bicap.io",
+      password: "password",
       user: {
-        id: "D-1",
-        fullName: "Tài xế Nguyễn Trung Hậu",
-        phone: "0901234567",
-        email: "driver@bicap.vn",
+        id: "a0000001-0001-4001-8001-000000000001",
+        fullName: "Tai xe demo BICAP",
+        phone: "0900000001",
+        email: "driver@bicap.io",
         avatarUrl: "https://i.pravatar.cc/150?u=driver",
       }
     }
   ]
 };
+
+const MOCK_SHIPPING_ROWS: ShippingApiShipment[] = [
+  {
+    id: 9001,
+    orderId: 8801,
+    farmId: 10,
+    retailerId: 20,
+    driverId: 1,
+    vehicleId: 1,
+    status: "ASSIGNED",
+    pickupAddress: "Kho Long An (mock)",
+    deliveryAddress: "Q1 TP.HCM (mock)",
+    scheduledDate: new Date().toISOString().slice(0, 10),
+  },
+];
 // ──────────────────────────────────────────────────────────────────────────
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
@@ -74,6 +90,22 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+function assertShippingOk<T>(res: ApiResponse<T>): T {
+  if (res.code !== 200) {
+    throw new Error(res.message || "Shipping API loi");
+  }
+  return res.data;
+}
+
+/** Đăng ký FCM token với notification-service (cần JWT trên gateway). */
+export async function syncFcmTokenToBackend(fcmToken: string): Promise<void> {
+  if (isMockMode) return;
+  const jwt = await SecureStore.getItemAsync(TOKEN_KEY);
+  if (!jwt?.trim()) return;
+  const platform = Platform.OS === "ios" ? "IOS" : "ANDROID";
+  await api.post("/api/notify/tokens", { token: fcmToken, platform });
+}
 
 export interface DriverUser {
   id: string; fullName: string; phone: string; email: string; avatarUrl?: string;
@@ -170,46 +202,76 @@ export const authApi = {
       }
       throw new Error("Invalid credentials");
     }
-    return api.post<ApiResponse<{ accessToken: string; refreshToken: string; user: DriverUser }>>(
-      "/api/auth/login", { email, password }
-    ).then((r) => r.data.data);
+    return api
+      .post<ApiResponse<{ accessToken: string; refreshToken: string; user: DriverUser }>>("/api/auth/login", {
+        email,
+        password,
+      })
+      .then((r) => {
+        if (r.data.code !== 200) throw new Error(r.data.message || "Dang nhap that bai");
+        return r.data.data;
+      });
   },
 
   getMe: async () => {
     if (isMockMode) return MOCK_DB.users[0].user;
-    return api.get<ApiResponse<DriverUser>>("/api/auth/me").then((r) => r.data.data);
+    const r = await api.get<
+      ApiResponse<{
+        id: string;
+        email: string;
+        fullName: string;
+        phone?: string | null;
+        avatarUrl?: string | null;
+      }>
+    >("/api/auth/me");
+    if (r.data.code !== 200) throw new Error(r.data.message || "Khong lay duoc profile");
+    const u = r.data.data;
+    return {
+      id: u.id,
+      fullName: u.fullName,
+      phone: u.phone ?? "",
+      email: u.email,
+      avatarUrl: u.avatarUrl ?? undefined,
+    } satisfies DriverUser;
   },
 };
 
 export const shipmentApi = {
-  getList: (params?: { status?: string; date?: string; page?: number; size?: number }) =>
-    api.get<ApiResponse<ShippingApiShipment[]>>(
-      "/api/shipping/shipments"
-    ).then((r) => {
-      const rows = (r.data.data ?? []).map(mapShipmentRow);
-      const status = params?.status;
-      const filtered = status ? rows.filter((x) => x.status === status) : rows;
-      const page = params?.page ?? 0;
-      const size = params?.size ?? 10;
-      const start = page * size;
-      return {
-        data: filtered.slice(start, start + size),
-        total: filtered.length,
-        page,
-        size,
-        totalPages: filtered.length === 0 ? 0 : Math.ceil(filtered.length / size),
-      } as PageResponse<ShipmentListItem>;
-    }),
+  getList: async (params?: { status?: string; date?: string; page?: number; size?: number }) => {
+    let rows: ShipmentListItem[];
+    if (isMockMode) {
+      rows = MOCK_SHIPPING_ROWS.map(mapShipmentRow);
+    } else {
+      const r = await api.get<ApiResponse<ShippingApiShipment[]>>("/api/shipping/driver/shipments");
+      rows = (assertShippingOk(r.data) ?? []).map(mapShipmentRow);
+    }
+    const status = params?.status;
+    const filtered = status ? rows.filter((x) => x.status === status) : rows;
+    const page = params?.page ?? 0;
+    const size = params?.size ?? 10;
+    const start = page * size;
+    return {
+      data: filtered.slice(start, start + size),
+      total: filtered.length,
+      page,
+      size,
+      totalPages: filtered.length === 0 ? 0 : Math.ceil(filtered.length / size),
+    } as PageResponse<ShipmentListItem>;
+  },
 
   getDetail: (id: string) =>
     Promise.all([
       api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/shipments/${id}`),
       api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/shipments/${id}/history`),
     ]).then(([shipmentRes, historyRes]) => {
-      const base = mapShipmentRow(shipmentRes.data.data);
+      const shipmentBody = shipmentRes.data;
+      if (shipmentBody.code !== 200) throw new Error(shipmentBody.message);
+      const base = mapShipmentRow(shipmentBody.data);
+      const histBody = historyRes.data;
+      const hist = histBody.code === 200 ? histBody.data ?? [] : [];
       return {
         ...base,
-        statusHistory: mapHistoryRows(historyRes.data.data ?? []),
+        statusHistory: mapHistoryRows(hist),
       } as ShipmentDetail;
     }),
 
