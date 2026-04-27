@@ -9,6 +9,7 @@ import { useSyncOrders } from '../hooks/useSyncOrders';
 interface Order {
   id: string; cargo: string; weight: string; qty: string; farm: string;
   from: string; to: string; date: string; time: string; driver: string;
+  driverPhone?: string; driverPlate?: string; driverVehicle?: string;
   status: string; note: string; createdAt: string;
   productImage?: string;
   timeline: { time: string; label: string; desc: string }[];
@@ -31,23 +32,24 @@ function genId(orders: Order[]) {
 // ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<string, { bg: string; color: string }> = {
   'Chờ xử lý':       { bg: '#fef9c3', color: '#854d0e' },
+  'Đã lấy hàng':     { bg: '#ede9fe', color: '#6d28d9' },
   'Đang vận chuyển': { bg: '#dbeafe', color: '#1d4ed8' },
   'Đã giao':          { bg: '#dcfce7', color: '#15803d' },
   'Hủy':              { bg: '#fee2e2', color: '#dc2626' },
 };
 const STATUS_DOT: Record<string, string> = {
-  'Chờ xử lý': '#f59e0b', 'Đang vận chuyển': '#3b82f6', 'Đã giao': '#10b981', 'Hủy': '#ef4444',
+  'Chờ xử lý': '#f59e0b', 'Đã lấy hàng': '#7c3aed', 'Đang vận chuyển': '#3b82f6', 'Đã giao': '#10b981', 'Hủy': '#ef4444',
 };
 
 // ─── Shared style tokens ──────────────────────────────────────────────────────
 const S: Record<string, CSSProperties> = {
-  body:     { display: 'flex', minHeight: '100vh', background: '#f4f7fb', fontFamily: "'Be Vietnam Pro','Segoe UI',sans-serif", color: '#0f172a' },
+  body:     { display: 'flex', minHeight: '100vh', background: 'linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%)', fontFamily: "'Be Vietnam Pro','Segoe UI',sans-serif", color: '#0f172a' },
   sidebar:  { position: 'fixed', top: 0, left: 0, width: 228, height: '100vh', background: '#fff', borderRight: '1px solid #e8eaf0', display: 'flex', flexDirection: 'column', zIndex: 100 },
   logo:     { display: 'flex', alignItems: 'center', gap: 10, padding: '18px 16px', borderBottom: '1px solid #e8eaf0' },
   logoIcon: { width: 36, height: 36, borderRadius: 8, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 },
   main:     { marginLeft: 0, flex: 1, minHeight: '100vh', position: 'relative', overflow: 'hidden' },
-  card:     { background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 10px 28px rgba(15,23,42,.04)' },
-  statCard: { background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: '20px 22px', flex: 1, minHeight: 132, boxShadow: '0 8px 24px rgba(15,23,42,.05)' },
+  card:     { background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 12px 28px rgba(15,23,42,.05)' },
+  statCard: { background: '#fff', borderRadius: 16, border: '1px solid #dbe3ee', padding: '20px 22px', flex: 1, minHeight: 132, boxShadow: '0 8px 22px rgba(15,23,42,.06)' },
   inp:      { width: '100%', padding: '11px 13px', border: '1px solid #dbe2ea', borderRadius: 10, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', background: '#fff', color: '#0f172a' } as CSSProperties,
   btn:      { padding: '10px 18px', borderRadius: 10, border: '1px solid transparent', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
   th:       { padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.45px', color: '#64748b', background: '#f8fafc', borderBottom: '1px solid #e8edf3', whiteSpace: 'nowrap' } as CSSProperties,
@@ -94,7 +96,7 @@ const GLOBAL_CSS = `
   .nav-btn:active { transform:scale(.97); }
 
   .stat-card { transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s; cursor: default; }
-  .stat-card:hover { box-shadow: 0 12px 30px rgba(15,23,42,.1); transform:translateY(-2px); border-color:#d6dee8; }
+  .stat-card:hover { box-shadow: 0 14px 30px rgba(15,23,42,.1); transform:translateY(-2px); border-color:#cfd9e7; }
 
   .trow { transition: background 0.12s; cursor:pointer; }
   .trow:hover { background: #f8fbff !important; }
@@ -1207,7 +1209,7 @@ export default function ShippingDashboard() {
 
   const stats = {
     total:   orders.length,
-    transit: orders.filter(o => o.status === 'Đang vận chuyển').length,
+    transit: orders.filter(o => o.status === 'Đã lấy hàng' || o.status === 'Đang vận chuyển').length,
     wait:    orders.filter(o => o.status === 'Chờ xử lý').length,
     done:    orders.filter(o => o.status === 'Đã giao').length,
   };
@@ -1218,8 +1220,15 @@ export default function ShippingDashboard() {
   }).slice().reverse();
 
   function changeStatus(id: string, val: string) {
+    const statusDesc: Record<string, string> = {
+      'Chờ xử lý': 'Đang chờ tài xế nhận đơn',
+      'Đã lấy hàng': 'Tài xế đã nhận hàng từ điểm xuất phát',
+      'Đang vận chuyển': 'Hàng đang trên đường giao',
+      'Đã giao': 'Hàng đã giao thành công',
+      'Hủy': 'Đơn giao hàng đã hủy',
+    };
     const next = orders.map(o => o.id === id
-      ? { ...o, status: val, timeline: [...(o.timeline || []), { time: new Date().toLocaleString('vi-VN'), label: val, desc: 'Cập nhật trạng thái' }] }
+      ? { ...o, status: val, timeline: [...(o.timeline || []), { time: new Date().toLocaleString('vi-VN'), label: val, desc: statusDesc[val] ?? 'Cập nhật trạng thái' }] }
       : o);
     saveO(next);
     if (detail?.id === id) setDetail(next.find(o => o.id === id) ?? null);
@@ -1227,8 +1236,12 @@ export default function ShippingDashboard() {
 
   function submitOrder() {
     if (!form.cargo || !form.from || !form.to) { alert('Vui lòng điền: Hàng hóa, Điểm đi, Điểm đến.'); return; }
+    const selectedDriver = drivers.find((d) => d.name === form.driver);
     const order: Order = {
       ...form, id: genId(orders), createdAt: new Date().toLocaleDateString('vi-VN'),
+      driverPhone: selectedDriver?.phone || '',
+      driverPlate: selectedDriver?.plate || '',
+      driverVehicle: selectedDriver?.vehicle || '',
       timeline: [{ time: new Date().toLocaleString('vi-VN'), label: 'Đã tạo lô hàng', desc: 'Lô hàng vừa được tạo' }],
     };
     saveO([...orders, order]);
@@ -1325,11 +1338,11 @@ export default function ShippingDashboard() {
   }
 
   const NAV = [
-    { id: 'dashboard' as Page, icon: '📊', label: 'Tổng quan' },
-    { id: 'orders'    as Page, icon: '📦', label: 'Lô hàng' },
-    { id: 'drivers'   as Page, icon: '🚚', label: 'Tài xế' },
-    { id: 'map'       as Page, icon: '🗺', label: 'Bản đồ' },
-    { id: 'new-order' as Page, icon: '➕', label: 'Tạo lô hàng' },
+    { id: 'dashboard' as Page, label: 'Tổng quan' },
+    { id: 'orders'    as Page, label: 'Lô hàng' },
+    { id: 'drivers'   as Page, label: 'Tài xế' },
+    { id: 'map'       as Page, label: 'Bản đồ' },
+    { id: 'new-order' as Page, label: 'Tạo lô hàng' },
   ];
 
   return (
@@ -1340,7 +1353,7 @@ export default function ShippingDashboard() {
           backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', flexWrap: 'wrap'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6, paddingRight: 8 }}>
-            <div style={{ ...S.logoIcon, width: 34, height: 34, fontSize: 16, boxShadow: '0 8px 18px rgba(22,163,74,.28)' }}>🌿</div>
+            <div style={{ ...S.logoIcon, width: 34, height: 34, fontSize: 11, fontWeight: 700, color: '#fff', boxShadow: '0 8px 18px rgba(22,163,74,.28)' }}>AC</div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>AgriChain</div>
               <div style={{ fontSize: 10, color: '#94a3b8', letterSpacing: '.3px' }}>Vận chuyển</div>
@@ -1358,10 +1371,10 @@ export default function ShippingDashboard() {
                     onMouseEnter={() => setNavHover(item.id)}
                     onMouseLeave={() => setNavHover('')}
                     style={{
-                      border: `1px solid ${active ? '#86efac' : 'transparent'}`,
+                      border: `1px solid ${active ? '#c8d4e6' : 'transparent'}`,
                       background: active ? '#ffffff' : hover ? '#ffffff' : 'transparent',
-                      color: active ? '#166534' : '#475569',
-                      borderRadius: 999,
+                      color: active ? '#0f172a' : '#475569',
+                      borderRadius: 10,
                       padding: '8px 11px',
                       fontSize: 12.5,
                       fontWeight: 600,
@@ -1375,10 +1388,9 @@ export default function ShippingDashboard() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    <span>{item.icon}</span>
                     <span>{item.label}</span>
                     {item.id === 'orders' && orders.length > 0 && (
-                      <span style={{ background: '#16a34a', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99 }}>{orders.length}</span>
+                      <span style={{ background: '#0f172a', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99 }}>{orders.length}</span>
                     )}
                     {item.id === 'map' && drivers.length > 0 && (
                       <span style={{ background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 99 }}>{drivers.length}</span>
@@ -1405,7 +1417,7 @@ export default function ShippingDashboard() {
                 gap: 7,
               }}
             >
-              <span>🔍</span>
+              <span style={{ fontSize: 10, fontWeight: 700 }}>QR</span>
               <span>Tra cứu QR</span>
               <span style={{ background: '#059669', color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 99 }}>PUBLIC</span>
             </button>
@@ -1422,8 +1434,8 @@ export default function ShippingDashboard() {
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>{dateStr}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-press" onClick={() => navigate('map')} style={{ ...S.btn, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: 12 }}>🗺 Xem bản đồ</button>
-                  <button className="btn-press" onClick={exportCSV} style={{ ...S.btn, background: '#f7fff8', color: '#15803d', border: '1px solid #bbf7d0', fontSize: 12 }}>↓ Xuất CSV</button>
+                  <button className="btn-press" onClick={() => navigate('map')} style={{ ...S.btn, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: 12 }}>Xem bản đồ</button>
+                  <button className="btn-press" onClick={exportCSV} style={{ ...S.btn, background: '#f8fafc', color: '#334155', border: '1px solid #dbe3ee', fontSize: 12 }}>Xuất CSV</button>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -1444,7 +1456,7 @@ export default function ShippingDashboard() {
               {/* Map banner */}
               <div style={{ background: 'linear-gradient(135deg,#f5f9ff,#eaf2ff)', border: '1px solid #d7e6ff', borderRadius: 16, padding: '16px 20px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', boxShadow: '0 8px 20px rgba(59,130,246,.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ fontSize: 28 }}>🗺</div>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#dbeafe', color: '#1d4ed8', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>MAP</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#1e3a8a' }}>Bản đồ theo dõi tài xế</div>
                     <div style={{ fontSize: 12, color: '#1d4ed8', marginTop: 2 }}>
@@ -1458,7 +1470,7 @@ export default function ShippingDashboard() {
               {/* Quick trace banner */}
               <div style={{ background: 'linear-gradient(135deg,#f6fff8,#e8fbee)', border: '1px solid #c7f2d3', borderRadius: 16, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', boxShadow: '0 8px 20px rgba(22,163,74,.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ fontSize: 28 }}>🔍</div>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: '#dcfce7', color: '#166534', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>QR</div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#14532d' }}>Tra cứu nguồn gốc lô hàng</div>
                     <div style={{ fontSize: 12, color: '#15803d', marginTop: 2 }}>Khách hàng có thể tra cứu minh bạch hành trình nông sản</div>
@@ -1474,7 +1486,7 @@ export default function ShippingDashboard() {
                 </div>
                 {orders.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '34px 20px', color: '#ccc' }}>
-                    <div style={{ fontSize: 44, marginBottom: 10 }}>📦</div>
+                    <div style={{ fontSize: 13, marginBottom: 10, fontWeight: 700, color: '#94a3b8' }}>EMPTY</div>
                     <p>Chưa có lô hàng nào.</p>
                     <button onClick={() => navigate('new-order')} style={{ marginTop: 10, background: 'none', border: 'none', color: '#16a34a', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>Tạo lô hàng đầu tiên →</button>
                   </div>
@@ -1490,7 +1502,7 @@ export default function ShippingDashboard() {
                           <td style={{ ...S.td, color: '#888' }}>{o.driver || '—'}</td>
                           <td style={S.td}><StatusBadge status={o.status} /></td>
                           <td style={S.td} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => traceOrder(o.id)} style={{ ...S.btn, padding: '4px 10px', fontSize: 11, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>🔍 Trace</button>
+                            <button onClick={() => traceOrder(o.id)} style={{ ...S.btn, padding: '4px 10px', fontSize: 11, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>Tra cứu</button>
                           </td>
                         </tr>
                       ))}
@@ -1509,19 +1521,19 @@ export default function ShippingDashboard() {
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a' }}>Quản lý Lô hàng</div>
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>Tất cả lô hàng vận chuyển</div>
                 </div>
-                <button className="btn-press" onClick={exportCSV} style={{ ...S.btn, background: '#f7fff8', color: '#15803d', border: '1px solid #bbf7d0', fontSize: 12 }}>↓ Xuất CSV</button>
+                <button className="btn-press" onClick={exportCSV} style={{ ...S.btn, background: '#f8fafc', color: '#334155', border: '1px solid #dbe3ee', fontSize: 12 }}>Xuất CSV</button>
               </div>
               <div style={S.card}>
                 <div style={{ display: 'flex', gap: 10, padding: '14px 16px', borderBottom: '1px solid #edf2f7', flexWrap: 'wrap', background: '#fbfdff' }}>
-                  <input style={{ ...S.inp, flex: 1, minWidth: 180 } as CSSProperties} placeholder="🔍  Tìm mã lô, hàng hóa, tài xế..." value={search} onChange={e => setSearch(e.target.value)} />
+                  <input style={{ ...S.inp, flex: 1, minWidth: 180 } as CSSProperties} placeholder="Tìm mã lô, hàng hóa, tài xế..." value={search} onChange={e => setSearch(e.target.value)} />
                   <select style={{ ...S.inp, width: 180 } as CSSProperties} value={filterS} onChange={e => setFilterS(e.target.value)}>
                     <option value="">Tất cả trạng thái</option>
-                    {['Chờ xử lý', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
+                    {['Chờ xử lý', 'Đã lấy hàng', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 {filtered.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '34px', color: '#ccc' }}>
-                    <div style={{ fontSize: 44 }}>📦</div><p>Không có lô hàng nào.</p>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8' }}>EMPTY</div><p>Không có lô hàng nào.</p>
                   </div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
@@ -1543,9 +1555,9 @@ export default function ShippingDashboard() {
                                 <select style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #dbe2ea', borderRadius: 8, background: '#fff', cursor: 'pointer', outline: 'none' }}
                                   defaultValue="" onChange={e => { changeStatus(o.id, e.target.value); (e.target as HTMLSelectElement).value = ''; }}>
                                   <option value="" disabled>Cập nhật</option>
-                                  {['Chờ xử lý', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
+                                  {['Chờ xử lý', 'Đã lấy hàng', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
                                 </select>
-                                <button title="Tra cứu" onClick={() => traceOrder(o.id)} style={{ ...S.btn, padding: '4px 8px', fontSize: 12, background: '#f7fff8', color: '#15803d', border: '1px solid #bbf7d0' }}>🔍</button>
+                                <button title="Tra cứu" onClick={() => traceOrder(o.id)} style={{ ...S.btn, padding: '4px 8px', fontSize: 12, background: '#f7fff8', color: '#15803d', border: '1px solid #bbf7d0' }}>Tra cứu</button>
                               </div>
                             </td>
                           </tr>
@@ -1567,14 +1579,14 @@ export default function ShippingDashboard() {
                   <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>Quản lý danh sách tài xế · {drivers.length} người</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-press" onClick={() => navigate('map')} style={{ ...S.btn, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: 12 }}>🗺 Xem bản đồ</button>
+                  <button className="btn-press" onClick={() => navigate('map')} style={{ ...S.btn, background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: 12 }}>Xem bản đồ</button>
                   <button className="btn-press" onClick={() => { setDrvForm(emptyDriverForm); setEditDriver(null); setShowDrv(true); }} style={{ ...S.btn, background: '#16a34a', color: '#fff' }}>+ Thêm tài xế</button>
                 </div>
               </div>
               <div style={S.card}>
                 {drivers.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '34px', color: '#ccc' }}>
-                    <div style={{ fontSize: 44 }}>🚚</div><p>Chưa có tài xế nào.</p>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8' }}>EMPTY</div><p>Chưa có tài xế nào.</p>
                   </div>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
@@ -1716,7 +1728,7 @@ export default function ShippingDashboard() {
                   </div>
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 8 }}>
                     <button onClick={() => setForm(emptyForm)} style={{ ...S.btn, background: '#fff', color: '#475569', border: '1px solid #dbe2ea' }}>Xóa form</button>
-                    <button className="btn-press" onClick={submitOrder} style={{ ...S.btn, background: '#16a34a', color: '#fff' }}>✅ Tạo lô hàng</button>
+                    <button className="btn-press" onClick={submitOrder} style={{ ...S.btn, background: '#16a34a', color: '#fff' }}>Tạo lô hàng</button>
                   </div>
                 </div>
               </div>
@@ -1928,7 +1940,7 @@ export default function ShippingDashboard() {
               <span style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>Cập nhật trạng thái:</span>
               <select style={{ ...S.inp, flex: 1, fontSize: 13 } as CSSProperties} value={detail.status}
                 onChange={e => changeStatus(detail.id, e.target.value)}>
-                {['Chờ xử lý', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
+                {['Chờ xử lý', 'Đã lấy hàng', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div style={{ marginTop: 18, fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#0f172a' }}>📋 Lịch sử vận chuyển</div>

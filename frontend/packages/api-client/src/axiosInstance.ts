@@ -7,9 +7,16 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+// Chuẩn hóa base URL để tránh double "/api" khi env đã chứa hậu tố này.
+const rawBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api";
+const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, "");
+const apiGatewayBaseUrl = normalizedBaseUrl.endsWith("/api")
+  ? normalizedBaseUrl.slice(0, -4)
+  : normalizedBaseUrl;
+
 // ─── Tạo axios instance trỏ đến API Gateway ───────────────────────────────
 const axiosInstance: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api",
+  baseURL: apiGatewayBaseUrl,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
@@ -77,7 +84,7 @@ axiosInstance.interceptors.response.use(
     try {
       // Gọi API refresh — không dùng axiosInstance để tránh loop
       const { data } = await axios.post<ApiResponse<AuthTokens>>(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api"}/api/auth/refresh-token`,
+        `${apiGatewayBaseUrl}/api/auth/refresh-token`,
         { refreshToken }
       );
 
