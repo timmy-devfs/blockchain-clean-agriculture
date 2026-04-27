@@ -9,7 +9,12 @@ import type {
 } from "@bicap/types";
 
 function unwrapBody<T>(body: unknown): T {
-  if (body != null && typeof body === "object" && "data" in body) {
+  if (
+    body != null &&
+    typeof body === "object" &&
+    "data" in body &&
+    ("code" in body || "message" in body)
+  ) {
     const d = (body as { data: unknown }).data;
     if (d !== undefined) return d as T;
   }
@@ -70,6 +75,22 @@ function toIsoString(value: unknown): string {
   return new Date().toISOString();
 }
 
+export interface AdminShipmentView extends Shipment {
+  driverName?: string;
+  driverPhone?: string;
+  driverPlate?: string;
+  driverVehicle?: string;
+  cargo?: string;
+  weight?: string;
+  qty?: string;
+  farm?: string;
+  from?: string;
+  to?: string;
+  note?: string;
+  estimatedTime?: string;
+  rawCreatedAt?: string;
+}
+
 /** Chuẩn hóa đơn từ retailer-service (Mongo) → `Order` dùng trên admin UI. */
 function mapAdminOrderRow(row: Record<string, unknown>): Order {
   const totalPrice =
@@ -96,25 +117,41 @@ function mapAdminOrderRow(row: Record<string, unknown>): Order {
 }
 
 /** Chuẩn hóa shipment từ shipping-service (Java record) → `Shipment` admin UI. */
-function mapShipmentRow(row: Record<string, unknown>): Shipment {
-  const sched = row.scheduledDate;
+function mapShipmentRow(row: Record<string, unknown>): AdminShipmentView {
+  const sched = row.scheduledDate ?? row.estimatedDelivery ?? row.date;
   const est =
     sched == null || sched === ""
       ? ""
       : String(sched).includes("T")
         ? String(sched).split("T")[0]!
         : String(sched);
-  const createdAt = est ? `${est}T00:00:00.000Z` : new Date().toISOString();
+  const createdAt = toIsoString(row.createdAt ?? (est ? `${est}T00:00:00.000Z` : new Date().toISOString()));
+  const statusHistory = Array.isArray(row.statusHistory)
+    ? (row.statusHistory as Shipment["statusHistory"])
+    : [];
   return {
     id: String(row.id ?? ""),
     orderId: String(row.orderId ?? ""),
     driverId: row.driverId != null ? String(row.driverId) : "—",
+    driverName: row.driverName != null ? String(row.driverName) : undefined,
+    driverPhone: row.driverPhone != null ? String(row.driverPhone) : undefined,
+    driverPlate: row.driverPlate != null ? String(row.driverPlate) : undefined,
+    driverVehicle: row.driverVehicle != null ? String(row.driverVehicle) : undefined,
+    cargo: row.cargo != null ? String(row.cargo) : undefined,
+    weight: row.weight != null ? String(row.weight) : undefined,
+    qty: row.qty != null ? String(row.qty) : undefined,
+    farm: row.farm != null ? String(row.farm) : undefined,
+    from: row.from != null ? String(row.from) : undefined,
+    to: row.to != null ? String(row.to) : undefined,
+    note: row.note != null ? String(row.note) : undefined,
     vehicleId: String(row.vehicleId ?? ""),
     status: String(row.status ?? "CREATED") as Shipment["status"],
     pickupImageUrls: [],
     deliveryImageUrls: [],
-    statusHistory: [],
+    statusHistory,
     estimatedDelivery: est,
+    estimatedTime: row.estimatedTime != null ? String(row.estimatedTime) : (row.time != null ? String(row.time) : undefined),
+    rawCreatedAt: row.rawCreatedAt != null ? String(row.rawCreatedAt) : undefined,
     createdAt,
   };
 }
@@ -138,6 +175,29 @@ function mapFarmRow(f: Record<string, unknown>): Farm {
     status = "REJECTED";
   }
 
+  const licenseRaw = f.businessLicense;
+  const businessLicense =
+    licenseRaw != null && typeof licenseRaw === "object"
+      ? {
+          id: String((licenseRaw as Record<string, unknown>).id ?? ""),
+          licenseNumber: String((licenseRaw as Record<string, unknown>).licenseNumber ?? ""),
+          issuedBy:
+            (licenseRaw as Record<string, unknown>).issuedBy == null
+              ? null
+              : String((licenseRaw as Record<string, unknown>).issuedBy),
+          issuedAt:
+            (licenseRaw as Record<string, unknown>).issuedAt == null
+              ? null
+              : toIsoString((licenseRaw as Record<string, unknown>).issuedAt),
+          expiresAt:
+            (licenseRaw as Record<string, unknown>).expiresAt == null
+              ? null
+              : toIsoString((licenseRaw as Record<string, unknown>).expiresAt),
+          createdAt: toIsoString((licenseRaw as Record<string, unknown>).createdAt),
+          updatedAt: toIsoString((licenseRaw as Record<string, unknown>).updatedAt),
+        }
+      : null;
+
   return {
     id: String(f.id ?? ""),
     ownerId: String(f.ownerId ?? ""),
@@ -149,9 +209,7 @@ function mapFarmRow(f: Record<string, unknown>): Farm {
     isApproved: Boolean(f.isApproved),
     rejectReason: f.rejectReason != null ? String(f.rejectReason) : undefined,
     createdAt,
-    ...(f.businessLicense != null && typeof f.businessLicense === "object"
-      ? { businessLicense: f.businessLicense }
-      : {}),
+    businessLicense,
   };
 }
 
@@ -217,13 +275,19 @@ export const getFarmDetail = (id: string) =>
 
 export const approveFarm = (id: string) =>
   axiosInstance
-    .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/approve`)
-    .then((r) => r.data.data);
+    .put<unknown>(`/api/farm/admin/farms/${id}/approve`)
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      return mapFarmRow(raw);
+    });
 
 export const rejectFarm = (id: string, rejectReason: string) =>
   axiosInstance
-    .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
-    .then((r) => r.data.data);
+    .put<unknown>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      return mapFarmRow(raw);
+    });
 
 export type AdminSeason = {
   id: string;
@@ -301,7 +365,24 @@ export const getAdminShipments = (params?: {
         ? arr.filter((x) => String(x.status) === params.status)
         : arr;
       const mapped = filtered.map(mapShipmentRow);
-      return slicePage(mapped, params?.page ?? 0, params?.size ?? 20);
+      // shipping-service có thể chưa có dữ liệu demo; fallback sang dữ liệu sync từ web-shipping
+      if (mapped.length === 0) {
+        throw new Error("empty_shipping_service_data");
+      }
+      return slicePage<AdminShipmentView>(mapped, params?.page ?? 0, params?.size ?? 20);
+    })
+    .catch(async () => {
+      const res = await fetch("/internal/shipping-sync", { cache: "no-store" });
+      if (!res.ok) {
+        return slicePage<AdminShipmentView>([], params?.page ?? 0, params?.size ?? 20);
+      }
+      const body = (await res.json()) as { data?: Record<string, unknown>[] };
+      const arr = Array.isArray(body?.data) ? body.data : [];
+      const filtered = params?.status
+        ? arr.filter((x) => String(x.status) === params.status)
+        : arr;
+      const mapped = filtered.map(mapShipmentRow);
+      return slicePage<AdminShipmentView>(mapped, params?.page ?? 0, params?.size ?? 20);
     });
 
 // ─── Blockchain / Contracts ───────────────────────────────────────────────

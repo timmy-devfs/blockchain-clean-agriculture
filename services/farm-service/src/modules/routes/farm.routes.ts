@@ -121,8 +121,11 @@ farmRouter.get("/api/farm/admin/farms", asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
   }
 
-  const farms = await getAdminFarms(parsed.data.status);
-  return res.json(farms.map(mapFarmToResponse));
+  const farms = await getAdminFarms(parsed.data);
+  return res.json({
+    ...farms,
+    data: farms.data.map(mapFarmToResponse)
+  });
 }));
 
 farmRouter.get("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {

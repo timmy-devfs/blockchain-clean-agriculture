@@ -96,14 +96,7 @@ export default function FarmDetailPage() {
       <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
         <h2 className="mb-4 font-semibold text-gray-800">Giấy phép kinh doanh</h2>
         {(() => {
-          const license = (farm as unknown as {
-            businessLicense?: {
-              licenseNumber?: string;
-              issuedBy?: string | null;
-              issuedAt?: string | null;
-              expiresAt?: string | null;
-            } | null;
-          }).businessLicense;
+          const license = farm.businessLicense;
           if (!license) {
             return <p className="text-sm text-gray-500">Chưa có thông tin giấy phép.</p>;
           }

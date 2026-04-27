@@ -23,7 +23,9 @@ export const adminRejectSchema = z.object({
 });
 
 export const adminFarmStatusQuerySchema = z.object({
-  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional()
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+  page: z.coerce.number().int().min(0).default(0),
+  size: z.coerce.number().int().min(1).max(200).default(20)
 });
 
 export type CreateFarmInput = z.infer<typeof createFarmSchema>;

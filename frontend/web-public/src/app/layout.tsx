@@ -1,5 +1,6 @@
 // app/layout.tsx — Root layout SSG với metadata SEO
 import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: {
@@ -29,10 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
-        <style>{`
-          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-          body { margin: 0; padding: 0; font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        `}</style>
       </head>
       <body suppressHydrationWarning>{children}</body>
     </html>

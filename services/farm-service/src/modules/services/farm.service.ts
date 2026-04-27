@@ -11,6 +11,14 @@ type FarmWithLicense = Farm & {
   businessLicense: BusinessLicense | null;
 };
 
+export type AdminFarmPageResponse = {
+  data: FarmWithLicense[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+};
+
 const farmInclude = {
   businessLicense: true
 } satisfies Prisma.FarmInclude;
@@ -111,12 +119,30 @@ export const upsertFarmLicense = async (
   }) as Promise<FarmWithLicense>;
 };
 
-export const getAdminFarms = async (status?: AdminFarmStatusQuery["status"]): Promise<FarmWithLicense[]> =>
-  prisma.farm.findMany({
-    where: buildAdminStatusWhere(status),
-    include: farmInclude,
-    orderBy: { createdAt: "desc" }
-  }) as Promise<FarmWithLicense[]>;
+export const getAdminFarms = async (query: AdminFarmStatusQuery): Promise<AdminFarmPageResponse> => {
+  const { status, page, size } = query;
+  const where = buildAdminStatusWhere(status);
+
+  const [total, rows] = await Promise.all([
+    prisma.farm.count({ where }),
+    prisma.farm.findMany({
+      where,
+      include: farmInclude,
+      orderBy: { createdAt: "desc" },
+      skip: page * size,
+      take: size
+    }) as Promise<FarmWithLicense[]>
+  ]);
+
+  const totalPages = total === 0 ? 0 : Math.ceil(total / size);
+  return {
+    data: rows,
+    total,
+    page,
+    size,
+    totalPages
+  };
+};
 
 export const getAdminFarmDetail = async (farmId: string): Promise<FarmWithLicense | null> =>
   prisma.farm.findUnique({
