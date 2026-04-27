@@ -492,6 +492,8 @@ services:
     container_name: bicap-blockchain
     <<: *default-restart
     networks: [bicap-backend]
+    env_file:
+      - ./services/blockchain-service/.env
     ports:
       - "8090:8090"
     depends_on:

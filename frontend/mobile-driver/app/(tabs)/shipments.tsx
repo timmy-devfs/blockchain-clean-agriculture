@@ -16,7 +16,7 @@ const FILTERS: { label: string; value: Filter }[] = [
 ];
 
 // ─── TÍCH HỢP MOCK DATA CHO MÔI TRƯỜNG TEST ─────────────────────────────
-const isMockMode = true; // Chuyển thành false khi đã có Backend
+const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 // Khai báo MOCK_BASE chứa đủ các trường bắt buộc để không bị lỗi TypeScript
 const MOCK_BASE = {

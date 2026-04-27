@@ -7,7 +7,7 @@ export const REFRESH_KEY = "bicap_refresh_token";
 export const EMAIL_KEY = "bicap_remember_email";
 
 // ─── TÍCH HỢP MOCK DB CHO CHẾ ĐỘ TEST ─────────────────────────────────────
-export const isMockMode = true;
+export const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 const MOCK_DB = {
   users: [
@@ -90,6 +90,72 @@ export interface ShipmentDetail extends ShipmentListItem {
   statusHistory: { id: string; status: string; note?: string; location?: string; createdAt: string; }[];
 }
 
+type ShippingApiShipment = {
+  id: number;
+  orderId: number | null;
+  farmId: number | null;
+  retailerId: number | null;
+  driverId: number | null;
+  vehicleId: number | null;
+  status: string;
+  pickupAddress: string | null;
+  deliveryAddress: string | null;
+  scheduledDate: string | null;
+};
+
+type ShippingHistory = {
+  id: number;
+  status: string;
+  note: string | null;
+  changedAt: string;
+};
+
+const statusMap: Record<string, string> = {
+  CREATED: "ASSIGNED",
+  ASSIGNED: "ASSIGNED",
+  PICKED_UP: "PICKED_UP",
+  IN_TRANSIT: "IN_TRANSIT",
+  DELAYED: "IN_TRANSIT",
+  DELIVERED: "DELIVERED",
+  CANCELLED: "CANCELLED",
+};
+
+function normalizeStatus(value: string | undefined): string {
+  if (!value) return "ASSIGNED";
+  return statusMap[value] ?? value;
+}
+
+function mapShipmentRow(row: ShippingApiShipment): ShipmentListItem {
+  const scheduled = row.scheduledDate
+    ? new Date(`${row.scheduledDate}T08:00:00.000Z`).toISOString()
+    : new Date().toISOString();
+
+  return {
+    id: String(row.id),
+    orderId: String(row.orderId ?? ""),
+    farmName: `Farm #${row.farmId ?? "N/A"}`,
+    farmAddress: row.pickupAddress ?? "Chưa có địa chỉ lấy hàng",
+    farmPhone: "N/A",
+    retailerName: `Retailer #${row.retailerId ?? "N/A"}`,
+    retailerAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
+    retailerPhone: "N/A",
+    deliveryAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
+    status: normalizeStatus(row.status),
+    scheduledDate: scheduled,
+    estimatedDelivery: scheduled,
+    createdAt: scheduled,
+  };
+}
+
+function mapHistoryRows(rows: ShippingHistory[]) {
+  return rows.map((h) => ({
+    id: String(h.id),
+    status: normalizeStatus(h.status),
+    note: h.note ?? undefined,
+    createdAt: h.changedAt,
+  }));
+}
+
 export const authApi = {
   login: async (email: string, password: string) => {
     if (isMockMode) {
@@ -117,33 +183,47 @@ export const authApi = {
 
 export const shipmentApi = {
   getList: (params?: { status?: string; date?: string; page?: number; size?: number }) =>
-    api.get<ApiResponse<PageResponse<ShipmentListItem>>>(
-      "/api/shipping/driver/shipments",
-      { params: { ...params, size: params?.size ?? 10 } }
-    ).then((r) => r.data.data),
+    api.get<ApiResponse<ShippingApiShipment[]>>(
+      "/api/shipping/shipments"
+    ).then((r) => {
+      const rows = (r.data.data ?? []).map(mapShipmentRow);
+      const status = params?.status;
+      const filtered = status ? rows.filter((x) => x.status === status) : rows;
+      const page = params?.page ?? 0;
+      const size = params?.size ?? 10;
+      const start = page * size;
+      return {
+        data: filtered.slice(start, start + size),
+        total: filtered.length,
+        page,
+        size,
+        totalPages: filtered.length === 0 ? 0 : Math.ceil(filtered.length / size),
+      } as PageResponse<ShipmentListItem>;
+    }),
 
   getDetail: (id: string) =>
-    api.get<ApiResponse<ShipmentDetail>>(
-      `/api/shipping/driver/shipments/${id}`
-    ).then((r) => r.data.data),
+    Promise.all([
+      api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/shipments/${id}`),
+      api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/shipments/${id}/history`),
+    ]).then(([shipmentRes, historyRes]) => {
+      const base = mapShipmentRow(shipmentRes.data.data);
+      return {
+        ...base,
+        statusHistory: mapHistoryRows(historyRes.data.data ?? []),
+      } as ShipmentDetail;
+    }),
 
   pickup: async (shipmentId: string, qrCode: string, photoUri: string) => {
-    const formData = new FormData();
-    formData.append("qrCode", qrCode);
-    formData.append("image", { uri: photoUri, name: "pickup_proof.jpg", type: "image/jpeg" } as any);
     return api.post<ApiResponse<any>>(
-      `/api/shipping/driver/shipments/${shipmentId}/pickup`, formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      `/api/shipping/driver/shipments/${shipmentId}/pickup`,
+      { status: "PICKED_UP", note: `QR: ${qrCode}`, imageUrl: photoUri }
     ).then((r) => r.data);
   },
 
   deliver: async (shipmentId: string, recipientName: string, photoUri: string) => {
-    const formData = new FormData();
-    formData.append("recipientName", recipientName);
-    formData.append("image", { uri: photoUri, name: "deliver_proof.jpg", type: "image/jpeg" } as any);
     return api.post<ApiResponse<any>>(
-      `/api/shipping/driver/shipments/${shipmentId}/deliver`, formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
+      `/api/shipping/driver/shipments/${shipmentId}/status`,
+      { status: "DELIVERED", note: `Delivered to: ${recipientName}`, imageUrl: photoUri }
     ).then((r) => r.data);
   },
 };
