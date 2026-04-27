@@ -5,6 +5,7 @@ import com.bicap.shipping.dto.CreateShipmentRequest;
 import com.bicap.shipping.dto.ShipmentResponse;
 import com.bicap.shipping.dto.ShipmentStatusHistoryResponse;
 import com.bicap.shipping.dto.UpdateShipmentStatusRequest;
+import com.bicap.shipping.entity.Driver;
 import com.bicap.shipping.entity.Shipment;
 import com.bicap.shipping.entity.ShipmentStatusHistory;
 import com.bicap.shipping.repository.DriverRepository;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -123,6 +125,29 @@ public class ShipmentService {
         return shipmentRepository.findByDriverIdOrderByScheduledDateDesc(driverId).stream()
                 .map(ShipmentService::toResponse)
                 .toList();
+    }
+
+    /**
+     * JWT sub từ identity là UUID; legacy / test có thể dùng số Long trực tiếp.
+     */
+    public Long resolveDriverNumericId(String principalUserId) {
+        if (principalUserId == null || principalUserId.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(principalUserId);
+        } catch (NumberFormatException e) {
+            return driverRepository.findByIdentityUserId(principalUserId).map(Driver::getId).orElse(null);
+        }
+    }
+
+    public boolean driverOwnsShipment(Long shipmentId, Long driverId) {
+        if (driverId == null) {
+            return false;
+        }
+        return shipmentRepository.findById(shipmentId)
+                .map(s -> Objects.equals(s.getDriverId(), driverId))
+                .orElse(false);
     }
 
     @Transactional

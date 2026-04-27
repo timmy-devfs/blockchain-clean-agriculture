@@ -102,6 +102,8 @@ services:
     container_name: bicap-redis
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "6379:6379"
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
@@ -155,6 +157,8 @@ services:
     container_name: bicap-mongo
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "27017:27017"
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - mongo-data:/data/db
@@ -182,6 +186,8 @@ services:
     container_name: bicap-identity
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8081:8081"
     depends_on:
       mysql:
         condition: service_healthy
@@ -246,6 +252,8 @@ services:
     container_name: bicap-shipping
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8084:8084"
     depends_on:
       mysql:
         condition: service_healthy
@@ -270,6 +278,8 @@ services:
     container_name: bicap-notification
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8085:8085"
     depends_on:
       mysql:
         condition: service_healthy
@@ -297,6 +307,8 @@ services:
     container_name: bicap-report
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8088:8088"
     depends_on:
       mysql:
         condition: service_healthy
@@ -318,6 +330,8 @@ services:
     container_name: bicap-guest
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8089:8089"
     depends_on:
       mysql:
         condition: service_healthy
@@ -348,6 +362,8 @@ services:
     container_name: bicap-farm
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8082:8082"
     depends_on:
       kafka:
         condition: service_healthy
@@ -381,6 +397,8 @@ services:
     container_name: bicap-retailer
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8083:8083"
     depends_on:
       kafka:
         condition: service_healthy
@@ -397,6 +415,9 @@ services:
       REPORT_SERVICE_BASE_URL: http://report-service:8088
       REDIS_URL: redis://redis:6379
       PORT: "8083"
+      SKIP_ORDER_PAYMENT: "true"
+      INIT_INFRA_ON_BOOT: "true"
+      KAFKAJS_NO_PARTITIONER_WARNING: "1"
     deploy:
       resources:
         limits:
@@ -411,6 +432,8 @@ services:
     container_name: bicap-payment
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8086:8086"
     depends_on:
       kafka:
         condition: service_healthy
@@ -444,6 +467,8 @@ services:
     container_name: bicap-iot
     <<: *default-restart
     networks: [bicap-backend]
+    ports:
+      - "8087:8087"
     depends_on:
       kafka:
         condition: service_healthy
@@ -470,6 +495,10 @@ services:
     container_name: bicap-blockchain
     <<: *default-restart
     networks: [bicap-backend]
+    env_file:
+      - ./services/blockchain-service/.env
+    ports:
+      - "8090:8090"
     depends_on:
       kafka:
         condition: service_healthy
@@ -479,7 +508,7 @@ services:
       KAFKA_CONSUME: "true"
       FARM_SERVICE_URL: http://farm-service:8082
       INTERNAL_API_KEY: bicap-demo-internal-key
-      VECHAIN_TESTNET_RPC: https://testnet.veblocks.net
+      VECHAIN_TESTNET_RPC: https://sync-testnet.vechain.org
       VECHAIN_OPTIONAL: "true"
       PORT: "8090"
     deploy:
@@ -541,6 +570,8 @@ services:
     container_name: bicap-web-retailer
     <<: *default-restart
     networks: [bicap-frontend]
+    ports:
+      - "3002:3002"
     environment:
       PORT: "3002"
     deploy:
@@ -557,6 +588,8 @@ services:
     container_name: bicap-web-shipping
     <<: *default-restart
     networks: [bicap-frontend]
+    ports:
+      - "3003:3003"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3003"
@@ -574,6 +607,8 @@ services:
     container_name: bicap-web-public
     <<: *default-restart
     networks: [bicap-frontend]
+    ports:
+      - "3004:3004"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost/api
       PORT: "3004"

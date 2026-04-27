@@ -116,7 +116,7 @@ Expected:
 
 FLOW 5 - Redis JWT Cache (MISS -> HIT)
 --------------------------------------
-curl -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1ZjczMTc5ZS1lZGI5LTRhMDQtYjNkNi00NWE0OTE3MWI2MTMiLCJlbWFpbCI6ImZhcm0xQGJpY2FwLmlvIiwicm9sZSI6IkZBUk1fTUFOQUdFUiIsInR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzcyNTExNzQsImV4cCI6MTc3NzI1MjA3NH0.v6T3z-Aa9gcqJOfQmlZGPB9Yj4wUIRk07vO4KeG7eqM"
+curl -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIzNDQ0OTljNS1jZTdkLTQwNTUtYTY5Ni00OTVhMjg5MGNmYzIiLCJlbWFpbCI6ImZhcm0xQGJpY2FwLmlvIiwicm9sZSI6IkZBUk1fTUFOQUdFUiIsInR5cGUiOiJBQ0NFU1MiLCJpYXQiOjE3NzcyODMyMjYsImV4cCI6MTc3NzI4NDEyNn0.CeqqisdCkyeyLus5EaWCZLbO-2kZwTZiX539chAt4-s"
 curl -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer ACCESS_TOKEN"
 docker exec bicap-redis redis-cli keys "jwt:*"
 

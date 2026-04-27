@@ -13,7 +13,7 @@ import { authApi } from "@/lib/api";
 import type { ShipmentListItem } from "@/lib/api";
 
 // ─── TÍCH HỢP MOCK DATA CHO MÔI TRƯỜNG TEST ─────────────────────────────
-const isMockMode = true; // Chuyển thành false khi đã có Backend
+const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
 
 const MOCK_USER = { fullName: "Tài xế Nguyễn Trung Hậu" };
 

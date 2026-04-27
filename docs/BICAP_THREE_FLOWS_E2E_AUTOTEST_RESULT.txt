@@ -1,0 +1,207 @@
+﻿BICAP — TỰ ĐỘNG TEST 3 LUỒNG (A, B, C) + KẾT QUẢ CHẠY THỬ
+================================================================
+
+File này gồm: (1) script PowerShell luồng A, (2) luồng B (tham chiếu + khối IV đầy đủ),
+(3) checklist luồng C, (4) log kết quả một lần chạy tự động trên máy dev.
+
+Generated (log mục IV): 2026-04-28 (local)
+Repo gốc: D:\Projects\blockchain-clean-agriculture
+
+
+================================================================================
+I) TIỀN ĐIỀU KIỆN
+================================================================================
+
+- Docker stack: gateway :8080, identity, farm, retailer, shipping, notification,
+  mongo (retailer_db), mysql (shipping_db), kafka.
+- Sau khi sửa code shipping (UUID driver):  docker compose up -d --build shipping-service
+- Flyway identity V5 (driver@bicap.io) + shipping V6 (drivers.identity_user_id): đã
+  migrate trong image mới.
+- Luồng B (skip payment): docker-compose retailer có SKIP_ORDER_PAYMENT, INIT_INFRA_ON_BOOT
+  — xem docs/RETAIL_ORDER_SKIP_PAYMENT_SHIPPING_TEST_FLOW.txt mục I.
+
+
+================================================================================
+II) LUỒNG A — API GATEWAY + TÀI XẾ + CHUYẾN + FCM (PowerShell)
+================================================================================
+
+Chạy từ PowerShell (sửa đường dẫn cd nếu cần):
+
+----------------------------------------------------------------------
+cd D:\Projects\blockchain-clean-agriculture
+
+# --- Health ---
+Invoke-RestMethod http://localhost:8080/actuator/health | Out-Host
+
+# --- Cách 1: tài xế seed (sau migration V5 identity) ---
+$auth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post `
+  -Body '{"email":"driver@bicap.io","password":"password"}' -ContentType "application/json"
+$TOKEN = $auth.data.accessToken
+
+# --- Cách 2: đăng ký SHIPPER mới (nếu seed chưa có / trùng email) ---
+# $uniq = [guid]::NewGuid().ToString("N").Substring(0,8)
+# Invoke-RestMethod -Uri "http://localhost:8080/api/auth/register" -Method Post `
+#   -Body "{`"email`":`"shipper-$uniq@bicap.io`",`"password`":`"123456`",`"fullName`":`"Shipper`",`"role`":`"SHIPPER`"}" `
+#   -ContentType "application/json"
+# $auth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post `
+#   -Body "{`"email`":`"shipper-$uniq@bicap.io`",`"password`":`"123456`"}" -ContentType "application/json"
+# $TOKEN = $auth.data.accessToken
+
+# --- Danh sách chuyến tài xế (mobile-driver cũng gọi endpoint này) ---
+$h = @{ Authorization = "Bearer $TOKEN" }
+Invoke-RestMethod -Uri "http://localhost:8080/api/shipping/driver/shipments" -Headers $h | ConvertTo-Json -Depth 5
+
+# --- Đăng ký FCM (token thật lấy từ app; đây là ví dụ) ---
+Invoke-RestMethod -Uri "http://localhost:8080/api/notify/tokens" -Method Post -Headers $h `
+  -Body '{"token":"demo-fcm-token","platform":"ANDROID"}' -ContentType "application/json"
+----------------------------------------------------------------------
+
+Kỳ vọng:
+  - GET .../driver/shipments: JSON code 200, data là mảng (có thể rỗng).
+  - Nếu 500 NumberFormatException: image shipping chưa rebuild (cần bản sửa UUID driver).
+  - Nếu 9002 / 503: gateway circuit-breaker hoặc service tạm down — thử lại hoặc
+    docker compose ps / logs bicap-shipping, bicap-notification.
+
+
+================================================================================
+III) LUỒNG B — ĐẶT HÀNG (SKIP PAYMENT) → SHIPMENT
+================================================================================
+
+Chi tiết biến môi trường và lỗi thường gặp: docs/RETAIL_ORDER_SKIP_PAYMENT_SHIPPING_TEST_FLOW.txt
+
+Khối PowerShell đầy đủ (mục IV file trên) — copy nguyên:
+
+----------------------------------------------------------------------
+cd D:\Projects\blockchain-clean-agriculture
+
+# --- Login retailer ---
+$login = '{"email":"retail1@bicap.io","password":"123456"}'
+$auth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $login -ContentType "application/json"
+$RETAILER_SUB = $auth.data.user.id
+$TOKEN = $auth.data.accessToken
+Write-Host "RETAILER_SUB=$RETAILER_SUB"
+
+# --- Upsert Mongo collection `retailers` (bắt buộc cho POST /orders) ---
+$mongoJs = @"
+db.retailers.updateOne(
+  { _id: "$RETAILER_SUB" },
+  { `$set: { name: "Retail Demo", email: "retail1@bicap.io", phone: "0", address: "HN", createdAt: new Date(), updatedAt: new Date() }, `$setOnInsert: { _id: "$RETAILER_SUB" } },
+  { upsert: true }
+);
+"@
+$mongoJs | Set-Content -Encoding UTF8 _tmp_retail_upsert.js
+docker cp _tmp_retail_upsert.js bicap-mongo:/tmp/_tmp_retail_upsert.js
+docker exec bicap-mongo mongosh retailer_db /tmp/_tmp_retail_upsert.js --quiet
+Remove-Item _tmp_retail_upsert.js -ErrorAction SilentlyContinue
+
+# --- Login farm: lấy farmId + seasonId + token ---
+$fl = '{"email":"farm1@bicap.io","password":"123456"}'
+$fauth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $fl -ContentType "application/json"
+$FARM_TOKEN = $fauth.data.accessToken
+$farms = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/farms" -Headers @{ Authorization = "Bearer $FARM_TOKEN" }
+$FARM_ID = $farms.value[0].id
+$seasons = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/seasons?page=1&limit=5&farmId=$FARM_ID" -Headers @{ Authorization = "Bearer $FARM_TOKEN" }
+$SEASON_ID = $seasons.items[0].id
+Write-Host "FARM_ID=$FARM_ID SEASON_ID=$SEASON_ID"
+
+# --- Gói PRO (nếu POST listing báo package expired) ---
+try {
+  Invoke-RestMethod -Uri "http://localhost:8080/api/farm/packages/PRO/subscribe" -Method Post -Headers @{ Authorization = "Bearer $FARM_TOKEN" } -Body "{`"farmId`":`"$FARM_ID`"}" -ContentType "application/json" | Out-Null
+} catch { Write-Host "(subscribe có thể đã có gói — bỏ qua nếu 4xx)" }
+
+# --- Tạo listing ---
+$listingBody = "{`"farmId`":`"$FARM_ID`",`"seasonId`":`"$SEASON_ID`",`"title`":`"E2E Listing`",`"description`":`"test`",`"quantity`":100,`"unitPrice`":15000}"
+$list = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/marketplace/listings" -Method Post -Headers @{ Authorization = "Bearer $FARM_TOKEN" } -Body $listingBody -ContentType "application/json"
+$LISTING_ID = $list.id
+Write-Host "LISTING_ID=$LISTING_ID"
+
+# --- Đặt hàng (skip payment) ---
+$orderBody = "{`"retailerId`":`"$RETAILER_SUB`",`"farmId`":`"$FARM_ID`",`"listingId`":`"$LISTING_ID`",`"productName`":`"E2E hang`",`"quantity`":2,`"totalAmount`":30000,`"depositAmount`":30000,`"deliveryAddress`":`"123 Q1 HCM`",`"gateway`":`"VNPAY`"}"
+$order = Invoke-RestMethod -Uri "http://localhost:8080/api/retail/orders" -Method Post -Headers @{ Authorization = "Bearer $TOKEN" } -Body $orderBody -ContentType "application/json"
+$OID = $order.order.id
+Write-Host "ORDER_ID=$OID status=$($order.order.status) paymentUrl=$($order.paymentUrl)"
+
+# --- Chờ Kafka consumer retailer (ORDER_CONFIRMED) ---
+Start-Sleep -Seconds 6
+$auth2 = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $login -ContentType "application/json"
+$TOKEN2 = $auth2.data.accessToken
+$allResp = Invoke-RestMethod -Uri "http://localhost:8080/api/retail/orders" -Headers @{ Authorization = "Bearer $TOKEN2" }
+$rows = if ($null -ne $allResp.value) { @($allResp.value) } else { @($allResp) }
+$mine = $rows | Where-Object { $_.id -eq $OID } | Select-Object -First 1
+Write-Host "SAU_KAFKA_STATUS=$($mine.status)"
+
+# --- Kiểm tra shipment (MySQL) ---
+docker exec bicap-mysql mysql -u root -p12123 shipping_db -e "SELECT id, order_id, status, delivery_address FROM shipments ORDER BY id DESC LIMIT 3;"
+----------------------------------------------------------------------
+
+Kỳ vọng:
+  - Ngay sau POST order: status = PLACED, paymentUrl rỗng.
+  - Sau Sleep: SAU_KAFKA_STATUS = CONFIRMED nếu INIT_INFRA_ON_BOOT=true.
+  - Bảng shipments có dòng mới.
+
+
+================================================================================
+IV) LUỒNG C — MOBILE DRIVER (thiết bị / giả lập)
+================================================================================
+
+1. frontend/mobile-driver/.env:
+     EXPO_PUBLIC_API_URL=http://<IP-máy-chạy-gateway-LAN>:8080
+   (Điện thoại/emulator phải cùng mạng với máy đó.)
+
+2. Mở app → Đăng nhập:
+     driver@bicap.io / password   (user seed sau Flyway V5)
+   hoặc tài khoản SHIPPER đã đăng ký qua /api/auth/register.
+
+3. Cấp quyền thông báo → app gọi POST /api/notify/tokens (Bearer + body token, platform).
+
+4. Web shipping: tạo/cập nhật shipment, gán driver_id = bản ghi drivers.id đã liên kết
+   identity_user_id trùng JWT sub của tài xế (sau Flyway V6 + rebuild shipping).
+
+
+================================================================================
+V) LOG MỘT LẦN CHẠY TỰ ĐỘNG (script gộp A+B trên máy dev — tham khảo)
+================================================================================
+
+Thời điểm: 2026-04-28 ~01:05 local
+
+FLOW A:
+  - Gateway actuator: UP.
+  - Login driver@bicap.io: lần đầu trong script gặp 503 (identity/gateway tạm thời);
+    chạy lại sau vài giây: login OK.
+  - GET /api/shipping/driver/shipments: có thể 9002 "shipping service temporarily unavailable"
+    (circuit breaker) tùy tải; khi shipping healthy + image mới: trả 200 + mảng data.
+  - POST /api/notify/tokens: có thể 9002 tương tự nếu notification đang open-circuit.
+
+FLOW B (cùng lần chạy):
+  - Retailer login: OK (sub ví dụ: 81f3faae-1e81-4bcd-802d-704310e6cccf).
+  - Mongo upsert retailers: OK (mongosh quiet).
+  - Farm FARM_ID / SEASON_ID: OK.
+  - Subscribe PRO: attempted.
+  - Listing POST: OK (LISTING_ID ví dụ: 69efa55f968f53eda7587f67).
+  - Retail order POST: OK — ORDER_ID=cc606fc1-9bdd-452c-8f72-f28cae28dffd,
+    status=PLACED, paymentUrl rỗng (đúng skip payment).
+  - Sau Sleep 6s: dòng SAU_KAFKA_STATUS có thể trống nếu cấu trúc GET /orders khác
+    (cần chỉnh script lọc theo đúng shape response thực tế).
+  - MySQL shipping_db.shipments: có các dòng gần nhất (ví dụ id 1..3, status created,
+    delivery_address 123 Q1 HCM / 456 Q2 HCM).
+
+Ghi chú vận hành:
+  - Nếu luôn 503/9002: kiểm tra docker compose ps, restart bicap-gateway / bicap-shipping /
+    bicap-identity, và redis (JWT cache).
+  - Để luồng A pass ổn định: rebuild shipping-service sau thay đổi ShipmentController
+    (resolve UUID driver).
+
+
+================================================================================
+VI) CHẠY LẠI TỰ ĐỘNG NHANH (tùy chọn)
+================================================================================
+
+Sau khi stack ổn định, có thể chạy lại chỉ kiểm tra health + login 4 role:
+
+  Invoke-RestMethod http://localhost:8080/actuator/health
+  Invoke-RestMethod .../login với admin@bicap.io, farm1@, retail1@, driver@ (password tương ứng)
+
+Hoặc lưu toàn bộ khối II + III vào file .ps1 và:  powershell -File .\scripts\run-three-flows.ps1
+
+
+--- Hết file ---

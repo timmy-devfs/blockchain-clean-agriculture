@@ -154,7 +154,7 @@ QR_BASE_URL=http://192.168.x.x:8090/api/chain/trace
 # Chạy trong thư mục blockchain-service (cần ethers đã cài)
 node -e "
 const { ethers } = require('ethers');
-const mnemonic = 'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12';
+const mnemonic = 'twin hotel increase sword fresh online live next toilet lemon develop scene';
 const hdNode = ethers.HDNodeWallet.fromPhrase(mnemonic, undefined, \"m/44'/818'/0'/0/0\");
 console.log('Address    :', hdNode.address);
 console.log('Private Key:', hdNode.privateKey.replace('0x', ''));
@@ -206,7 +206,7 @@ Deployer: 0xdd4DF278...
 ✅ FarmTrace deployed!
    Address : 0xe56cc2c04d5d7435125e1650c3a918859c5145d3
    TxHash  : 0x0b46d800...
-   Explorer: https://explore-testnet.vechain.org/transactions/0x0b46d800...
+   Explorer: https://explore.vechain.org/fr/transactions/0x0b46d800...
 
 📦 Deploying ProductCertification...
 ✅ ProductCertification deployed!
@@ -223,8 +223,8 @@ Sau đó copy 2 địa chỉ vào `.env` và restart service.
 ### Verify trên Explorer
 
 ```
-https://explore-testnet.vechain.org/transactions/{txHash}
-https://explore-testnet.vechain.org/accounts/{contractAddress}
+https://explore.vechain.org/fr/transactions/{txHash}
+https://explore.vechain.org/fr/accounts/{contractAddress}
 ```
 
 ---
@@ -481,6 +481,6 @@ curl https://sync-testnet.vechain.org/accounts/0xYOUR_ADDRESS
 ### Verify transaction trên Explorer
 
 ```
-https://explore-testnet.vechain.org/transactions/{txHash}
+https://explore.vechain.org/fr/transactions/{txHash}
 ```
 

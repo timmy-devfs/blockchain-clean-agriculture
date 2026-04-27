@@ -211,7 +211,7 @@ export async function getSeasonTrace(seasonId: string): Promise<TraceResult> {
         unit:       cert.unit       || undefined,
         qrHash:     cert.qrHash     || undefined,
       },
-      explorerUrl: 'https://explore-testnet.vechain.org',
+      explorerUrl: 'https://explore.vechain.org/fr',
     };
 
   } catch (err) {
@@ -288,6 +288,6 @@ function _buildStub(seasonId: string, reason: string): TraceResult {
     seasonInfo: { seasonId, cropType: '', startDate: '', estimatedEndDate: '', description: `[${reason}]`, createdAt: '', status: 'NOT_FOUND' },
     timeline:      [],
     certification: { verified: false },
-    explorerUrl:   'https://explore-testnet.vechain.org',
+    explorerUrl:   'https://explore.vechain.org/fr',
   };
 }

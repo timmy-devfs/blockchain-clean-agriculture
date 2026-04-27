@@ -73,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",  label: "Dashboard",       icon: <IconDashboard />,  allowedRoles: [UserRole.ADMIN] },
   { href: "/accounts",   label: "Tài khoản",       icon: <IconUsers />,      allowedRoles: [UserRole.ADMIN] },
   { href: "/farms",      label: "Phê duyệt Farm",  icon: <IconFarm />,       allowedRoles: [UserRole.ADMIN] },
+  { href: "/seasons",    label: "Duyệt mùa vụ",    icon: <IconFarm />,       allowedRoles: [UserRole.ADMIN] },
   { href: "/orders",     label: "Đơn hàng",        icon: <IconOrder />,      allowedRoles: [UserRole.ADMIN] },
   { href: "/shipments",  label: "Vận chuyển",      icon: <IconShipping />,   allowedRoles: [UserRole.ADMIN] },
   { href: "/contracts",  label: "Smart Contract",  icon: <IconContract />,   allowedRoles: [UserRole.ADMIN] },

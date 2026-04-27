@@ -25,6 +25,7 @@ import {
 const upload = multer({ storage: multer.memoryStorage() });
 
 const isAdmin = (role?: string): boolean => role?.toUpperCase() === "ADMIN";
+const isMongoObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
 const asyncHandler =
   (handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction): void => {
@@ -59,6 +60,10 @@ farmRouter.get("/api/farm/farms", asyncHandler(async (req, res) => {
 }));
 
 farmRouter.put("/api/farm/farms/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -78,6 +83,10 @@ farmRouter.put("/api/farm/farms/:id", asyncHandler(async (req, res) => {
 }));
 
 farmRouter.post("/api/farm/farms/:id/license", upload.single("file"), asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -120,6 +129,10 @@ farmRouter.get("/api/farm/admin/farms", asyncHandler(async (req, res) => {
 }));
 
 farmRouter.get("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   if (!isAdmin(req.user?.userRole)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -133,6 +146,10 @@ farmRouter.get("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
 }));
 
 farmRouter.put("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   if (!isAdmin(req.user?.userRole)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -151,6 +168,10 @@ farmRouter.put("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
 }));
 
 farmRouter.delete("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   if (!isAdmin(req.user?.userRole)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -164,6 +185,10 @@ farmRouter.delete("/api/farm/admin/farms/:id", asyncHandler(async (req, res) => 
 }));
 
 farmRouter.put("/api/farm/admin/farms/:id/approve", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   if (!isAdmin(req.user?.userRole)) {
     return res.status(403).json({ message: "Forbidden" });
   }
@@ -177,6 +202,10 @@ farmRouter.put("/api/farm/admin/farms/:id/approve", asyncHandler(async (req, res
 }));
 
 farmRouter.put("/api/farm/admin/farms/:id/reject", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid farm id format" });
+  }
+
   if (!isAdmin(req.user?.userRole)) {
     return res.status(403).json({ message: "Forbidden" });
   }

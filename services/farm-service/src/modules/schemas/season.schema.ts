@@ -36,7 +36,12 @@ export const createSeasonUpdateSchema = z.object({
   imageUrls: z.array(z.string().trim().min(1)).max(20).optional()
 });
 
+export const adminListSeasonsQuerySchema = z.object({
+  onChain: z.enum(["all", "pending", "confirmed"]).default("pending")
+});
+
 export type CreateSeasonInput = z.infer<typeof createSeasonSchema>;
 export type UpdateSeasonInput = z.infer<typeof updateSeasonSchema>;
 export type ListSeasonsQueryInput = z.infer<typeof listSeasonsQuerySchema>;
 export type CreateSeasonUpdateInput = z.infer<typeof createSeasonUpdateSchema>;
+export type AdminListSeasonsQueryInput = z.infer<typeof adminListSeasonsQuerySchema>;

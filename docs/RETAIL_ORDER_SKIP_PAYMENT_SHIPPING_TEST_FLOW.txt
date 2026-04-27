@@ -1,0 +1,144 @@
+BICAP — TEST LUONG: DAT HANG (BO PAYMENT) -> SHIPMENT
+=====================================================
+
+Muc tieu: POST /api/retail/orders -> paymentUrl rong, don PLACED; Kafka ORDER_PLACED +
+ORDER_CONFIRMED; sau vai giay don -> CONFIRMED; shipping_db co shipment moi.
+
+I) CANH BAO DOCKER (retailer-service)
+======================================
+
+Trong docker-compose.yml can co (da cap nhat san thi bo qua buoc nay):
+
+  SKIP_ORDER_PAYMENT: "true"
+  INIT_INFRA_ON_BOOT: "true"
+  KAFKAJS_NO_PARTITIONER_WARNING: "1"
+
+INIT_INFRA_ON_BOOT=true: bat Kafka consumer luc boot. Neu false, don co the mac PLACED
+du shipping da tao shipment (consumer retailer khong chay).
+
+Sau khi sua compose:
+
+  docker compose up -d retailer-service
+
+
+II) SERVICE CAN CHAY
+====================
+
+Toi thieu: mongo, kafka, zookeeper, api-gateway, farm-service, retailer-service,
+shipping-service.
+
+  docker compose up -d mongo kafka zookeeper api-gateway farm-service retailer-service shipping-service
+
+Neu loi topic Kafka:
+
+  make make-topics
+
+Neu loi Mongo transaction (RsGhost):
+
+  docker exec bicap-mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]})"
+
+
+III) TAI KHOAN (neu chua co)
+=============================
+
+Dang ky / login qua gateway :8080:
+
+  retail1@bicap.io / 123456   (RETAILER)
+  farm1@bicap.io / 123456     (FARM_MANAGER — tao listing)
+
+Chi tiet dang ky: docs/API_GATEWAY_TEST_RUNBOOK.txt muc V (chi khi can).
+
+
+IV) CHAY TEST BANG POWERSHELL (TU ROOT PROJECT)
+================================================
+
+Mo PowerShell, cd vao thu muc repo, dan nguyen khoi sau (sua duong dan cd neu can).
+
+----------------------------------------------------------------------
+cd D:\Projects\blockchain-clean-agriculture
+
+# --- Login retailer ---
+$login = '{"email":"retail1@bicap.io","password":"123456"}'
+$auth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $login -ContentType "application/json"
+$RETAILER_SUB = $auth.data.user.id
+$TOKEN = $auth.data.accessToken
+Write-Host "RETAILER_SUB=$RETAILER_SUB"
+
+# --- Upsert Mongo collection `retailers` (bat buoc cho POST /orders) ---
+$mongoJs = @"
+db.retailers.updateOne(
+  { _id: "$RETAILER_SUB" },
+  { `$set: { name: "Retail Demo", email: "retail1@bicap.io", phone: "0", address: "HN", createdAt: new Date(), updatedAt: new Date() }, `$setOnInsert: { _id: "$RETAILER_SUB" } },
+  { upsert: true }
+);
+"@
+$mongoJs | Set-Content -Encoding UTF8 _tmp_retail_upsert.js
+docker cp _tmp_retail_upsert.js bicap-mongo:/tmp/_tmp_retail_upsert.js
+docker exec bicap-mongo mongosh retailer_db /tmp/_tmp_retail_upsert.js --quiet
+Remove-Item _tmp_retail_upsert.js -ErrorAction SilentlyContinue
+
+# --- Login farm: lay farmId + seasonId + token ---
+$fl = '{"email":"farm1@bicap.io","password":"123456"}'
+$fauth = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $fl -ContentType "application/json"
+$FARM_TOKEN = $fauth.data.accessToken
+$farms = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/farms" -Headers @{ Authorization = "Bearer $FARM_TOKEN" }
+$FARM_ID = $farms.value[0].id
+$seasons = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/seasons?page=1&limit=5&farmId=$FARM_ID" -Headers @{ Authorization = "Bearer $FARM_TOKEN" }
+$SEASON_ID = $seasons.items[0].id
+Write-Host "FARM_ID=$FARM_ID SEASON_ID=$SEASON_ID"
+
+# --- Goi goi PRO (neu POST listing bi loi "Service package is expired") ---
+try {
+  Invoke-RestMethod -Uri "http://localhost:8080/api/farm/packages/PRO/subscribe" -Method Post -Headers @{ Authorization = "Bearer $FARM_TOKEN" } -Body "{`"farmId`":`"$FARM_ID`"}" -ContentType "application/json" | Out-Null
+} catch { Write-Host "(subscribe co the da co goi — bo qua neu 4xx)" }
+
+# --- Tao listing (can seasonId) ---
+$listingBody = "{`"farmId`":`"$FARM_ID`",`"seasonId`":`"$SEASON_ID`",`"title`":`"E2E Listing`",`"description`":`"test`",`"quantity`":100,`"unitPrice`":15000}"
+$list = Invoke-RestMethod -Uri "http://localhost:8080/api/farm/marketplace/listings" -Method Post -Headers @{ Authorization = "Bearer $FARM_TOKEN" } -Body $listingBody -ContentType "application/json"
+$LISTING_ID = $list.id
+Write-Host "LISTING_ID=$LISTING_ID"
+
+# --- Dat hang (skip payment) ---
+$orderBody = "{`"retailerId`":`"$RETAILER_SUB`",`"farmId`":`"$FARM_ID`",`"listingId`":`"$LISTING_ID`",`"productName`":`"E2E hang`",`"quantity`":2,`"totalAmount`":30000,`"depositAmount`":30000,`"deliveryAddress`":`"123 Q1 HCM`",`"gateway`":`"VNPAY`"}"
+$order = Invoke-RestMethod -Uri "http://localhost:8080/api/retail/orders" -Method Post -Headers @{ Authorization = "Bearer $TOKEN" } -Body $orderBody -ContentType "application/json"
+$OID = $order.order.id
+Write-Host "ORDER_ID=$OID status=$($order.order.status) paymentUrl=$($order.paymentUrl)"
+
+# --- Doi Kafka consumer retailer (ORDER_CONFIRMED) ---
+Start-Sleep -Seconds 6
+$auth2 = Invoke-RestMethod -Uri "http://localhost:8080/api/auth/login" -Method Post -Body $login -ContentType "application/json"
+$TOKEN2 = $auth2.data.accessToken
+$allResp = Invoke-RestMethod -Uri "http://localhost:8080/api/retail/orders" -Headers @{ Authorization = "Bearer $TOKEN2" }
+$rows = if ($null -ne $allResp.value) { @($allResp.value) } else { @($allResp) }
+$mine = $rows | Where-Object { $_.id -eq $OID } | Select-Object -First 1
+Write-Host "SAU_KAFKA_STATUS=$($mine.status)"
+
+# --- Kiem tra shipment (MySQL) ---
+docker exec bicap-mysql mysql -u root -p12123 shipping_db -e "SELECT id, order_id, status, delivery_address FROM shipments ORDER BY id DESC LIMIT 3;"
+----------------------------------------------------------------------
+
+Kiem tra nhanh:
+  - Ngay sau POST: order.status = PLACED, paymentUrl = "".
+  - Sau Sleep: SAU_KAFKA_STATUS = CONFIRMED (neu INIT_INFRA_ON_BOOT=true).
+  - Bang shipments co dong moi (order_id la so hash tu UUID don).
+
+
+V) LOI THUONG GAP
+=================
+
+- RETAILER_NOT_FOUND: chua chay muc upsert retailers (RETAILER_SUB = user.id tu login).
+
+- listingId does not provide seasonId: listing khong gan season — dung seasonId that trong script.
+
+- Service package is expired: chay lai block subscribe PRO.
+
+- Don mac PLACED: retailer khong consume Kafka — kiem tra INIT_INFRA_ON_BOOT=true va restart bicap-retailer.
+
+- Shipping khong co dong: shipping-service / kafka topic ORDER_CONFIRMED — xem docker logs bicap-shipping.
+
+
+VI) TAT SKIP PAYMENT (VE LAI CONG THANH TOAN)
+==============================================
+
+docker-compose.yml: SKIP_ORDER_PAYMENT: "false"
+  docker compose up -d --build retailer-service

@@ -1,6 +1,8 @@
 package com.bicap.shipping.service;
 
+import com.bicap.shipping.entity.Driver;
 import com.bicap.shipping.entity.Shipment;
+import com.bicap.shipping.repository.DriverRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -16,13 +18,18 @@ public class ShipmentEventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final DriverRepository driverRepository;
 
     @Value("${bicap.kafka.topics.shipment-updated:bicap.shipment.updated}")
     private String shipmentUpdatedTopic;
 
-    public ShipmentEventPublisher(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
+    public ShipmentEventPublisher(
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            DriverRepository driverRepository) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
+        this.driverRepository = driverRepository;
     }
 
     public void publishShipmentUpdated(Shipment shipment, String note, String location, String imageUrl) {
@@ -38,7 +45,13 @@ public class ShipmentEventPublisher {
             payload.put("orderId", String.valueOf(shipment.getOrderId()));
             if (shipment.getFarmId() != null) payload.put("farmId", String.valueOf(shipment.getFarmId()));
             if (shipment.getRetailerId() != null) payload.put("retailerId", String.valueOf(shipment.getRetailerId()));
-            if (shipment.getDriverId() != null) payload.put("driverId", String.valueOf(shipment.getDriverId()));
+            if (shipment.getDriverId() != null) {
+                payload.put("driverId", String.valueOf(shipment.getDriverId()));
+                driverRepository.findById(shipment.getDriverId())
+                        .map(Driver::getIdentityUserId)
+                        .filter(uid -> uid != null && !uid.isBlank())
+                        .ifPresent(uid -> payload.put("driverUserId", uid));
+            }
             payload.put("status", shipment.getStatus().name());
             payload.put("updatedAt", OffsetDateTime.now().toString());
             if (location != null && !location.isBlank()) payload.put("location", location);

@@ -17,6 +17,10 @@ public class Driver {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Khớp {@code users.id} trên identity-service (JWT sub). */
+    @Column(name = "identity_user_id", length = 36, unique = true)
+    private String identityUserId;
+
     private String fullName;    // Họ tên tài xế
 
     private String phone;       // Số điện thoại

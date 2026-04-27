@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
-import { authApi, TOKEN_KEY, REFRESH_KEY, EMAIL_KEY } from "@/lib/api";
+import messaging from "@react-native-firebase/messaging";
+import { authApi, TOKEN_KEY, REFRESH_KEY, EMAIL_KEY, syncFcmTokenToBackend } from "@/lib/api";
 import type { DriverUser } from "@/lib/api";
 
 export function useAuth() {
@@ -20,6 +21,12 @@ export function useAuth() {
       await SecureStore.setItemAsync(REFRESH_KEY, result.refreshToken);
       if (remember) await SecureStore.setItemAsync(EMAIL_KEY, email);
       setUser(result.user);
+      try {
+        const fcm = await messaging().getToken();
+        if (fcm) await syncFcmTokenToBackend(fcm);
+      } catch {
+        /* FCM chua cau hinh hoac thieu google-services — bo qua */
+      }
       return true;
     } catch {
       setError("Email hoặc mật khẩu không đúng");

@@ -8,6 +8,7 @@ import { connectMongo } from "../config/mongodb";
 import { farmAxios, paymentAxios } from "../config/axios.instances";
 import { AppError } from "../errors/appError";
 import { publishEvent } from "../config/kafka.producer.config";
+import { env } from "../config/env";
 
 type PaymentGateway = "VNPAY" | "MOMO";
 
@@ -243,6 +244,22 @@ async function publishOrderPlaced(order: RetailOrder): Promise<void> {
   });
 }
 
+/** Cùng dạng envelope farm-service để shipping-service + notification-service consume được. */
+async function publishOrderConfirmedEvent(order: RetailOrder): Promise<void> {
+  await publishEvent(kafkaTopics.ORDER_CONFIRMED, {
+    eventId: randomUUID(),
+    eventType: "OrderConfirmedEvent",
+    timestamp: new Date().toISOString(),
+    payload: {
+      orderId: order.id,
+      farmId: order.farmId,
+      retailerId: order.retailerId,
+      deliveryAddress: order.deliveryAddress ?? null,
+      confirmedAt: new Date().toISOString()
+    }
+  });
+}
+
 async function publishOrderDelivered(order: RetailOrder): Promise<void> {
   await publishEvent(kafkaTopics.ORDER_DELIVERED, {
     eventId: randomUUID(),
@@ -286,6 +303,39 @@ export const orderService = {
 
     const now = new Date();
     const orderId = randomUUID();
+
+    if (env.SKIP_ORDER_PAYMENT) {
+      const orderDoc: RetailOrderDoc = {
+        _id: orderId,
+        retailerId: data.retailerId,
+        farmId: data.farmId,
+        listingId: data.listingId,
+        seasonId,
+        productName: data.productName,
+        quantity: data.quantity,
+        unit: data.unit,
+        totalAmount: data.totalAmount,
+        depositAmount: data.depositAmount,
+        deliveryAddress: data.deliveryAddress,
+        note: data.note,
+        paymentGateway: data.gateway,
+        paymentUrl: "",
+        paymentId: "skip-payment",
+        transactionId: "skip-payment",
+        status: OrderStatus.PLACED,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      await orders.insertOne(orderDoc);
+      await appendHistory(orderStatusHistory, orderId, OrderStatus.PLACED, undefined, "system", "SKIP_ORDER_PAYMENT: auto placed");
+
+      const mapped = mapOrder(orderDoc);
+      await publishOrderPlaced(mapped);
+      await publishOrderConfirmedEvent(mapped);
+
+      return { order: mapped, paymentUrl: "" };
+    }
 
     let paymentUrl = "";
     try {
@@ -466,6 +516,11 @@ export const orderService = {
       })
     });
     const parsed = schema.parse(payload);
+    const { orders } = await getCollections();
+    const current = await orders.findOne({ _id: parsed.payload.orderId });
+    if (current?.status === OrderStatus.CONFIRMED) {
+      return mapOrder(current);
+    }
     return moveStatus(parsed.payload.orderId, OrderStatus.CONFIRMED, "orderConfirmed.consumer", "Farm confirmed");
   },
 
