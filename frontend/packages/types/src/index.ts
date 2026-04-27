@@ -101,6 +101,15 @@ export interface Farm {
   isApproved: boolean;
   rejectReason?: string;
   createdAt: string;
+  businessLicense?: {
+    id: string;
+    licenseNumber: string;
+    issuedBy: string | null;
+    issuedAt: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 export interface BusinessLicense {

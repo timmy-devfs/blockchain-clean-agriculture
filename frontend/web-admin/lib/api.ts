@@ -9,7 +9,12 @@ import type {
 } from "@bicap/types";
 
 function unwrapBody<T>(body: unknown): T {
-  if (body != null && typeof body === "object" && "data" in body) {
+  if (
+    body != null &&
+    typeof body === "object" &&
+    "data" in body &&
+    ("code" in body || "message" in body)
+  ) {
     const d = (body as { data: unknown }).data;
     if (d !== undefined) return d as T;
   }
@@ -138,6 +143,29 @@ function mapFarmRow(f: Record<string, unknown>): Farm {
     status = "REJECTED";
   }
 
+  const licenseRaw = f.businessLicense;
+  const businessLicense =
+    licenseRaw != null && typeof licenseRaw === "object"
+      ? {
+          id: String((licenseRaw as Record<string, unknown>).id ?? ""),
+          licenseNumber: String((licenseRaw as Record<string, unknown>).licenseNumber ?? ""),
+          issuedBy:
+            (licenseRaw as Record<string, unknown>).issuedBy == null
+              ? null
+              : String((licenseRaw as Record<string, unknown>).issuedBy),
+          issuedAt:
+            (licenseRaw as Record<string, unknown>).issuedAt == null
+              ? null
+              : toIsoString((licenseRaw as Record<string, unknown>).issuedAt),
+          expiresAt:
+            (licenseRaw as Record<string, unknown>).expiresAt == null
+              ? null
+              : toIsoString((licenseRaw as Record<string, unknown>).expiresAt),
+          createdAt: toIsoString((licenseRaw as Record<string, unknown>).createdAt),
+          updatedAt: toIsoString((licenseRaw as Record<string, unknown>).updatedAt),
+        }
+      : null;
+
   return {
     id: String(f.id ?? ""),
     ownerId: String(f.ownerId ?? ""),
@@ -149,9 +177,7 @@ function mapFarmRow(f: Record<string, unknown>): Farm {
     isApproved: Boolean(f.isApproved),
     rejectReason: f.rejectReason != null ? String(f.rejectReason) : undefined,
     createdAt,
-    ...(f.businessLicense != null && typeof f.businessLicense === "object"
-      ? { businessLicense: f.businessLicense }
-      : {}),
+    businessLicense,
   };
 }
 
@@ -217,13 +243,19 @@ export const getFarmDetail = (id: string) =>
 
 export const approveFarm = (id: string) =>
   axiosInstance
-    .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/approve`)
-    .then((r) => r.data.data);
+    .put<unknown>(`/api/farm/admin/farms/${id}/approve`)
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      return mapFarmRow(raw);
+    });
 
 export const rejectFarm = (id: string, rejectReason: string) =>
   axiosInstance
-    .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
-    .then((r) => r.data.data);
+    .put<unknown>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      return mapFarmRow(raw);
+    });
 
 // ─── Orders ───────────────────────────────────────────────────────────────
 
