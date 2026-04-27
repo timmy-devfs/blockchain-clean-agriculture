@@ -4,6 +4,7 @@
 
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { PublicNav } from '../../../components/PublicNav';
 import { getDemoTraceData, type TraceData } from '../../../data/public-trace-demo';
 
 // ── Server-side fetch (thay bằng guest-service khi có API) ────────────────────
@@ -35,15 +36,23 @@ export async function generateMetadata(
 export default async function TracePage({ params }: { params: Promise<{ qrCode: string }> }) {
   const { qrCode } = await params;
   const data = await fetchTraceData(qrCode);
+  const isDemoExample = qrCode.trim().toLowerCase() === 'demo';
+  const statusPalette: Record<string, { bg: string; color: string; dot: string }> = {
+    'Đang chuẩn bị': { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
+    'Đang vận chuyển': { bg: '#dbeafe', color: '#1d4ed8', dot: '#3b82f6' },
+    'Đã giao': { bg: '#dcfce7', color: '#15803d', dot: '#10b981' },
+    'Đã hủy': { bg: '#fee2e2', color: '#dc2626', dot: '#ef4444' },
+  };
+  const timeline = [...(data?.timeline ?? [])].reverse();
 
   const styles = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; color: #1a1a0e; }
+    body { font-family: Be Vietnam Pro, -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; color: #1a1a0e; }
     .chain-link {
       display: inline-flex; align-items: center; gap: 8px;
       background: #e8f5e9; border: 1px solid #a8d5a8; border-radius: 8px;
       padding: 10px 16px; text-decoration: none;
-      font-family: 'Be Vietnam Pro', sans-serif; font-size: 13px; font-weight: 600; color: #1a3d1a;
+      font-family: Be Vietnam Pro, sans-serif; font-size: 13px; font-weight: 600; color: #1a3d1a;
       word-break: break-all; transition: background 0.2s;
     }
     .chain-link:hover { background: #c8e6c9; }
@@ -56,8 +65,11 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
   // ── Not found ──
   if (!data) {
     return (
-      <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+      <main style={{ position: 'relative', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
         <style>{styles}</style>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0 }}>
+          <PublicNav />
+        </div>
         <div style={{ fontSize: 64, marginBottom: 20 }}>🔍</div>
         <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 28, fontWeight: 700, color: '#1a1a0e', marginBottom: 12 }}>
           Không tìm thấy lô hàng
@@ -73,33 +85,23 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#fafaf7', fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <main style={{ minHeight: '100vh', background: '#fafaf7', fontFamily: '"Be Vietnam Pro", -apple-system, BlinkMacSystemFont, sans-serif' }}>
       <style>{styles}</style>
+      <PublicNav />
 
       {/* ── HEADER ── */}
       <header style={{ background: '#1a3d1a', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 20 }}>🌿</span>
-          <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 16, color: '#fff' }}>BICAP</span>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,.75)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
+          Truy xuất nguồn gốc · Mã lô
+        </div>
+        <Link href="/huong-dan" style={{ fontSize: 12, color: '#a8d5a8', fontWeight: 600, textDecoration: 'none' }}>
+          Hướng dẫn tra cứu →
         </Link>
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>Truy xuất nguồn gốc</span>
       </header>
 
       {/* ── HERO BAND ── */}
       <section style={{ background: 'linear-gradient(135deg, #2d6a2d, #4a8c4a)', padding: '40px 24px' }}>
         <div className="hero-inner" style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-            <span style={{ background: 'rgba(255,255,255,.2)', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', padding: '4px 12px', borderRadius: 99 }}>
-              ⛓ Blockchain xác thực
-            </span>
-            <span style={{
-              background: data.status === 'Đã giao' ? '#a8d5a8' : '#fde68a',
-              color: data.status === 'Đã giao' ? '#1a3d1a' : '#78350f',
-              fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 99,
-            }}>
-              {data.status}
-            </span>
-          </div>
           <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 'clamp(22px, 4.5vw, 36px)', fontWeight: 700, color: '#fff', marginBottom: 8, lineHeight: 1.25 }}>
             {data.productName}
           </h1>
@@ -109,6 +111,23 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
       </section>
 
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }}>
+
+        {isDemoExample && (
+          <div
+            style={{
+              background: '#fefce8',
+              border: '1px solid #fde047',
+              borderRadius: 12,
+              padding: '14px 18px',
+              marginBottom: 24,
+              fontSize: 14,
+              color: '#713f12',
+              lineHeight: 1.65,
+            }}
+          >
+            <strong>Đây là trang ví dụ cho khách tham quan.</strong> Bạn chưa cần mã thật — nội dung hiển thị giống khi tra cứu mã lô hàng thực tế (nông trại, nguồn gốc, blockchain). Khi mua sản phẩm có tem BICAP, hãy nhập đúng mã in trên bao bì để xem thông tin.
+          </div>
+        )}
 
         {/* ── FARM INFO ── */}
         <section style={{ background: '#fff', border: '1px solid #e8e8d8', borderRadius: 16, padding: '24px 28px', marginBottom: 24 }}>
@@ -129,28 +148,25 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
           </div>
         </section>
 
-        {/* ── TIMELINE ── */}
+        {/* ── SHIPPING TIMELINE ── */}
         <section style={{ background: '#fff', border: '1px solid #e8e8d8', borderRadius: 16, padding: '24px 28px', marginBottom: 24 }}>
-          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 19, fontWeight: 700, color: '#1a1a0e', marginBottom: 24 }}>📋 Hành trình lô hàng</h2>
-          <div style={{ position: 'relative' }}>
-            {data.timeline.map((ev, i) => (
-              <div key={i} style={{ display: 'flex', gap: 20, paddingBottom: i < data.timeline.length - 1 ? 28 : 0, position: 'relative' }}>
-                {/* Line */}
-                {i < data.timeline.length - 1 && (
-                  <div style={{ position: 'absolute', left: 19, top: 40, bottom: 0, width: 2, background: 'linear-gradient(to bottom, #2d6a2d44, #2d6a2d11)' }} />
-                )}
-                {/* Icon */}
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: i === data.timeline.length - 1 ? '#2d6a2d' : '#f2f2ec', border: `2px solid ${i === data.timeline.length - 1 ? '#2d6a2d' : '#e8e8d8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                  {ev.icon}
+          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 19, fontWeight: 700, color: '#1a1a0e', marginBottom: 16 }}>📋 Lịch sử vận chuyển</h2>
+          <div style={{ display: 'grid', gap: 14 }}>
+            {timeline.length > 0 ? timeline.map((step, idx) => {
+              const c = statusPalette[step.label] ?? { bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' };
+              return (
+                <div key={`${step.time}-${step.label}-${idx}`} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 12, height: 12, borderRadius: '50%', background: c.dot, marginTop: 6, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>{step.time}</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: c.color, marginBottom: 3 }}>{step.label}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.55 }}>{step.desc}</div>
+                  </div>
                 </div>
-                {/* Content */}
-                <div style={{ paddingTop: 6 }}>
-                  <div style={{ fontSize: 11, color: '#aaa', fontFamily: 'monospace', marginBottom: 2 }}>{ev.time}</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a0e', marginBottom: 2 }}>{ev.label}</div>
-                  <div style={{ fontSize: 13, color: '#666', lineHeight: 1.5 }}>{ev.desc}</div>
-                </div>
-              </div>
-            ))}
+              );
+            }) : (
+              <p style={{ fontSize: 14, color: '#64748b' }}>Chưa có lịch sử cập nhật trạng thái.</p>
+            )}
           </div>
         </section>
 

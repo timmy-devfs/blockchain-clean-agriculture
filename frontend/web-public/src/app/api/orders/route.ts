@@ -15,4 +15,4 @@ export async function GET() {
   } catch {
     return NextResponse.json([]);
   }
-}
+} 

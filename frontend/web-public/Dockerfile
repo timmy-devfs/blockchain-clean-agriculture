@@ -24,6 +24,7 @@ RUN adduser -D app
 # Standalone output chứa tất cả dependencies cần thiết
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
 RUN chown -R app:app /app
 USER app
