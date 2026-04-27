@@ -52,7 +52,7 @@ export default function LoginPage() {
 
         {/* Brand pill */}
         <div className="auth-brand-pill">
-          <div className="auth-logo">🚚</div>
+          <div className="auth-logo">AC</div>
           <span className="auth-brand-name">AgriChain Shipping</span>
         </div>
 
