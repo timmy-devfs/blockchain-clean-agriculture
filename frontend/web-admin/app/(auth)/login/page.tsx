@@ -37,6 +37,19 @@ export default function LoginPage() {
       // Lưu token vào cookie để middleware Edge Runtime đọc được
       const token = localStorage.getItem("bicap_access_token");
       if (token) {
+        const payloadPart = token.split(".")[1];
+        let role = "";
+        try {
+          role = JSON.parse(atob(payloadPart ?? "")).role ?? "";
+        } catch {
+          role = "";
+        }
+        if (role !== "ADMIN") {
+          localStorage.removeItem("bicap_access_token");
+          localStorage.removeItem("bicap_refresh_token");
+          setError("Tài khoản không có quyền ADMIN.");
+          return;
+        }
         document.cookie = `bicap_access_token=${token}; path=/; max-age=900; SameSite=Strict`;
       }
       router.replace("/dashboard");

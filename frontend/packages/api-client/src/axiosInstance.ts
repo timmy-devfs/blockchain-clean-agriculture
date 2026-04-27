@@ -9,7 +9,7 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
 
 // ─── Tạo axios instance trỏ đến API Gateway ───────────────────────────────
 const axiosInstance: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
+  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api",
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
@@ -77,7 +77,7 @@ axiosInstance.interceptors.response.use(
     try {
       // Gọi API refresh — không dùng axiosInstance để tránh loop
       const { data } = await axios.post<ApiResponse<AuthTokens>>(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/api/auth/refresh-token`,
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api"}/api/auth/refresh-token`,
         { refreshToken }
       );
 
