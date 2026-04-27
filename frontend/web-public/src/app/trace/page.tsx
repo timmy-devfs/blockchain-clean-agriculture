@@ -1,10 +1,16 @@
 // app/trace/page.tsx — Redirect từ search form trên landing page
-// Xử lý GET /trace?id=LH0001-F32L → redirect sang /trace/LH0001-F32L
+// GET /trace?id=LH0001-F32L → /trace/LH0001-F32L
+// Next 15: searchParams có thể là Promise; Next 14: object — dùng Promise.resolve để tương thích.
 
 import { redirect } from 'next/navigation';
 
-export default function TraceRedirectPage({ searchParams }: { searchParams: { id?: string } }) {
-  const id = searchParams.id?.trim();
+export default async function TraceRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }> | { id?: string };
+}) {
+  const sp = await Promise.resolve(searchParams);
+  const id = sp.id?.trim();
   if (id) {
     redirect(`/trace/${encodeURIComponent(id)}`);
   }

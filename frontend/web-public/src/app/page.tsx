@@ -2,6 +2,8 @@
 // BIC-035: hero + search bar + HowItWorks + FeaturedProducts + stats
 
 import Link from 'next/link';
+import { getPublicProducts } from '../data/public-trace-demo';
+import './home.css';
 
 const STATS = [
   { value: '1,240+', label: 'Lô hàng đã truy xuất' },
@@ -27,115 +29,46 @@ const HOW_IT_WORKS = [
     step: '03',
     icon: '🛒',
     title: 'Người tiêu dùng',
-    desc: 'Quét QR trên bao bì là thấy ngay toàn bộ hành trình từ đất đến tay bạn.',
+    desc: 'Tra cứu bằng mã lô hàng để xem ngay toàn bộ hành trình từ đất đến tay bạn.',
   },
 ];
 
-const FEATURED_PRODUCTS = [
-  { id: 'SP001', name: 'Gạo ST25 Sóc Trăng', farm: 'Farm Mekong Delta', origin: 'Sóc Trăng', img: '🌾', color: '#e8f5e9, #c8e6c9' },
-  { id: 'SP002', name: 'Cà phê Arabica Đà Lạt', farm: 'Highland Coffee Farm', origin: 'Lâm Đồng', img: '☕', color: '#fef3c7, #fde68a' },
-  { id: 'SP003', name: 'Rau sạch VietGAP', farm: 'Green House Farm', origin: 'Đà Lạt', img: '🥬', color: '#dcfce7, #bbf7d0' },
-  { id: 'SP004', name: 'Thanh long ruột đỏ', farm: 'Dragon Fruit Farm', origin: 'Bình Thuận', img: '🐉', color: '#fce7f3, #fbcfe8' },
-  { id: 'SP005', name: 'Mật ong rừng Tây Nguyên', farm: 'Bee Natural Farm', origin: 'Đắk Lắk', img: '🍯', color: '#fff7ed, #fed7aa' },
-  { id: 'SP006', name: 'Xoài cát Hòa Lộc', farm: 'Mango King Farm', origin: 'Tiền Giang', img: '🥭', color: '#fefce8, #fef08a' },
-];
-
 export default function HomePage() {
+  const FEATURED_PRODUCTS = getPublicProducts().slice(0, 6);
   return (
-    <main style={{ fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif", background: '#fafaf7', color: '#1a1a0e', minHeight: '100vh' }}>
-      <style>{`
-        .hero-title {
-          font-family: 'Lora', Georgia, serif;
-          text-wrap: balance;
-          overflow-wrap: break-word;
-        }
-
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .fade-up { animation: fadeUp 0.65s cubic-bezier(.22,1,.36,1) both; }
-        .fade-up-1 { animation-delay: 0.08s; }
-        .fade-up-2 { animation-delay: 0.18s; }
-        .fade-up-3 { animation-delay: 0.30s; }
-        .fade-up-4 { animation-delay: 0.42s; }
-
-        .nav-link {
-          color: #3a3a2e; font-size: 14px; font-weight: 500;
-          text-decoration: none; letter-spacing: .1px;
-          padding: 6px 0; border-bottom: 2px solid transparent;
-          transition: border-color 0.2s, color 0.2s;
-          font-family: 'Be Vietnam Pro', sans-serif;
-        }
-        .nav-link:hover { color: #2d6a2d; border-bottom-color: #2d6a2d; }
-
-        .search-wrap { position: relative; max-width: 560px; margin: 0 auto; }
-        .search-inp {
-          width: 100%; padding: 16px 148px 16px 22px;
-          border: 2px solid rgba(255,255,255,.3); border-radius: 50px;
-          font-size: 15px; font-family: 'Be Vietnam Pro', sans-serif;
-          background: rgba(255,255,255,0.95); outline: none;
-          transition: border-color 0.2s, box-shadow 0.2s;
-          color: #1a1a0e;
-        }
-        .search-inp:focus { border-color: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,.2); }
-        .search-inp::placeholder { color: #999; }
-        .search-btn {
-          position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-          background: #2d6a2d; color: #fff; border: none; border-radius: 50px;
-          padding: 10px 20px; font-size: 14px; font-weight: 600;
-          font-family: 'Be Vietnam Pro', sans-serif;
-          cursor: pointer; transition: background 0.2s, transform 0.1s;
-          white-space: nowrap;
-        }
-        .search-btn:hover { background: #1e4d1e; }
-        .search-btn:active { transform: translateY(-50%) scale(.96); }
-
-        .step-card {
-          background: #fff; border: 1px solid #e8e8d8; border-radius: 16px;
-          padding: 32px 28px; flex: 1; min-width: 240px;
-          position: relative; transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .step-card:hover { box-shadow: 0 8px 32px rgba(45,106,45,.12); transform: translateY(-4px); }
-
-        .product-card {
-          background: #fff; border: 1px solid #e8e8d8; border-radius: 16px;
-          overflow: hidden; transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .product-card:hover { box-shadow: 0 10px 36px rgba(0,0,0,.1); transform: translateY(-4px); }
-
-        .stat-item { text-align: center; padding: 20px 36px; }
-        .stat-item + .stat-item { border-left: 1px solid rgba(255,255,255,.2); }
-
-        @media (max-width: 640px) {
-          .stat-item + .stat-item { border-left: none; border-top: 1px solid rgba(255,255,255,.2); }
-          .stat-item { padding: 16px 20px; }
-          .search-inp { padding-right: 120px; font-size: 14px; }
-        }
-
-        .cta-btn {
-          display: inline-block; padding: 14px 32px; border-radius: 50px;
-          font-weight: 600; font-size: 15px; text-decoration: none;
-          font-family: 'Be Vietnam Pro', sans-serif;
-          transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-        .cta-btn:active { transform: scale(.97); }
-      `}</style>
-
-      {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(250,250,247,.93)', backdropFilter: 'blur(14px)', borderBottom: '1px solid #e8e8d8' }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
+    <main className="home-page">
+      <nav className="home-nav">
+        <div className="home-nav-inner">
           <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 22 }}>🌿</span>
             <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 18, color: '#1a1a0e' }}>BICAP</span>
-            <span style={{ fontSize: 10, color: '#aaa', fontFamily: 'Be Vietnam Pro, sans-serif', letterSpacing: '.8px', marginTop: 2, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>Truy xuất nguồn gốc</span>
+            <span
+              style={{
+                fontSize: 10,
+                color: '#aaa',
+                fontFamily: '"Be Vietnam Pro", sans-serif',
+                letterSpacing: '0.8px',
+                marginTop: 2,
+                whiteSpace: 'nowrap',
+                textTransform: 'uppercase',
+              }}
+            >
+              Truy xuất nguồn gốc
+            </span>
           </Link>
-          <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
-            <a href="#how-it-works" className="nav-link">Cách hoạt động</a>
-            <Link href="/products" className="nav-link">Sản phẩm</Link>
-            <Link href="/articles" className="nav-link">Tin tức</Link>
-            <Link href="/trace/demo" className="cta-btn" style={{ background: '#2d6a2d', color: '#fff', padding: '8px 20px', fontSize: 13 }}>Quét QR</Link>
+          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
+            <a href="#how-it-works" className="nav-link">
+              Cách hoạt động
+            </a>
+            <Link href="/products" className="nav-link">
+              Sản phẩm
+            </Link>
+            <Link href="/articles" className="nav-link">
+              Tin tức
+            </Link>
+            <Link href="/trace" className="nav-qr-btn">
+              Tra cứu
+            </Link>
           </div>
         </div>
       </nav>
@@ -158,7 +91,7 @@ export default function HomePage() {
             đến tay bạn
           </h1>
           <p className="fade-up fade-up-3" style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 17, color: 'rgba(255,255,255,.75)', lineHeight: 1.8, maxWidth: 520, margin: '0 auto 40px' }}>
-            Quét mã QR trên bao bì — xem ngay toàn bộ hành trình nông sản được ghi nhận bất biến trên blockchain.
+            Nhập mã lô hàng — xem ngay toàn bộ hành trình nông sản được ghi nhận bất biến trên blockchain.
           </p>
 
           <div className="fade-up fade-up-4 search-wrap">
@@ -168,7 +101,7 @@ export default function HomePage() {
                 name="id"
                 type="text"
                 autoComplete="off"
-                aria-label="Mã QR hoặc mã lô hàng"
+                aria-label="Mã lô hàng"
               />
               <button type="submit" className="search-btn">🔍 Tra cứu</button>
             </form>
@@ -181,11 +114,22 @@ export default function HomePage() {
 
       {/* ── STATS ── */}
       <section style={{ background: '#2d6a2d', padding: '36px 24px' }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 0 }}>
+        <div className="stats-grid">
           {STATS.map((s, i) => (
             <div key={i} className="stat-item">
               <div style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 34, fontWeight: 700, color: '#fff' }}>{s.value}</div>
-              <div style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 13, color: 'rgba(255,255,255,.65)', marginTop: 4 }}>{s.label}</div>
+              <div
+                style={{
+                  fontFamily: 'Be Vietnam Pro, sans-serif',
+                  fontSize: 13,
+                  color: 'rgba(255,255,255,.65)',
+                  marginTop: 4,
+                  lineHeight: 1.35,
+                  wordBreak: 'break-word',
+                }}
+              >
+                {s.label}
+              </div>
             </div>
           ))}
         </div>
@@ -226,7 +170,15 @@ export default function HomePage() {
               <Link key={p.id} href={`/trace/${p.id}`} style={{ textDecoration: 'none' }}>
                 <div className="product-card">
                   <div style={{ background: `linear-gradient(135deg, ${p.color})`, height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
-                    {p.img}
+                    {p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      p.img
+                    )}
                   </div>
                   <div style={{ padding: '18px 20px' }}>
                     <div style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#2d6a2d', marginBottom: 6 }}>
@@ -249,13 +201,13 @@ export default function HomePage() {
       <section style={{ padding: '96px 24px', background: '#1a3d1a', textAlign: 'center' }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 40, fontWeight: 700, color: '#fff', marginBottom: 20, lineHeight: 1.25 }}>
-            Quét QR ngay hôm nay
+            Tra cứu nguồn gốc ngay hôm nay
           </h2>
           <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 16, color: 'rgba(255,255,255,.65)', lineHeight: 1.8, marginBottom: 40 }}>
-            Mỗi mã QR là một cam kết minh bạch. Hàng ngàn lô nông sản đang chờ bạn khám phá hành trình của chúng.
+            Mỗi mã lô là một cam kết minh bạch. Hàng ngàn lô nông sản đang chờ bạn khám phá hành trình của chúng.
           </p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/trace/demo" className="cta-btn" style={{ background: '#fff', color: '#1a3d1a' }}>🔍 Thử ngay với QR mẫu</Link>
+            <Link href="/trace" className="cta-btn" style={{ background: '#fff', color: '#1a3d1a' }}>🔍 Tra cứu ngay</Link>
             <Link href="/products" className="cta-btn" style={{ background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,.35)' }}>Xem sản phẩm →</Link>
           </div>
         </div>

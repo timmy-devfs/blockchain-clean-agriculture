@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { Metadata } from 'next';
-import { PUBLIC_PRODUCTS as PRODUCTS } from '../../data/public-trace-demo';
+import { PublicNav } from '../../components/PublicNav';
+import { getPublicProducts } from '../../data/public-trace-demo';
 
 export const metadata: Metadata = {
   title: 'Sản phẩm nông sản sạch | BICAP',
@@ -13,15 +14,16 @@ const TYPES = ['Tất cả', 'Ngũ cốc', 'Trái cây', 'Rau củ', 'Đồ uố
 
 export default async function ProductsPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
   const params = await searchParams;
+  const PRODUCTS = getPublicProducts();
   const activeType = params.type || 'Tất cả';
   const filtered = activeType === 'Tất cả' ? PRODUCTS : PRODUCTS.filter(p => p.type === activeType);
 
   const styles = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; }
+    body { font-family: "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, sans-serif; background: #fafaf7; }
     .filter-btn {
       padding: 8px 20px; border-radius: 50px; font-size: 13px; font-weight: 500;
-      font-family: 'Be Vietnam Pro', sans-serif; text-decoration: none; border: 1.5px solid #e0e0d0;
+      font-family: "Be Vietnam Pro", sans-serif; text-decoration: none; border: 1.5px solid #e0e0d0;
       transition: all 0.15s; white-space: nowrap; color: #666; background: #fff; cursor: pointer;
     }
     .filter-btn.active { background: #2d6a2d; color: #fff; border-color: #2d6a2d; }
@@ -32,32 +34,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
       text-decoration: none; display: block;
     }
     .product-card:hover { box-shadow: 0 10px 36px rgba(0,0,0,.09); transform: translateY(-4px); }
-    .nav-link {
-      color: #3a3a2e; font-size: 14px; font-weight: 500;
-      text-decoration: none; padding: 6px 0;
-      border-bottom: 2px solid transparent; transition: border-color 0.2s, color 0.2s;
-    }
-    .nav-link:hover { color: #2d6a2d; border-bottom-color: #2d6a2d; }
   `;
 
   return (
     <main style={{ minHeight: '100vh', background: '#fafaf7', fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, sans-serif" }}>
       <style>{styles}</style>
 
-      {/* Nav */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(250,250,247,.93)', backdropFilter: 'blur(14px)', borderBottom: '1px solid #e8e8d8' }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60 }}>
-          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>🌿</span>
-            <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 16, color: '#1a1a0e' }}>BICAP</span>
-          </Link>
-          <div style={{ display: 'flex', gap: 24 }}>
-            <Link href="/#how-it-works" className="nav-link">Cách hoạt động</Link>
-            <Link href="/products" className="nav-link" style={{ color: '#2d6a2d', borderBottomColor: '#2d6a2d' }}>Sản phẩm</Link>
-            <Link href="/articles" className="nav-link">Tin tức</Link>
-          </div>
-        </div>
-      </nav>
+      <PublicNav active="products" />
 
       {/* Header */}
       <section style={{ background: 'linear-gradient(135deg, #2d6a2d, #4a8c4a)', padding: '56px 24px 48px' }}>
@@ -96,7 +79,15 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
           {filtered.map(p => (
             <Link key={p.id} href={`/trace/${p.id}`} className="product-card">
               <div style={{ background: `linear-gradient(135deg, ${p.color})`, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 60 }}>
-                {p.img}
+                {p.imageUrl ? (
+                  <img
+                    src={p.imageUrl}
+                    alt={p.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  p.img
+                )}
               </div>
               <div style={{ padding: '18px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -108,7 +99,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
                 </div>
                 <h3 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 18, fontWeight: 600, color: '#1a1a0e', marginBottom: 6, lineHeight: 1.4 }}>{p.name}</h3>
                 <p style={{ fontSize: 13, color: '#777', marginBottom: 14, lineHeight: 1.6, fontFamily: 'Be Vietnam Pro, sans-serif' }}>{p.desc}</p>
-                <div style={{ fontSize: 12, color: '#bbb', fontFamily: 'Be Vietnam Pro, sans-serif', marginBottom: 16 }}>🏡 {p.farm}</div>
+                <div style={{ fontSize: 12, color: '#bbb', fontFamily: 'Be Vietnam Pro, sans-serif', marginBottom: 12 }}>🏡 {p.farm}</div>
                 <div style={{ padding: '10px 16px', background: '#2d6a2d', borderRadius: 10, textAlign: 'center', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'Be Vietnam Pro, sans-serif' }}>
                   Xem nguồn gốc →
                 </div>
