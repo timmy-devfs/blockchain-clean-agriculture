@@ -5,4 +5,4 @@ export const sha256 = (input: string): string =>
   createHash('sha256').update(input, 'utf8').digest('hex');
 
 export const getExplorerUrl = (txHash: string): string =>
-  `https://explore-testnet.vechain.org/transactions/${txHash}`;
+  `https://explore.vechain.org/fr/transactions/${txHash}`;

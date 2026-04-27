@@ -1,21 +1,26 @@
 import { NextFunction, Request, Response, Router } from "express";
 import { mapSeasonToDetail, mapSeasonToListItem } from "../mappers/season.mapper";
 import {
+  adminListSeasonsQuerySchema,
   createSeasonSchema,
   createSeasonUpdateSchema,
   listSeasonsQuerySchema,
   updateSeasonSchema
 } from "../schemas/season.schema";
 import {
+  adminApproveSeasonForBlockchain,
   createSeason,
   createSeasonUpdate,
   exportSeason,
+  getAdminSeasons,
   getSeasonDetail,
   getSeasons,
   updateSeason
 } from "../services/season.service";
 
 const seasonRouter = Router();
+const isAdmin = (role?: string): boolean => role?.toUpperCase() === "ADMIN";
+const isMongoObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
 
 const asyncHandler =
   (handler: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
@@ -37,12 +42,18 @@ seasonRouter.post("/api/farm/seasons", asyncHandler(async (req, res) => {
     });
   }
 
-  const season = await createSeason(userId, parsed.data);
-  if (!season) {
+  const result = await createSeason(userId, parsed.data);
+  if (result.type === "NOT_FOUND") {
     return res.status(404).json({ message: "Farm not found" });
   }
+  if (result.type === "FARM_NOT_APPROVED") {
+    return res.status(403).json({
+      errorCode: 2001,
+      message: "Farm chưa được admin phê duyệt, không thể tạo mùa vụ"
+    });
+  }
 
-  return res.status(201).json(mapSeasonToListItem(season));
+  return res.status(201).json(mapSeasonToListItem(result.season));
 }));
 
 seasonRouter.get("/api/farm/seasons", asyncHandler(async (req, res) => {
@@ -61,6 +72,10 @@ seasonRouter.get("/api/farm/seasons", asyncHandler(async (req, res) => {
 }));
 
 seasonRouter.get("/api/farm/seasons/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid season id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -75,6 +90,10 @@ seasonRouter.get("/api/farm/seasons/:id", asyncHandler(async (req, res) => {
 }));
 
 seasonRouter.put("/api/farm/seasons/:id", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid season id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -94,6 +113,10 @@ seasonRouter.put("/api/farm/seasons/:id", asyncHandler(async (req, res) => {
 }));
 
 seasonRouter.post("/api/farm/seasons/:id/updates", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid season id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -113,6 +136,10 @@ seasonRouter.post("/api/farm/seasons/:id/updates", asyncHandler(async (req, res)
 }));
 
 seasonRouter.post("/api/farm/seasons/:id/export", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid season id format" });
+  }
+
   const userId = req.user?.userId;
   if (!userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -133,6 +160,56 @@ seasonRouter.post("/api/farm/seasons/:id/export", asyncHandler(async (req, res) 
   }
 
   return res.json(mapSeasonToListItem(result.season));
+}));
+
+seasonRouter.get("/api/farm/admin/seasons", asyncHandler(async (req, res) => {
+  if (!isAdmin(req.user?.userRole)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const parsed = adminListSeasonsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid query", errors: parsed.error.flatten() });
+  }
+
+  const seasons = await getAdminSeasons(parsed.data.onChain);
+  return res.json(seasons.map(mapSeasonToListItem));
+}));
+
+seasonRouter.put("/api/farm/admin/seasons/:id/approve", asyncHandler(async (req, res) => {
+  if (!isMongoObjectId(req.params.id)) {
+    return res.status(400).json({ message: "Invalid season id format" });
+  }
+
+  if (!isAdmin(req.user?.userRole)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
+  const adminUserId = req.user?.userId ?? "unknown-admin";
+  const result = await adminApproveSeasonForBlockchain(req.params.id, adminUserId);
+
+  if (result.type === "NOT_FOUND") {
+    return res.status(404).json({ message: "Season not found" });
+  }
+
+  if (result.type === "FARM_NOT_APPROVED") {
+    return res.status(400).json({
+      errorCode: 2002,
+      message: "Farm chưa được phê duyệt nên không thể duyệt mùa vụ lên blockchain"
+    });
+  }
+
+  if (result.type === "ALREADY_PUBLISHED") {
+    return res.status(409).json({
+      errorCode: 2003,
+      message: "Season đã được duyệt/phát sự kiện ghi blockchain trước đó"
+    });
+  }
+
+  return res.json({
+    message: "Season approved, event SEASON_CREATED đã được publish để ghi blockchain",
+    data: mapSeasonToListItem(result.season)
+  });
 }));
 
 export { seasonRouter };

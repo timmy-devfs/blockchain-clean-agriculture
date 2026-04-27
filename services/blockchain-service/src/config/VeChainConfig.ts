@@ -4,7 +4,7 @@ import { createLogger } from '../utils/logger';
 const logger = createLogger('VeChainConfig');
 
 export async function connectVeChain(): Promise<ThorClient> {
-  const rpcUrl = process.env.VECHAIN_TESTNET_RPC || 'https://testnet.vechain.org';
+  const rpcUrl = process.env.VECHAIN_TESTNET_RPC || 'https://sync-testnet.vechain.org';
   
   // Khởi tạo client
   const thorClient = ThorClient.at(rpcUrl);

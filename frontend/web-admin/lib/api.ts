@@ -225,6 +225,48 @@ export const rejectFarm = (id: string, rejectReason: string) =>
     .put<ApiResponse<Farm>>(`/api/farm/admin/farms/${id}/reject`, { rejectReason })
     .then((r) => r.data.data);
 
+export type AdminSeason = {
+  id: string;
+  farmId: string;
+  cropType: string;
+  status: string;
+  startDate: string;
+  estimatedEndDate: string | null;
+  txHash: string | null;
+  createdAt: string;
+};
+
+function mapAdminSeasonRow(row: Record<string, unknown>): AdminSeason {
+  return {
+    id: String(row.id ?? ""),
+    farmId: String(row.farmId ?? ""),
+    cropType: String(row.cropType ?? ""),
+    status: String(row.status ?? "PREPARING"),
+    startDate: toIsoString(row.startDate),
+    estimatedEndDate:
+      row.estimatedEndDate == null
+        ? null
+        : toIsoString(row.estimatedEndDate),
+    txHash: row.txHash == null ? null : String(row.txHash),
+    createdAt: toIsoString(row.createdAt),
+  };
+}
+
+export const getAdminSeasons = (onChain: "all" | "pending" | "confirmed" = "pending") =>
+  axiosInstance
+    .get<unknown>("/api/farm/admin/seasons", { params: { onChain } })
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      const arr = Array.isArray(inner) ? (inner as Record<string, unknown>[]) : [];
+      return arr.map(mapAdminSeasonRow);
+    });
+
+export const approveSeasonForBlockchain = (id: string) =>
+  axiosInstance
+    .put<unknown>(`/api/farm/admin/seasons/${id}/approve`)
+    .then((r) => unwrapBody<Record<string, unknown>>(r.data))
+    .then((raw) => mapAdminSeasonRow(raw.data as Record<string, unknown>));
+
 // ─── Orders ───────────────────────────────────────────────────────────────
 
 export const getAdminOrders = (params?: {

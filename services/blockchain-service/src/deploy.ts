@@ -133,7 +133,7 @@ async function main() {
     console.log(`✅ ${contractName} deployed!`);
     console.log(`   Address : ${contractAddress}`);
     console.log(`   TxHash  : ${txId}`);
-    console.log(`   Explorer: https://explore-testnet.vechain.org/${txId}\n`);
+    console.log(`   Explorer: https://explore.vechain.org/fr/transactions/${txId}\n`);
 
     return { address: contractAddress, txHash: txId };
   }

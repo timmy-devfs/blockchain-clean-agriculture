@@ -1,15 +1,15 @@
 {
   "network": "testnet",
-  "deployedAt": "2026-03-26T04:11:40.489Z",
-  "deployer": "0xdd4df278200505d0851971b53578773ec34a6ddf",
+  "deployedAt": "2026-04-27T10:37:21.908Z",
+  "deployer": "0xb19064fc5ec8145001dbe12e6ece049793d44746",
   "contracts": {
     "FarmTrace": {
-      "address": "0xafb6ecd9422a3245e958c6bc83bab377a74afd10",
-      "txHash": "0x975866fabcee44b2ce96cd01dc1e4220aa268ae3aa2d45e50cf79d7a2844cd35"
+      "address": "0xd5ed942b73900b054eced6f65c9d18c36375e821",
+      "txHash": "0xe83d116265bda198bc9cfeb2eddfc76c38c0ad2732293fdbe7cad00076900c02"
     },
     "ProductCertification": {
-      "address": "0x93f0286e4a69188417efd726e566cff69f033912",
-      "txHash": "0x03045d55618a69220ba67a5fbf46a3ac17fbfeb21aa0da032ab6505acbf08b58"
+      "address": "0xacceb6318cceb4da9cdf9b6b02bc77f089a88b58",
+      "txHash": "0x6771b51ba2a63c51ac474440481dc77b1606ff29b10c7366d503e2487c2b130b"
     }
   }
 }

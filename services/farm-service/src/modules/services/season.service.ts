@@ -19,6 +19,8 @@ type SeasonDetail = SeasonWithFarm & {
   seasonUpdates: SeasonUpdate[];
 };
 
+const ADMIN_CHAIN_APPROVAL_NOTE = "ADMIN_APPROVED_FOR_BLOCKCHAIN";
+
 const seasonWithFarmInclude = {
   farm: true
 } satisfies Prisma.FarmingSeasonInclude;
@@ -39,7 +41,12 @@ const buildEventEnvelope = <T>(eventType: string, payload: T) => ({
   payload
 });
 
-export const createSeason = async (userId: string, payload: CreateSeasonInput): Promise<SeasonWithFarm | null> => {
+export type CreateSeasonResult =
+  | { type: "NOT_FOUND" }
+  | { type: "FARM_NOT_APPROVED" }
+  | { type: "CREATED"; season: SeasonWithFarm };
+
+export const createSeason = async (userId: string, payload: CreateSeasonInput): Promise<CreateSeasonResult> => {
   const ownedFarm = await prisma.farm.findFirst({
     where: {
       id: payload.farmId,
@@ -48,7 +55,11 @@ export const createSeason = async (userId: string, payload: CreateSeasonInput): 
   });
 
   if (!ownedFarm) {
-    return null;
+    return { type: "NOT_FOUND" };
+  }
+
+  if (!ownedFarm.isApproved) {
+    return { type: "FARM_NOT_APPROVED" };
   }
 
   const season = (await prisma.farmingSeason.create({
@@ -64,27 +75,7 @@ export const createSeason = async (userId: string, payload: CreateSeasonInput): 
   })) as SeasonWithFarm;
 
   await evictSeasonListCache(userId);
-  // blockchain-service SeasonCreatedConsumer expects SEASON_CREATED + flat payload (see season-created.schema.json)
-  await publishFarmEvent("seasonCreated", {
-    eventId: randomUUID(),
-    eventType: "SEASON_CREATED",
-    timestamp: new Date().toISOString(),
-    version: "1.0",
-    payload: {
-      seasonId: season.id,
-      farmId: season.farmId,
-      farmName: season.farm.name,
-      cropType: season.cropType,
-      startDate: season.startDate.toISOString().slice(0, 10),
-      estimatedEndDate: season.estimatedEndDate?.toISOString().slice(0, 10),
-      area: season.farm.area ?? undefined,
-      province: season.farm.province ?? "",
-      status: "PREPARING" as const,
-      description: ""
-    }
-  });
-
-  return season;
+  return { type: "CREATED", season };
 };
 
 export const getSeasons = async (
@@ -305,4 +296,90 @@ export const exportSeason = async (seasonId: string, userId: string): Promise<Ex
   );
 
   return { type: "EXPORTED", season: exportedSeason };
+};
+
+export type AdminSeasonOnChainFilter = "all" | "pending" | "confirmed";
+
+export const getAdminSeasons = async (onChain: AdminSeasonOnChainFilter): Promise<SeasonWithFarm[]> => {
+  const where: Prisma.FarmingSeasonWhereInput = {};
+  if (onChain === "pending") {
+    where.txHash = null;
+  } else if (onChain === "confirmed") {
+    where.txHash = { not: null };
+  }
+
+  return prisma.farmingSeason.findMany({
+    where,
+    include: seasonWithFarmInclude,
+    orderBy: { createdAt: "desc" }
+  }) as Promise<SeasonWithFarm[]>;
+};
+
+export type AdminApproveSeasonResult =
+  | { type: "NOT_FOUND" }
+  | { type: "FARM_NOT_APPROVED" }
+  | { type: "ALREADY_PUBLISHED" }
+  | { type: "APPROVED"; season: SeasonWithFarm };
+
+export const adminApproveSeasonForBlockchain = async (
+  seasonId: string,
+  adminUserId: string
+): Promise<AdminApproveSeasonResult> => {
+  const season = await prisma.farmingSeason.findUnique({
+    where: { id: seasonId },
+    include: seasonWithFarmInclude
+  }) as SeasonWithFarm | null;
+
+  if (!season) {
+    return { type: "NOT_FOUND" };
+  }
+
+  if (!season.farm.isApproved) {
+    return { type: "FARM_NOT_APPROVED" };
+  }
+
+  if (season.txHash) {
+    return { type: "ALREADY_PUBLISHED" };
+  }
+
+  const alreadyApproved = await prisma.seasonUpdate.findFirst({
+    where: {
+      seasonId,
+      note: ADMIN_CHAIN_APPROVAL_NOTE
+    }
+  });
+  if (alreadyApproved) {
+    return { type: "ALREADY_PUBLISHED" };
+  }
+
+  await prisma.seasonUpdate.create({
+    data: {
+      seasonId,
+      status: season.status,
+      note: ADMIN_CHAIN_APPROVAL_NOTE,
+      updatedBy: `ADMIN:${adminUserId}`
+    }
+  });
+
+  // blockchain-service SeasonCreatedConsumer expects SEASON_CREATED + flat payload.
+  await publishFarmEvent("seasonCreated", {
+    eventId: randomUUID(),
+    eventType: "SEASON_CREATED",
+    timestamp: new Date().toISOString(),
+    version: "1.0",
+    payload: {
+      seasonId: season.id,
+      farmId: season.farmId,
+      farmName: season.farm.name,
+      cropType: season.cropType,
+      startDate: season.startDate.toISOString().slice(0, 10),
+      estimatedEndDate: season.estimatedEndDate?.toISOString().slice(0, 10),
+      area: season.farm.area ?? undefined,
+      province: season.farm.province ?? "",
+      status: "PREPARING" as const,
+      description: ""
+    }
+  });
+
+  return { type: "APPROVED", season };
 };
