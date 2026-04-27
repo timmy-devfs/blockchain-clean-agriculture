@@ -15,6 +15,58 @@ import { gateway } from "./gateway";
 
 const isLikelyObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
 
+/** Chỉ bật khi dev offline: `VITE_USE_FARM_MOCK=true`. Mặc định luôn gọi API thật. */
+const useFarmMockFallback = (): boolean => import.meta.env.VITE_USE_FARM_MOCK === "true";
+
+let cachedFarmId: string | null = null;
+
+function gatewayErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const ax = error as { response?: { status?: number; data?: unknown } };
+    const res = ax.response?.data;
+    if (typeof res === "string" && res.trim()) return res;
+    if (res != null && typeof res === "object") {
+      const o = res as Record<string, unknown>;
+      if (typeof o.message === "string" && o.message.trim()) return o.message;
+      const inner = o.data;
+      if (inner != null && typeof inner === "object" && typeof (inner as Record<string, unknown>).message === "string") {
+        return String((inner as Record<string, unknown>).message);
+      }
+    }
+    const st = ax.response?.status;
+    if (st === 503) return "Farm-service tạm không phản hồi (gateway 503). Kiểm tra container farm-service / Mongo / Redis.";
+    if (st === 502) return "Gateway không kết nối được farm-service (502).";
+    if (st === 403) return "Không đủ quyền hoặc farm chưa được admin phê duyệt.";
+    if (st === 401) return "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.";
+    if (st === 404) return "Không tìm thấy tài nguyên trên server.";
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Lỗi kết nối API";
+}
+
+function unwrapApiData<T>(payload: unknown): T {
+  if (
+    payload != null &&
+    typeof payload === "object" &&
+    "data" in (payload as Record<string, unknown>)
+  ) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
+function extractSeasonRows(payload: unknown): Record<string, unknown>[] {
+  const unwrapped = unwrapApiData<unknown>(payload);
+  if (Array.isArray(unwrapped)) return unwrapped as Record<string, unknown>[];
+  if (unwrapped != null && typeof unwrapped === "object") {
+    const obj = unwrapped as Record<string, unknown>;
+    if (Array.isArray(obj.items)) return obj.items as Record<string, unknown>[];
+    if (Array.isArray(obj.content)) return obj.content as Record<string, unknown>[];
+    if (Array.isArray(obj.data)) return obj.data as Record<string, unknown>[];
+  }
+  return [];
+}
+
 function mapApiSeason(row: Record<string, unknown>): Season {
   const start = row.startDate;
   const end = row.estimatedEndDate;
@@ -129,12 +181,17 @@ export const getMyFarms = async (): Promise<{ id: string; name: string }[]> => {
   try {
     const { data } = await gateway.get<unknown>("/api/farm/farms");
     const list = Array.isArray(data) ? data : [];
-    return (list as Record<string, unknown>[]).map((f) => ({
+    const mapped = (list as Record<string, unknown>[]).map((f) => ({
       id: String(f.id),
       name: String(f.name ?? f.id)
     }));
-  } catch {
-    return [{ id: mockProfile.id, name: mockProfile.name }];
+    if (mapped[0]) cachedFarmId = mapped[0].id;
+    return mapped;
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return [{ id: mockProfile.id, name: mockProfile.name }];
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -144,6 +201,7 @@ export const getFarmProfile = async (): Promise<FarmProfile> => {
     const list = Array.isArray(data) ? data : [];
     if (list.length > 0) {
       const f = list[0] as Record<string, unknown>;
+      cachedFarmId = String(f.id);
       return {
         id: String(f.id),
         name: String(f.name ?? ""),
@@ -154,9 +212,15 @@ export const getFarmProfile = async (): Promise<FarmProfile> => {
         packageExpiryDate: mockProfile.packageExpiryDate
       };
     }
-    return mockProfile;
-  } catch {
-    return mockProfile;
+    if (useFarmMockFallback()) {
+      return mockProfile;
+    }
+    throw new Error("Chưa có trang trại trên hệ thống. Hoàn tất Onboarding (tạo farm) trước.");
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return mockProfile;
+    }
+    throw error instanceof Error ? error : new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -165,75 +229,96 @@ export const saveFarmStepOne = async (payload: Omit<FarmProfile, "id">): Promise
     const { data } = await gateway.post("/api/farm/farms", payload);
     const row = (data as { data?: FarmProfile })?.data ?? (data as FarmProfile);
     mockProfile = row as FarmProfile;
+    if (mockProfile.id) cachedFarmId = mockProfile.id;
     return mockProfile;
-  } catch {
-    mockProfile = { ...mockProfile, ...payload };
-    return mockProfile;
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockProfile = { ...mockProfile, ...payload };
+      return mockProfile;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const uploadFarmLicense = async (file: File): Promise<void> => {
+  const farmId = cachedFarmId ?? mockProfile.id;
+  if (!useFarmMockFallback() && !isLikelyObjectId(farmId)) {
+    throw new Error("Chưa có farm hợp lệ để upload giấy phép. Tạo farm và tải lại trang.");
+  }
   const form = new FormData();
   form.append("file", file);
   form.append("licenseNumber", `LIC-${Date.now()}`);
   try {
-    await gateway.post(`/api/farm/farms/${mockProfile.id}/license`, form);
-  } catch {
-    return;
+    await gateway.post(`/api/farm/farms/${farmId}/license`, form);
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const subscribePackage = async (packageId: string): Promise<{ paymentUrl: string }> => {
+  const farmId = cachedFarmId ?? mockProfile.id;
   try {
     const { data } = await gateway.post(`/api/farm/packages/${packageId}/subscribe`, {
-      farmId: mockProfile.id
+      farmId
     });
     return data as { paymentUrl: string };
-  } catch {
-    const target = mockPackages.find((item) => item.id === packageId);
-    mockProfile.packageName = target?.name ?? packageId;
-    mockProfile.packageExpiryDate = dayjs().add(target?.durationDays ?? 30, "day").toISOString();
-    return {
-      paymentUrl: "https://sandbox.vnpayment.vn"
-    };
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      const target = mockPackages.find((item) => item.id === packageId);
+      mockProfile.packageName = target?.name ?? packageId;
+      mockProfile.packageExpiryDate = dayjs().add(target?.durationDays ?? 30, "day").toISOString();
+      return {
+        paymentUrl: "https://sandbox.vnpayment.vn"
+      };
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const getIotDashboard = async (): Promise<IotDashboard> => {
+  const farmId = cachedFarmId ?? mockProfile.id;
   try {
     const { data } = await gateway.get("/api/iot/sensors/dashboard", {
-      params: { farmId: mockProfile.id }
+      params: { farmId }
     });
     return data as IotDashboard;
-  } catch {
-    return {
-      farmId: mockProfile.id,
-      latest: [
-        { type: "TEMP", value: 31.8, unit: "°C", isAlert: false },
-        { type: "HUMIDITY", value: 41.2, unit: "%", isAlert: false },
-        { type: "PH", value: 5.2, unit: "pH", isAlert: true }
-      ],
-      totalReadings24h: 268,
-      alertReadings24h: 7
-    };
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return {
+        farmId,
+        latest: [
+          { type: "TEMP", value: 31.8, unit: "°C", isAlert: false },
+          { type: "HUMIDITY", value: 41.2, unit: "%", isAlert: false },
+          { type: "PH", value: 5.2, unit: "pH", isAlert: true }
+        ],
+        totalReadings24h: 268,
+        alertReadings24h: 7
+      };
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const getAlerts = async (): Promise<AlertItem[]> => {
-  return mockAlerts;
+  if (useFarmMockFallback()) {
+    return mockAlerts;
+  }
+  return [];
 };
 
 export const getSeasons = async (): Promise<Season[]> => {
   try {
     const { data } = await gateway.get<unknown>("/api/farm/seasons", { params: { page: 1, limit: 50 } });
-    const inner = data as { items?: unknown[] };
-    const items = Array.isArray(inner?.items) ? inner.items : [];
-    if (items.length === 0) {
+    const items = extractSeasonRows(data);
+    return items.map((row) => mapApiSeason(row));
+  } catch (error) {
+    if (useFarmMockFallback()) {
       return mockSeasons;
     }
-    return (items as Record<string, unknown>[]).map((row) => mapApiSeason(row));
-  } catch {
-    return mockSeasons;
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -255,77 +340,82 @@ export const createSeason = async (payload: CreateSeasonPayload): Promise<Season
   }
   try {
     const { data } = await gateway.post<unknown>("/api/farm/seasons", body);
-    return mapApiSeason(data as Record<string, unknown>);
-  } catch {
-    const newSeason: Season = {
-      id: `season-${Date.now()}`,
-      farmId: payload.farmId,
-      cropType: payload.cropType,
-      status: "PREPARING",
-      startDate: new Date(payload.startDate).toISOString(),
-      estimatedEndDate: payload.estimatedEndDate
-        ? new Date(payload.estimatedEndDate).toISOString()
-        : undefined,
-      txHash: null
-    };
-    mockSeasons = [newSeason, ...mockSeasons];
-    return newSeason;
+    const row = unwrapApiData<Record<string, unknown>>(data);
+    return mapApiSeason(row);
+  } catch (error: unknown) {
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const updateSeason = async (id: string, payload: Partial<Season>): Promise<Season> => {
   try {
     const { data } = await gateway.put<unknown>(`/api/farm/seasons/${id}`, payload);
-    return mapApiSeason(data as Record<string, unknown>);
-  } catch {
-    mockSeasons = mockSeasons.map((item) => (item.id === id ? { ...item, ...payload } : item));
-    return mockSeasons.find((item) => item.id === id)!;
+    const row = unwrapApiData<Record<string, unknown>>(data);
+    return mapApiSeason(row);
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockSeasons = mockSeasons.map((item) => (item.id === id ? { ...item, ...payload } : item));
+      return mockSeasons.find((item) => item.id === id)!;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const getSeasonUpdates = async (seasonId: string): Promise<SeasonUpdate[]> => {
-  // Mock season IDs like "season-001" are not valid backend IDs.
   if (!isLikelyObjectId(seasonId)) {
-    return mockSeasonUpdates.filter((item) => item.seasonId === seasonId);
+    if (useFarmMockFallback()) {
+      return mockSeasonUpdates.filter((item) => item.seasonId === seasonId);
+    }
+    throw new Error("Season ID không hợp lệ (cần Mongo ObjectId 24 ký tự hex).");
   }
   try {
     const { data } = await gateway.get<Record<string, unknown>>(`/api/farm/seasons/${seasonId}`);
     return (data?.updates ?? []) as SeasonUpdate[];
-  } catch {
-    return mockSeasonUpdates.filter((item) => item.seasonId === seasonId);
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return mockSeasonUpdates.filter((item) => item.seasonId === seasonId);
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const addSeasonUpdate = async (seasonId: string, note: string): Promise<void> => {
   if (!isLikelyObjectId(seasonId)) {
-    mockSeasonUpdates = [
-      {
-        id: `update-${Date.now()}`,
-        seasonId,
-        status: "ACTIVE",
-        note,
-        createdAt: new Date().toISOString()
-      },
-      ...mockSeasonUpdates
-    ];
-    return;
+    if (useFarmMockFallback()) {
+      mockSeasonUpdates = [
+        {
+          id: `update-${Date.now()}`,
+          seasonId,
+          status: "ACTIVE",
+          note,
+          createdAt: new Date().toISOString()
+        },
+        ...mockSeasonUpdates
+      ];
+      return;
+    }
+    throw new Error("Season ID không hợp lệ (cần Mongo ObjectId 24 ký tự hex).");
   }
   try {
     await gateway.post(`/api/farm/seasons/${seasonId}/updates`, {
       status: "ACTIVE",
       note
     });
-  } catch {
-    mockSeasonUpdates = [
-      {
-        id: `update-${Date.now()}`,
-        seasonId,
-        status: "ACTIVE",
-        note,
-        createdAt: new Date().toISOString()
-      },
-      ...mockSeasonUpdates
-    ];
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockSeasonUpdates = [
+        {
+          id: `update-${Date.now()}`,
+          seasonId,
+          status: "ACTIVE",
+          note,
+          createdAt: new Date().toISOString()
+        },
+        ...mockSeasonUpdates
+      ];
+      return;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -347,7 +437,10 @@ export const downloadQr = async (seasonId: string): Promise<void> => {
     a.download = `qr-${seasonId}.png`;
     a.click();
     URL.revokeObjectURL(url);
-  } catch {
+  } catch (error) {
+    if (!useFarmMockFallback()) {
+      throw new Error(gatewayErrorMessage(error));
+    }
     const canvas = document.createElement("canvas");
     canvas.width = 200;
     canvas.height = 200;
@@ -372,23 +465,30 @@ export const getMarketplace = async (): Promise<MarketplaceItem[]> => {
       params: { page: 1, limit: 50 }
     });
     return (data?.items ?? []) as MarketplaceItem[];
-  } catch {
-    return mockMarketplace;
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return mockMarketplace;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const createMarketplace = async (payload: Omit<MarketplaceItem, "id" | "isActive">): Promise<void> => {
   try {
     await gateway.post("/api/farm/marketplace/listings", payload);
-  } catch {
-    mockMarketplace = [
-      {
-        ...payload,
-        id: `mk-${Date.now()}`,
-        isActive: true
-      },
-      ...mockMarketplace
-    ];
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockMarketplace = [
+        {
+          ...payload,
+          id: `mk-${Date.now()}`,
+          isActive: true
+        },
+        ...mockMarketplace
+      ];
+      return;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -398,24 +498,35 @@ export const getOrdersByStatus = async (status: OrderStatus): Promise<Order[]> =
       params: { status, page: 1, limit: 100 }
     });
     return (data?.items ?? []) as Order[];
-  } catch {
-    return mockOrders.filter((item) => item.status === status);
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return mockOrders.filter((item) => item.status === status);
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const confirmOrder = async (id: string): Promise<void> => {
   try {
     await gateway.put(`/api/farm/orders/${id}/confirm`);
-  } catch {
-    mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "CONFIRMED" } : item));
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "CONFIRMED" } : item));
+      return;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const rejectOrder = async (id: string, rejectReason: string): Promise<void> => {
   try {
     await gateway.put(`/api/farm/orders/${id}/reject`, { rejectReason });
-  } catch {
-    mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "REJECTED", rejectReason } : item));
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "REJECTED", rejectReason } : item));
+      return;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
@@ -423,29 +534,39 @@ export const getPackages = async (): Promise<PackageInfo[]> => {
   try {
     const { data } = await gateway.get("/api/farm/packages");
     return data as PackageInfo[];
-  } catch {
-    return mockPackages;
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return mockPackages;
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };
 
 export const getCurrentPackage = async (): Promise<{ packageName: string; expiryDate: string }> => {
-  if (!isLikelyObjectId(mockProfile.id)) {
-    return {
-      packageName: mockProfile.packageName ?? "PRO",
-      expiryDate: mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()
-    };
+  const farmId = cachedFarmId ?? mockProfile.id;
+  if (!isLikelyObjectId(farmId)) {
+    if (useFarmMockFallback()) {
+      return {
+        packageName: mockProfile.packageName ?? "PRO",
+        expiryDate: mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()
+      };
+    }
+    throw new Error("Chưa có farm hợp lệ để xem gói cước. Hoàn tất Onboarding trước.");
   }
 
   try {
-    const { data } = await gateway.get("/api/farm/packages/my", { params: { farmId: mockProfile.id } });
+    const { data } = await gateway.get("/api/farm/packages/my", { params: { farmId } });
     return {
       packageName: data?.subscription?.packageName ?? mockProfile.packageName ?? "PRO",
       expiryDate: data?.expiryDate ?? mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()
     };
-  } catch {
-    return {
-      packageName: mockProfile.packageName ?? "PRO",
-      expiryDate: mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()
-    };
+  } catch (error) {
+    if (useFarmMockFallback()) {
+      return {
+        packageName: mockProfile.packageName ?? "PRO",
+        expiryDate: mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()
+      };
+    }
+    throw new Error(gatewayErrorMessage(error));
   }
 };

@@ -419,26 +419,34 @@ function SeasonsPage() {
 
   const save = async () => {
     const values = await form.validateFields();
-    if (editing) {
-      await updateSeason(editing.id, values);
-      message.success("Cập nhật vụ mùa thành công");
-    } else {
-      const created = await createSeason({
-        farmId: values.farmId,
-        cropType: values.cropType,
-        startDate: values.startDate,
-        estimatedEndDate: values.estimatedEndDate || undefined
-      });
-      message.success(
-        created.txHash
-          ? `Tạo vụ mùa thành công. TxHash: ${created.txHash}`
-          : "Tạo vụ mùa thành công. TxHash đang chờ ghi blockchain (Kafka → chain)."
-      );
+    setLoading(true);
+    try {
+      if (editing) {
+        await updateSeason(editing.id, values);
+        message.success("Cập nhật vụ mùa thành công");
+      } else {
+        const created = await createSeason({
+          farmId: values.farmId,
+          cropType: values.cropType,
+          startDate: values.startDate,
+          estimatedEndDate: values.estimatedEndDate || undefined
+        });
+        message.success(
+          created.txHash
+            ? `Tạo vụ mùa thành công. TxHash: ${created.txHash}`
+            : "Tạo vụ mùa thành công. Mùa vụ đã gửi sang luồng chờ admin duyệt ghi chain."
+        );
+      }
+      setModalOpen(false);
+      setEditing(null);
+      form.resetFields();
+      await load();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Không thể tạo/cập nhật vụ mùa";
+      message.error(msg);
+    } finally {
+      setLoading(false);
     }
-    setModalOpen(false);
-    setEditing(null);
-    form.resetFields();
-    await load();
   };
 
   const cols: ColumnsType<Season> = [
@@ -448,7 +456,7 @@ function SeasonsPage() {
       title: "Blockchain",
       dataIndex: "txHash",
       render: (value: string | null) =>
-        value ? <Tag color="green">{value}</Tag> : <Space><Spin size="small" /> Dang ghi blockchain...</Space>
+        value ? <Tag color="green">{value}</Tag> : <Tag color="orange">Chờ admin duyệt ghi chain</Tag>
     },
     {
       title: "Actions",
@@ -497,7 +505,7 @@ function SeasonsPage() {
         renderItem={(item) => (
           <List.Item>
             {item.cropType}:{" "}
-            {item.txHash ? <Tag color="green">txHash {item.txHash}</Tag> : <Tag color="orange">Dang ghi blockchain...</Tag>}
+            {item.txHash ? <Tag color="green">txHash {item.txHash}</Tag> : <Tag color="orange">Chờ admin duyệt ghi chain</Tag>}
           </List.Item>
         )}
       />

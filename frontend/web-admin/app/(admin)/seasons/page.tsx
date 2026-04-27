@@ -17,6 +17,8 @@ import {
 import type { Column } from "@bicap/ui";
 import { approveSeasonForBlockchain, getAdminSeasons, type AdminSeason } from "@/lib/api";
 
+const EXPLORER_BASE = "https://explore.vechain.org/fr/transactions";
+
 const FILTERS: Array<{ label: string; value: "pending" | "confirmed" | "all" }> = [
   { label: "Chờ duyệt chain", value: "pending" },
   { label: "Đã ghi chain", value: "confirmed" },
@@ -47,8 +49,29 @@ export default function AdminSeasonsPage() {
     },
   });
 
+  const openSeasonExplorer = (season: AdminSeason) => {
+    if (!season.txHash) {
+      setToast({ msg: "Mùa vụ này chưa có txHash để mở VeChain Explorer", type: "error" });
+      return;
+    }
+    window.open(`${EXPLORER_BASE}/${season.txHash}`, "_blank", "noopener,noreferrer");
+  };
+
   const columns = useMemo<Column<AdminSeason>[]>(() => ([
-    { key: "id", header: "Season ID" },
+    {
+      key: "id",
+      header: "Season ID",
+      render: (_, row) => (
+        <button
+          type="button"
+          onClick={() => openSeasonExplorer(row)}
+          className="font-medium text-emerald-700 underline-offset-2 hover:underline"
+          title={row.txHash ? "Mở giao dịch trên VeChain Explorer" : "Chưa có txHash"}
+        >
+          {row.id}
+        </button>
+      ),
+    },
     { key: "farmId", header: "Farm ID" },
     { key: "cropType", header: "Loại cây" },
     { key: "status", header: "Trạng thái mùa vụ" },
@@ -68,7 +91,14 @@ export default function AdminSeasonsPage() {
         v ? (
           <div className="space-y-1">
             <Badge className="bg-emerald-100 text-emerald-700">Đã callback chain</Badge>
-            <div className="text-xs text-emerald-700">{String(v).slice(0, 12)}...</div>
+            <button
+              type="button"
+              className="text-xs text-emerald-700 underline-offset-2 hover:underline"
+              onClick={() => window.open(`${EXPLORER_BASE}/${String(v)}`, "_blank", "noopener,noreferrer")}
+              title={String(v)}
+            >
+              {String(v).slice(0, 12)}...
+            </button>
           </div>
         ) : (
           <Badge className="bg-amber-100 text-amber-700">Chờ duyệt ghi chain</Badge>
