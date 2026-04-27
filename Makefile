@@ -83,11 +83,11 @@
 
 ## Build tất cả Docker images
 demo-build:
-	docker-compose -f docker-compose.demo.yml build
+	docker compose build
 
 ## Khởi động toàn bộ hệ thống (demo mode)
 demo-up:
-	docker-compose -f docker-compose.demo.yml up -d
+	docker compose up -d
 	@echo.
 	@echo ✅ BICAP Demo đang khởi động...
 	@echo Chờ 60-90 giây để các services healthy
@@ -102,18 +102,18 @@ demo-up:
 
 ## Dừng demo
 demo-down:
-	docker-compose -f docker-compose.demo.yml down
+	docker compose down
 
 ## Xem status
 demo-ps:
-	docker-compose -f docker-compose.demo.yml ps
+	docker compose ps
 
 ## Xem logs 1 service: make demo-logs-identity
 demo-logs-%:
-	docker-compose -f docker-compose.demo.yml logs -f $*
+	docker compose logs -f $*
 
 ## Tạo Kafka topics cho demo compose (kafka:29092 internal)
-demo-topics:
+make-topics:
 	docker cp infrastructure/kafka/create-topics.sh bicap-kafka:/tmp/create-topics.sh
 	docker exec -e BOOTSTRAP_SERVER=localhost:29092 bicap-kafka bash -c "tr -d '\r' < /tmp/create-topics.sh > /tmp/create-topics.unix.sh && bash /tmp/create-topics.unix.sh"
 

@@ -1,8 +1,16 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP — Docker Compose Demo (1 máy, dành cho demo thầy)
+# Chạy: docker compose up -d
+# Dừng: docker compose down
+# ════════════════════════════════════════════════════════════════
 
 networks:
-  bicap-network:
+  bicap-backend:
     driver: bridge
-    name: bicap-network
+    name: bicap-backend
+  bicap-frontend:
+    driver: bridge
+    name: bicap-frontend
 
 volumes:
   kafka-data:
@@ -11,23 +19,36 @@ volumes:
   redis-data:
   mysql-data:
   mongo-data:
-  postgres-data:
   nifi-data:
   nifi-logs:
   prometheus-data:
   grafana-data:
 
+# ── Logging mặc định ──────────────────────────────────────────
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+# ── Restart policy ────────────────────────────────────────────
+x-restart: &default-restart
+  restart: unless-stopped
+
 services:
 
-  # ── ZOOKEEPER ─────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE
+  # ════════════════════════════════════════════════════════════
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: bicap-zookeeper
-    networks: [bicap-network]
+    <<: *default-restart
+    networks: [bicap-backend]
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_SYNC_LIMIT: 2
     volumes:
       - zookeeper-data:/var/lib/zookeeper/data
       - zookeeper-log:/var/lib/zookeeper/log
@@ -36,67 +57,71 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-  # ── KAFKA ─────────────────────────────────────────────────────
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: bicap-kafka
-    networks: [bicap-network]
+    <<: *default-restart
+    networks: [bicap-backend]
     depends_on:
       zookeeper:
         condition: service_healthy
-    ports:
-      - "9092:9092"       # External (từ host machine)
-      - "29092:29092"     # Internal (giữa các containers)
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka:29092
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG_SEGMENT_BYTES: 1073741824
       KAFKA_NUM_PARTITIONS: 3
     volumes:
       - kafka-data:/var/lib/kafka/data
-      - ./infrastructure/kafka/create-topics.sh:/opt/kafka/create-topics.sh:ro
     healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:29092", "--list"]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging: *default-logging
 
-  # ── REDIS ─────────────────────────────────────────────────────
   redis:
     image: redis:7.2-alpine
     container_name: bicap-redis
-    networks: [bicap-network]
-    ports:
-      - "6379:6379"
-    command: redis-server /usr/local/etc/redis/redis.conf
+    <<: *default-restart
+    networks: [bicap-backend]
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
-      - ./infrastructure/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-# ── MYSQL ─────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0
     container_name: bicap-mysql
-    networks: [bicap-network]
+    <<: *default-restart
+    networks: [bicap-backend]
     ports:
       - "3306:3306"
     environment:
@@ -118,15 +143,19 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging: *default-logging
 
-# ── MONGO (Farm/Retailer/IoT/Payment) ────────────────────────────
   mongo:
     image: mongo:7.0
     container_name: bicap-mongo
-    networks: [bicap-network]
-    ports:
-      - "27017:27017"
+    <<: *default-restart
+    networks: [bicap-backend]
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -135,110 +164,458 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-# ── POSTGRES (Shipping + Report) ───────────────────────────────
-  postgres:
-    image: postgres:15-alpine
-    container_name: bicap-postgres
-    networks: [bicap-network]
-    ports:
-      - "5432:5432"
+  # ════════════════════════════════════════════════════════════
+  # BACKEND SERVICES — Java Spring Boot
+  # ════════════════════════════════════════════════════════════
+
+  identity-service:
+    build:
+      context: ./services/identity-service
+      dockerfile: Dockerfile
+    container_name: bicap-identity
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      mysql:
+        condition: service_healthy
     environment:
-      # Default DB (init script sẽ tạo thêm report_db)
-      POSTGRES_DB: shipping_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/identity_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+      JWT_SECRET: bicap-super-secret-jwt-key-2025-demo
+      JWT_ACCESS_TOKEN_EXPIRY: 900000
+      JWT_REFRESH_TOKEN_EXPIRY: 604800000
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d shipping_db && pg_isready -U postgres -d report_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-  # ── SHIPPING SERVICE (Spring Boot) ─────────────────────────────
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: bicap-gateway
+    <<: *default-restart
+    networks: [bicap-backend, bicap-frontend]
+    ports:
+      - "8080:8080"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATA_REDIS_HOST: redis
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      FARM_SERVICE_URL: http://farm-service:8082
+      RETAILER_SERVICE_URL: http://retailer-service:8083
+      SHIPPING_SERVICE_URL: http://shipping-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      PAYMENT_SERVICE_URL: http://payment-service:8086
+      IOT_SERVICE_URL: http://iot-service:8087
+      REPORT_SERVICE_URL: http://report-service:8088
+      GUEST_SERVICE_URL: http://guest-service:8089
+      BLOCKCHAIN_SERVICE_URL: http://blockchain-service:8090
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
+
   shipping-service:
     build:
       context: ./services/shipping-service
       dockerfile: Dockerfile
-    container_name: bicap-shipping-service
-    networks: [bicap-network]
+    container_name: bicap-shipping
+    <<: *default-restart
+    networks: [bicap-backend]
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       kafka:
         condition: service_healthy
-    ports:
-      - "8084:8084"
     environment:
-      SHIPPING_PORT: 8084
-      SHIPPING_DB_HOST: postgres
-      SHIPPING_DB_PORT: 5432
-      SHIPPING_DB_NAME: shipping_db
-      SHIPPING_DB_USER: postgres
-      SHIPPING_DB_PASSWORD: postgres
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-    restart: unless-stopped
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/shipping_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-  # ── WEB SHIPPING (Next.js) ────────────────────────────────────
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: bicap-notification
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/notification_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_DATA_REDIS_HOST: redis
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
+
+  report-service:
+    build:
+      context: ./services/report-service
+      dockerfile: Dockerfile
+    container_name: bicap-report
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/report_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
+
+  guest-service:
+    build:
+      context: ./services/guest-service
+      dockerfile: Dockerfile
+    container_name: bicap-guest
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/guest_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: bicap_user
+      SPRING_DATASOURCE_PASSWORD: 12123
+      SPRING_DATA_REDIS_HOST: redis
+      SERVICES_FARM_URL: http://farm-service:8082
+      SERVICES_BLOCKCHAIN_URL: http://blockchain-service:8090
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
+
+  # ════════════════════════════════════════════════════════════
+  # BACKEND SERVICES — NodeJS/TypeScript
+  # ════════════════════════════════════════════════════════════
+
+  farm-service:
+    build:
+      context: ./services/farm-service
+      dockerfile: Dockerfile
+    container_name: bicap-farm
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/farm_db
+      INTERNAL_API_KEY: bicap-demo-internal-key
+      KAFKA_OPTIONAL: "true"
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_TOPIC_ORDER_PLACED: bicap.order.placed
+      KAFKA_TOPIC_SEASON_CREATED: bicap.season.created
+      KAFKA_TOPIC_SEASON_UPDATED: bicap.season.updated
+      KAFKA_TOPIC_SEASON_EXPORTED: bicap.season.exported
+      KAFKA_TOPIC_ORDER_CONFIRMED: bicap.order.confirmed
+      REDIS_URL: redis://redis:6379
+      PORT: "8082"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging: *default-logging
+
+  retailer-service:
+    build:
+      context: ./services/retailer-service
+      dockerfile: Dockerfile
+    container_name: bicap-retailer
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/retailer_db
+      MONGODB_DB_NAME: retailer_db
+      KAFKA_BROKERS: kafka:29092
+      FARM_SERVICE_BASE_URL: http://farm-service:8082
+      BLOCKCHAIN_SERVICE_BASE_URL: http://blockchain-service:8090
+      SHIPPING_SERVICE_BASE_URL: http://shipping-service:8084
+      PAYMENT_SERVICE_BASE_URL: http://payment-service:8086
+      REPORT_SERVICE_BASE_URL: http://report-service:8088
+      REDIS_URL: redis://redis:6379
+      PORT: "8083"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging: *default-logging
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: bicap-payment
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/payment_db
+      KAFKA_BROKERS: kafka:29092
+      JWT_SECRET: retailer-secret
+      VNPAY_TMN_CODE: DEMO_VNPAY
+      VNPAY_HASH_SECRET: DEMO_VNPAY_SECRET
+      VNPAY_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      VNPAY_RETURN_URL: http://localhost/api/payment/callback/vnpay
+      MOMO_PARTNER_CODE: MOMODEMO2026
+      MOMO_ACCESS_KEY: MOMO_ACCESS_DEMO
+      MOMO_SECRET_KEY: MOMO_SECRET_DEMO
+      MOMO_ENDPOINT: https://test-payment.momo.vn/v2/gateway/api/create
+      MOMO_RETURN_URL: http://localhost/api/payment/callback/momo
+      PORT: "8086"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging: *default-logging
+
+  iot-service:
+    build:
+      context: ./services/iot-service
+      dockerfile: Dockerfile
+    container_name: bicap-iot
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mongodb://mongo:27017/iot_db
+      KAFKA_BROKERS: kafka:29092
+      REDIS_URL: redis://redis:6379
+      PORT: "8087"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging: *default-logging
+
+  blockchain-service:
+    build:
+      context: ./services/blockchain-service
+      dockerfile: Dockerfile
+    container_name: bicap-blockchain
+    <<: *default-restart
+    networks: [bicap-backend]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_OPTIONAL: "true"
+      KAFKA_CONSUME: "true"
+      FARM_SERVICE_URL: http://farm-service:8082
+      INTERNAL_API_KEY: bicap-demo-internal-key
+      VECHAIN_TESTNET_RPC: https://testnet.veblocks.net
+      VECHAIN_OPTIONAL: "true"
+      PORT: "8090"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging: *default-logging
+
+  # ════════════════════════════════════════════════════════════
+  # FRONTEND — NextJS Web Apps
+  # ════════════════════════════════════════════════════════════
+
+  web-admin:
+    build:
+      context: ./frontend
+      dockerfile: web-admin/Dockerfile
+    container_name: bicap-web-admin
+    <<: *default-restart
+    networks: [bicap-frontend]
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost/api
+      PORT: "3000"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging
+
+  web-farm:
+    build:
+      context: ./frontend/web-farm
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost
+    container_name: bicap-web-farm
+    <<: *default-restart
+    networks: [bicap-frontend]
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging
+
+  web-retailer:
+    build:
+      context: ./frontend/web-retailer
+      dockerfile: Dockerfile
+      args:
+        VITE_RETAIL_API_BASE_URL: http://localhost/api/retail
+    container_name: bicap-web-retailer
+    <<: *default-restart
+    networks: [bicap-frontend]
+    environment:
+      PORT: "3002"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging
+
   web-shipping:
     build:
       context: ./frontend/web-shipping
       dockerfile: Dockerfile
     container_name: bicap-web-shipping
-    networks: [bicap-network]
-    depends_on:
-      shipping-service:
-        condition: service_started
-    ports:
-      - "3003:3003"
+    <<: *default-restart
+    networks: [bicap-frontend]
     environment:
-      NEXT_PUBLIC_SHIPPING_API_BASE: http://localhost:8084
-    restart: unless-stopped
+      NEXT_PUBLIC_API_URL: http://localhost/api
+      PORT: "3003"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging
 
-  # ── WEB PUBLIC (Next.js) ──────────────────────────────────────
   web-public:
     build:
       context: ./frontend/web-public
       dockerfile: Dockerfile
     container_name: bicap-web-public
-    networks: [bicap-network]
-    ports:
-      - "3004:3004"
-    restart: unless-stopped
-
-  # ── NIFI ──────────────────────────────────────────────────────
-  nifi:
-    image: apache/nifi:1.23.0
-    container_name: bicap-nifi
-    networks: [bicap-network]
-    ports:
-      - "8443:8443"
+    <<: *default-restart
+    networks: [bicap-frontend]
     environment:
-      SINGLE_USER_CREDENTIALS_USERNAME: admin
-      SINGLE_USER_CREDENTIALS_PASSWORD: adminadminadmin
-      NIFI_WEB_HTTPS_PORT: 8443
-    volumes:
-      - nifi-data:/opt/nifi/nifi-current/conf
-      - nifi-logs:/opt/nifi/nifi-current/logs
-      - ./infrastructure/nifi/flows:/opt/nifi/nifi-current/flow-templates
-    healthcheck:
-      test: ["CMD", "curl", "-kf", "https://localhost:8443/nifi"]
-      interval: 30s
-      timeout: 15s
-      retries: 10
-      start_period: 60s
-    restart: unless-stopped
+      NEXT_PUBLIC_API_URL: http://localhost/api
+      PORT: "3004"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging
 
-  # ── PROMETHEUS ────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════
+  # NGINX — Layer 1: Route tất cả traffic
+  # ════════════════════════════════════════════════════════════
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: bicap-nginx
+    <<: *default-restart
+    networks: [bicap-backend, bicap-frontend]
+    ports:
+      - "80:80"
+    volumes:
+      - ./infrastructure/nginx/nginx.demo.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api-gateway
+      - web-public
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging: *default-logging
+
+  # ════════════════════════════════════════════════════════════
+  # MONITORING
+  # ════════════════════════════════════════════════════════════
+
   prometheus:
     image: prom/prometheus:v2.47.0
     container_name: bicap-prometheus
-    networks: [bicap-network]
+    <<: *default-restart
+    networks: [bicap-backend]
     ports:
       - "9090:9090"
     volumes:
@@ -246,36 +623,29 @@ services:
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"
-    restart: unless-stopped
+      - "--storage.tsdb.retention.time=7d"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging: *default-logging
 
-  # ── GRAFANA ───────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.1.0
     container_name: bicap-grafana
-    networks: [bicap-network]
+    <<: *default-restart
+    networks: [bicap-backend]
     ports:
       - "3100:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./infrastructure/monitoring/grafana:/etc/grafana/provisioning
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-
-# ── NGINX — Layer 1: SSL + reverse proxy ──────────────────────
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: bicap-nginx
-    networks: [bicap-network]
-    ports:
-      - "80:80"
-      - "443:443"    # sẵn sàng cho SSL sau
-    volumes:
-      - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
-    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging: *default-logging

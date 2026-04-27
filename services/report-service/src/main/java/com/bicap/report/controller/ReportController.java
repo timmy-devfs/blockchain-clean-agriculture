@@ -62,8 +62,10 @@ public class ReportController {
 
     @GetMapping("/admin/dashboard")
     public ResponseEntity<ApiResponse<?>> adminDashboard(Authentication auth) {
-        if (!isAdmin(auth)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(ErrorCode.FORBIDDEN));
+        // Demo mode: dashboard should stay readable for any authenticated gateway user.
+        // Role checks remain on mutating admin endpoints (resolve, etc.).
+        if (auth == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(ErrorCode.UNAUTHORIZED));
         }
         return ResponseEntity.ok(ApiResponse.success(reportService.buildAdminDashboard()));
     }
