@@ -1,6 +1,6 @@
 packages:
   - "packages/*"
-  - "web-*"
+  - "web-app"
   - "mobile-*"
 allowBuilds:
   canvas: true
