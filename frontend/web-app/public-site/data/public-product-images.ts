@@ -1,6 +1,6 @@
-// Cấu hình ảnh cho web public (KHÔNG phụ thuộc web-shipping).
+// Cấu hình ảnh cho public routes (KHÔNG phụ thuộc shipping module).
 // Cách dùng:
-// 1) Bỏ ảnh vào: frontend/web-public/public/product-images/
+// 1) Bỏ ảnh vào: frontend/web-app/public/product-images/
 // 2) Map theo mã sản phẩm/lô bên dưới, ví dụ: 'SP001': '/product-images/sp001.jpg'
 
 export const PUBLIC_PRODUCT_IMAGE_OVERRIDES: Record<string, string> = {

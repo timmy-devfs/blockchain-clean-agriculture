@@ -43,24 +43,42 @@ export type UpdateShipmentStatusRequest = {
   location?: string | null;
 };
 
-const BASE = process.env.NEXT_PUBLIC_SHIPPING_API_BASE || 'http://localhost:8084';
+/**
+ * Origin gateway (không có `/api` cuối) — cùng quy tắc với farm `gateway.ts` / `api-client` axios.
+ * Mọi path gọi đầy đủ `/api/shipping/...` → ví dụ `http://localhost/api/shipping/shipments`.
+ */
+function gatewayOrigin(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api").replace(/\/+$/, "");
+  if (raw.endsWith("/api")) {
+    return raw.slice(0, -4);
+  }
+  return raw;
+}
+
+const GATEWAY_ORIGIN = gatewayOrigin();
 
 export function makeAuthHeaders(auth: { userId: string; role: string }) {
   return {
-    'X-User-Id': auth.userId,
-    'X-User-Role': auth.role,
+    "X-User-Id": auth.userId,
+    "X-User-Role": auth.role,
   };
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, auth?: { userId: string; role: string }): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set('Content-Type', 'application/json');
+  headers.set("Content-Type", "application/json");
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("bicap_access_token")?.trim();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
   if (auth) {
-    headers.set('X-User-Id', auth.userId);
-    headers.set('X-User-Role', auth.role);
+    headers.set("X-User-Id", auth.userId);
+    headers.set("X-User-Role", auth.role);
   }
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers, cache: 'no-store' });
+  const res = await fetch(`${GATEWAY_ORIGIN}${path}`, { ...init, headers, cache: "no-store" });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`HTTP ${res.status} ${res.statusText} ${text}`.trim());

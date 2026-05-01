@@ -1,0 +1,122 @@
+================================================================================
+LUONG TONG FE - HANDOVER (UPDATED)
+================================================================================
+
+Ngay cap nhat: 2026-05-01
+Muc tieu file nay: tom tat nhanh trang thai frontend hien tai de team tiep tuc lam viec.
+
+
+1) TRANG THAI TONG QUAN
+================================================================================
+
+- Frontend da gop ve 1 app chinh: `frontend/web-app` (Next.js 14 App Router).
+- Cac route role chinh da hoat dong:
+  - `/admin/*`
+  - `/farm/*`
+  - `/retailer/*`
+  - `/shipping/*`
+  - public: `/public`, `/articles`, `/products`, `/trace`, `/how-it-works`, `/huong-dan`
+- API browser di qua gateway thong qua:
+  `NEXT_PUBLIC_API_URL=http://localhost/api`
+
+
+2) NHUNG VIEC DA CHOT O CAC PHASE VUA LAM
+================================================================================
+
+P1/P2 da xu ly:
+
+1) Retailer API legacy
+- Chuan hoa base URL theo gateway.
+- Bo fallback mock cho nhung endpoint chinh; endpoint khong co spec -> warning ro rang.
+
+2) Farm legacy gateway
+- Fix nguy co double `/api/api`.
+- 401 interceptor duoc chot theo huong redirect on dinh.
+
+3) Shipping legacy API
+- Chuyen base URL sang gateway (`NEXT_PUBLIC_API_URL`) thay vi goi truc tiep :8084.
+- Chuan hoa sync flow:
+  - writer: `app/api/sync-orders/route.ts`
+  - reader fallback: `app/internal/shipping-sync/route.ts`
+- Admin shipments fallback khong crash, co empty state.
+
+4) Public duplicate cleanup
+- `public-site/app/` da duoc xoa (chi giu `public-site/data/`).
+- Route public hien su dung `app/(public)/...`.
+
+5) Cleanup 5 web cu khoi git tracking
+- Da co commit BIC-039 dọn:
+  - `frontend/web-admin`
+  - `frontend/web-farm`
+  - `frontend/web-retailer`
+  - `frontend/web-shipping`
+  - `frontend/web-public`
+- Backup tag: `backup/before-cleanup-5webs`
+- Co `frontend/.gitignore` de tranh checkout nham lai cac folder cu.
+
+
+3) KIEN TRUC THU MUC CHINH
+================================================================================
+
+`frontend/web-app/app`
+- `(admin)`    admin pages + aliases `/admin/...`
+- `(farm)`     farm pages
+- `(retailer)` retailer pages
+- `(shipping)` shipping pages
+- `(public)`   public pages
+- `api/sync-orders/route.ts`
+- `internal/shipping-sync/route.ts`
+- `login/page.tsx`, `unauthorized/page.tsx`, `middleware.ts`
+
+`frontend/web-app/legacy`
+- farm/retailer/shipping consoles duoc nhung de chay transition.
+
+`frontend/web-app/public-site/data`
+- giu lai data public (articles, trace-demo, product-images).
+
+
+4) RUN / VERIFY NHANH
+================================================================================
+
+1) Stack:
+   docker compose up -d --build
+   make make-topics
+
+2) Frontend:
+   cd frontend
+   pnpm install
+   cd web-app
+   pnpm typecheck
+
+3) URL smoke:
+   http://localhost/login
+   http://localhost/public
+   http://localhost/admin/dashboard
+   http://localhost/farm/dashboard
+   http://localhost/retailer/dashboard
+   http://localhost/shipping/dashboard
+
+
+5) NHUNG DIEM CAN LUU Y KHI PHAT TRIEN TIEP
+================================================================================
+
+1) Branch hien tai co the van con local WIP chua commit.
+- Truoc khi PR, luon check:
+  - `git log --oneline origin/develop..HEAD`
+  - `git diff --name-status origin/develop...HEAD`
+
+2) Neu docker up fail voi port 3000:
+- tat process local dang chiem port truoc.
+
+3) Neu can xem code 5 web cu da xoa:
+- dung backup tag:
+  `git show backup/before-cleanup-5webs:frontend/web-admin/...`
+
+
+6) KET LUAN
+================================================================================
+
+- Luong login, api gateway, role routes, shipping sync fallback da duoc chot on dinh.
+- Repo da sach hon sau cleanup app cu.
+- Team co the tiep tuc trien khai tren `web-app` ma khong can quay lai 5 web legacy.
+

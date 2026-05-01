@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/unauthorized", "/search", "/articles", "/trace"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/unauthorized",
+  "/public",
+  "/search",
+  "/articles",
+  "/trace",
+  "/products",
+  "/how-it-works",
+  "/huong-dan",
+];
 
 type JwtPayload = {
   sub?: string;
@@ -22,7 +32,7 @@ const roleRouteGuard: Array<{ prefix: string; allowedRoles: string[] | null }> =
   { prefix: "/reports", allowedRoles: ["ADMIN"] },
   { prefix: "/farm", allowedRoles: ["FARM_MANAGER"] },
   { prefix: "/retailer", allowedRoles: ["RETAILER"] },
-  { prefix: "/shipping", allowedRoles: ["SHIPPING_MANAGER", "SHIP_DRIVER"] },
+  { prefix: "/shipping", allowedRoles: ["SHIPPING_MANAGER", "SHIP_DRIVER", "SHIPPER"] },
   { prefix: "/public", allowedRoles: null },
 ];
 
@@ -32,6 +42,7 @@ const roleHomePath: Record<string, string> = {
   RETAILER: "/retailer/dashboard",
   SHIPPING_MANAGER: "/shipping/dashboard",
   SHIP_DRIVER: "/shipping/dashboard",
+  SHIPPER: "/shipping/dashboard",
   GUEST: "/search",
 };
 
@@ -52,7 +63,8 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    // Khách chưa đăng nhập vào "/" → đưa thẳng tới public landing page (truy xuất nguồn gốc).
+    return NextResponse.redirect(new URL("/public", request.url));
   }
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {

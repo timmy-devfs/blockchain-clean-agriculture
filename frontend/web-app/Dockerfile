@@ -19,6 +19,14 @@ RUN corepack enable
 
 COPY --from=deps /workspace /workspace
 
+ARG DOCKER_BUILD=0
+ENV DOCKER_BUILD=$DOCKER_BUILD
+
+# Public URL phải là URL host-reachable (qua nginx) vì giá trị này được Next.js
+# inline vào bundle browser khi build.
+ARG NEXT_PUBLIC_API_URL=http://localhost/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN pnpm --filter web-app build
 
 FROM node:20-alpine AS runner

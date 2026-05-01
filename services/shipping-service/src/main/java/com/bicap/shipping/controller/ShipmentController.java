@@ -29,7 +29,7 @@ public class ShipmentController {
         this.authContextService = authContextService;
     }
 
-    // Manager API (CRUD shipment) — used by web-shipping
+    // Manager API (CRUD shipment) — used by shipping routes in web-app
     @PostMapping("/shipments")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo shipment mới")

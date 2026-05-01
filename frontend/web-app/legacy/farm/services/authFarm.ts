@@ -36,5 +36,9 @@ export async function fetchMe(): Promise<FarmMeUser> {
 
 export function logoutFarm(): void {
   clearTokens();
-  window.location.reload();
+  if (typeof window !== "undefined") {
+    // Điều hướng tới /login của web-app unified thay vì reload tại chỗ
+    // (tránh hiển thị lại Farm Console mà không có token).
+    window.location.href = "/login";
+  }
 }

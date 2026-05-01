@@ -34,6 +34,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
+import { isAxiosError } from "axios";
 import { useEffect, useMemo, useState } from "react";
 import { RadialBar, RadialBarChart, ResponsiveContainer } from "recharts";
 import {
@@ -60,8 +61,6 @@ import {
   uploadFarmLicense
 } from "./services/farmApi";
 import { AlertItem, IotDashboard, MarketplaceItem, Order, OrderStatus, PackageInfo, Season, SeasonUpdate } from "./types";
-import { getAccessToken } from "./services/gateway";
-import { FarmLogin } from "./components/FarmLogin";
 import { fetchMe, logoutFarm, type FarmMeUser } from "./services/authFarm";
 
 const { Header, Content, Sider } = Layout;
@@ -75,11 +74,10 @@ type ScreenKey =
   | "orders"
   | "packages";
 
+// Sau khi merge vào web-app unified, /login (route group root) quản lý đăng nhập.
+// Legacy console chỉ render FarmConsole; nếu token hết hạn, axios interceptor sẽ
+// redirect tới /login.
 function App() {
-  const [authed, setAuthed] = useState(() => !!getAccessToken());
-  if (!authed) {
-    return <FarmLogin onSuccess={() => setAuthed(true)} />;
-  }
   return <FarmConsole />;
 }
 
@@ -91,14 +89,22 @@ function FarmConsole() {
     void fetchMe()
       .then((user) => {
         if (user.role !== "FARM_MANAGER") {
-          message.error("Tài khoản này không có quyền vào web-farm. Vui lòng dùng FARM_MANAGER.");
+          message.error("Tài khoản này không có quyền vào farm console. Vui lòng dùng FARM_MANAGER.");
           logoutFarm();
           return;
         }
         setMe(user);
       })
-      .catch(() => {
-        logoutFarm();
+      .catch((err) => {
+        // 401: gateway interceptor đã clear token + redirect /login — không gọi logoutFarm (tránh double redirect).
+        if (isAxiosError(err) && err.response?.status === 401) {
+          return;
+        }
+        message.error(
+          isAxiosError(err) && err.response?.status === 404
+            ? "Không gọi được API (404). Kiểm tra NEXT_PUBLIC_API_URL / Gateway."
+            : "Không tải được hồ sơ người dùng. Thử đăng nhập lại."
+        );
       });
   }, []);
 

@@ -8,6 +8,8 @@ export enum UserRole {
   RETAILER = "RETAILER",
   SHIP_DRIVER = "SHIP_DRIVER",
   SHIPPING_MANAGER = "SHIPPING_MANAGER",
+  /** Alias do identity-service trả về cho tài khoản tài xế/shipper. */
+  SHIPPER = "SHIPPER",
   GUEST = "GUEST",
 }
 

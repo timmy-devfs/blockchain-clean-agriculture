@@ -351,39 +351,51 @@ export const getAdminOrders = (params?: {
 
 // ─── Shipments ────────────────────────────────────────────────────────────
 
-export const getAdminShipments = (params?: {
+export const getAdminShipments = async (params?: {
   status?: string;
   page?: number;
   size?: number;
-}) =>
-  axiosInstance
-    .get<unknown>("/api/shipping/shipments")
-    .then((r) => {
-      const inner = unwrapBody<unknown>(r.data);
-      const arr = Array.isArray(inner) ? (inner as Record<string, unknown>[]) : [];
-      const filtered = params?.status
-        ? arr.filter((x) => String(x.status) === params.status)
-        : arr;
-      const mapped = filtered.map(mapShipmentRow);
-      // shipping-service có thể chưa có dữ liệu demo; fallback sang dữ liệu sync từ web-shipping
-      if (mapped.length === 0) {
-        throw new Error("empty_shipping_service_data");
-      }
-      return slicePage<AdminShipmentView>(mapped, params?.page ?? 0, params?.size ?? 20);
-    })
-    .catch(async () => {
+}): Promise<PageResponse<AdminShipmentView>> => {
+  const page = params?.page ?? 0;
+  const size = params?.size ?? 20;
+
+  const loadFromShippingService = async (): Promise<AdminShipmentView[]> => {
+    const r = await axiosInstance.get<unknown>("/api/shipping/shipments");
+    const inner = unwrapBody<unknown>(r.data);
+    const arr = Array.isArray(inner) ? (inner as Record<string, unknown>[]) : [];
+    const filtered = params?.status
+      ? arr.filter((x) => String(x.status) === params.status)
+      : arr;
+    return filtered.map(mapShipmentRow);
+  };
+
+  const loadFromSyncedFile = async (): Promise<AdminShipmentView[]> => {
+    try {
       const res = await fetch("/internal/shipping-sync", { cache: "no-store" });
-      if (!res.ok) {
-        return slicePage<AdminShipmentView>([], params?.page ?? 0, params?.size ?? 20);
-      }
+      if (!res.ok) return [];
       const body = (await res.json()) as { data?: Record<string, unknown>[] };
       const arr = Array.isArray(body?.data) ? body.data : [];
       const filtered = params?.status
         ? arr.filter((x) => String(x.status) === params.status)
         : arr;
-      const mapped = filtered.map(mapShipmentRow);
-      return slicePage<AdminShipmentView>(mapped, params?.page ?? 0, params?.size ?? 20);
-    });
+      return filtered.map(mapShipmentRow);
+    } catch {
+      return [];
+    }
+  };
+
+  try {
+    const mapped = await loadFromShippingService();
+    if (mapped.length > 0) {
+      return slicePage<AdminShipmentView>(mapped, page, size);
+    }
+  } catch {
+    /* fallback sync */
+  }
+
+  const synced = await loadFromSyncedFile();
+  return slicePage<AdminShipmentView>(synced, page, size);
+};
 
 // ─── Blockchain / Contracts ───────────────────────────────────────────────
 

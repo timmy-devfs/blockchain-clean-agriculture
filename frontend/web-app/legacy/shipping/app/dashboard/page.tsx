@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, CSSProperties } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import jsQR from 'jsqr';
 import { useSyncOrders } from '../hooks/useSyncOrders';
+import { ShippingApi, type Shipment } from '../lib/shippingApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Order {
@@ -1050,6 +1051,46 @@ function MapPage({ drivers, orders }: { drivers: Driver[]; orders: Order[] }) {
   );
 }
 
+function decodeJwtSub(token: string): string | null {
+  try {
+    const b64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+    if (!b64) return null;
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), "=");
+    const payload = JSON.parse(atob(padded)) as { sub?: string };
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapGatewayShipmentToOrder(s: Shipment): Order {
+  const statusVi: Record<Shipment["status"], string> = {
+    CREATED: "Chờ xử lý",
+    ASSIGNED: "Chờ xử lý",
+    PICKED_UP: "Đã lấy hàng",
+    IN_TRANSIT: "Đang vận chuyển",
+    DELAYED: "Đang vận chuyển",
+    DELIVERED: "Đã giao",
+    CANCELLED: "Hủy",
+  };
+  return {
+    id: `LH${String(s.id).padStart(4, "0")}-${s.orderId}`,
+    cargo: `Đơn #${s.orderId}`,
+    weight: "—",
+    qty: "1",
+    farm: String(s.farmId),
+    from: s.pickupAddress ?? "—",
+    to: s.deliveryAddress ?? "—",
+    date: s.scheduledDate ?? "",
+    time: "",
+    driver: s.driverId != null ? `Driver #${s.driverId}` : "—",
+    status: statusVi[s.status] ?? "Chờ xử lý",
+    note: "",
+    createdAt: new Date().toISOString(),
+    timeline: []
+  };
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function ShippingDashboard() {
   const [page, setPage]       = useState<Page>('dashboard');
@@ -1093,6 +1134,32 @@ export default function ShippingDashboard() {
     if (o) setOrders(JSON.parse(o));
     if (d) setDrivers(JSON.parse(d));
     setDateStr(new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+  }, []);
+
+  /** Có JWT unified → tải danh sách shipment từ Gateway `/api/shipping/shipments` (ghi đè local nếu có dữ liệu). */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+      if (!token) return;
+      const sub = decodeJwtSub(token);
+      try {
+        const res = await ShippingApi.listShipments({
+          userId: sub ?? "shipping-user",
+          role: "SHIPPING_MANAGER",
+        });
+        const rows = res?.data;
+        if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
+        const next = rows.map(mapGatewayShipmentToOrder);
+        setOrders(next);
+        localStorage.setItem("agri_orders", JSON.stringify(next));
+      } catch {
+        /* giữ dữ liệu đã hydrate từ localStorage */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

@@ -18,7 +18,7 @@ public class Driver {
     private Long id;
 
     /** Khớp {@code users.id} trên identity-service (JWT sub). */
-    @Column(name = "identity_user_id", length = 36, unique = true)
+    @Column(name = "identity_user_id", columnDefinition = "char(36)", unique = true)
     private String identityUserId;
 
     private String fullName;    // Họ tên tài xế

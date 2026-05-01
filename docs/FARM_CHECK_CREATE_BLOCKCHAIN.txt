@@ -1,0 +1,166 @@
+FARM -> ADMIN APPROVAL -> BLOCKCHAIN FLOW (GATEWAY PATH)
+========================================================
+
+Last update: 2026-05-01
+Recommended base URL for all browser-facing tests: http://localhost/api
+
+
+0) PREREQUISITES
+================
+
+- Docker stack is up:
+  docker compose up -d --build
+- Kafka topics created:
+  make make-topics
+- Core health:
+  curl.exe -s http://localhost/nginx-health
+  curl.exe -s http://localhost:8080/actuator/health
+
+
+1) ONE-TIME MONGO FIX (ONLY IF REPLICA ERRORS)
+===============================================
+
+docker exec bicap-mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]})"
+docker compose restart farm-service
+
+
+2) RESET USERS + REGISTER FRESH
+===============================
+
+docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io');"
+docker exec bicap-redis redis-cli FLUSHALL
+
+curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+
+
+3) LOGIN + COPY IDS
+===================
+
+curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\"}"
+curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+
+Copy values:
+- ADMIN_ID  = data.user.id from admin login response
+- FARMER_ID = data.user.id from farm login response
+- ACCESS_TOKEN_ADMIN / ACCESS_TOKEN_FARM if needed for Bearer checks
+
+
+4) FARMER CREATES FARM (PENDING)
+================================
+
+curl.exe -X POST "http://localhost/api/farm/farms" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: <FARMER_ID>" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"name\":\"Farm Flow Test\",\"address\":\"Go Dau\",\"province\":\"Tay Ninh\",\"area\":3.2}"
+
+Copy:
+- FARM_ID from response.id (must be Mongo ObjectId: 24 hex chars)
+
+
+5) ADMIN APPROVES FARM
+======================
+
+curl.exe -X PUT "http://localhost/api/farm/admin/farms/<FARM_ID>/approve" ^
+  -H "X-User-Id: <ADMIN_ID>" ^
+  -H "X-User-Role: ADMIN"
+
+Expected:
+- Response confirms approval or returns updated farm.
+
+
+6) FARMER CREATES SEASON
+========================
+
+curl.exe -X POST "http://localhost/api/farm/seasons" ^
+  -H "Content-Type: application/json" ^
+  -H "X-User-Id: <FARMER_ID>" ^
+  -H "X-User-Role: FARM_MANAGER" ^
+  -d "{\"farmId\":\"<FARM_ID>\",\"cropType\":\"Lua Jasmine\",\"startDate\":\"2026-05-01\",\"estimatedEndDate\":\"2026-09-30\"}"
+
+Copy:
+- SEASON_ID from response.id
+
+Expected:
+- season created successfully
+- txHash may be null initially (before callback/update)
+
+
+7) ADMIN APPROVES SEASON FOR BLOCKCHAIN PIPELINE
+================================================
+
+curl.exe -X PUT "http://localhost/api/farm/admin/seasons/<SEASON_ID>/approve" ^
+  -H "X-User-Id: <ADMIN_ID>" ^
+  -H "X-User-Role: ADMIN"
+
+Expected:
+- response indicates event published/accepted.
+
+
+8) FARMER CHECKS SEASON DETAIL
+==============================
+
+curl.exe -X GET "http://localhost/api/farm/seasons/<SEASON_ID>" ^
+  -H "X-User-Id: <FARMER_ID>" ^
+  -H "X-User-Role: FARM_MANAGER"
+
+Expected:
+- season exists
+- txHash eventually non-null if blockchain callback path works in env
+
+
+9) TROUBLESHOOTING
+==================
+
+A) "Invalid farm id format" / "Invalid season id format"
+- You used non-ObjectId value. Use exact 24-hex ID from API response.
+
+B) txHash remains demo or null
+- Check logs:
+  docker compose logs --tail=200 farm-service
+  docker compose logs --tail=200 blockchain-service
+- Verify Kafka topics + connectivity.
+
+C) 401/403 on farm/admin endpoints
+- Verify headers:
+  X-User-Id, X-User-Role
+- Confirm role values: ADMIN / FARM_MANAGER.
+
+
+10) OPTIONAL POWERSHELL AUTO FLOW
+=================================
+
+$ErrorActionPreference='Stop'
+docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io');" | Out-Null
+docker exec bicap-redis redis-cli FLUSHALL | Out-Null
+
+Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/register' -ContentType 'application/json' -Body (@{ email='admin@bicap.io'; password='123456'; fullName='BICAP Administrator'; role='ADMIN' } | ConvertTo-Json) | Out-Null
+Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/register' -ContentType 'application/json' -Body (@{ email='farm1@bicap.io'; password='123456'; fullName='Nguyen Van A'; role='FARM_MANAGER' } | ConvertTo-Json) | Out-Null
+
+$adminLogin = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/login' -ContentType 'application/json' -Body (@{ email='admin@bicap.io'; password='123456' } | ConvertTo-Json)
+$farmLogin  = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/login' -ContentType 'application/json' -Body (@{ email='farm1@bicap.io'; password='123456' } | ConvertTo-Json)
+
+$adminId  = $adminLogin.data.user.id
+$farmerId = $farmLogin.data.user.id
+
+$farm = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/farms' -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' } -ContentType 'application/json' -Body (@{ name='Farm Auto Flow'; address='Go Dau'; province='Tay Ninh'; area=3.2 } | ConvertTo-Json)
+$farmId = $farm.id
+
+Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/farms/{0}/approve" -f $farmId) -Headers @{ 'X-User-Id'=$adminId; 'X-User-Role'='ADMIN' } | Out-Null
+
+$season = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/seasons' -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' } -ContentType 'application/json' -Body (@{ farmId=$farmId; cropType='Lua Jasmine'; startDate='2026-05-01'; estimatedEndDate='2026-09-30' } | ConvertTo-Json)
+$seasonId = $season.id
+
+$approveSeason = Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/seasons/{0}/approve" -f $seasonId) -Headers @{ 'X-User-Id'=$adminId; 'X-User-Role'='ADMIN' }
+Start-Sleep -Seconds 3
+$seasonDetail = Invoke-RestMethod -Method Get -Uri ("http://localhost/api/farm/seasons/{0}" -f $seasonId) -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' }
+
+"ADMIN_ID=$adminId"
+"FARMER_ID=$farmerId"
+"FARM_ID=$farmId"
+"SEASON_ID=$seasonId"
+"SEASON_TXHASH_INITIAL=$($season.txHash)"
+"SEASON_APPROVE_MESSAGE=$($approveSeason.message)"
+"SEASON_TXHASH_AFTER=$($seasonDetail.txHash)"
+

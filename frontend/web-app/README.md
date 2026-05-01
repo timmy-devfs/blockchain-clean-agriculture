@@ -110,7 +110,7 @@ Middleware **bỏ qua** các đường dẫn: static assets, `_next/image`, `fav
 ### Cây thư mục
 
 ```
-web-admin/
+web-app/
 ├── app/
 │   ├── layout.tsx                   # Root layout: Inter font, <Providers>
 │   ├── page.tsx                     # Root → redirect /dashboard
@@ -324,29 +324,29 @@ PUT  /api/reports/:id/resolve           // Resolve báo cáo (body: { adminNote 
 
 ```bash
 # Từ ROOT của monorepo (chứa pnpm-workspace.yaml)
-# pnpm tự động install cả web-admin và các shared packages
+# pnpm tự động install cả web-app và các shared packages
 pnpm install
 ```
 
-> **Lưu ý:** Không chạy `pnpm install` riêng trong thư mục `web-admin/`. Workspace root quản lý tất cả.
+> **Lưu ý:** Không chạy `pnpm install` riêng trong thư mục `web-app/`. Workspace root quản lý tất cả.
 
 ### 2. Cấu hình biến môi trường
 
-Tạo file `.env.local` trong thư mục `web-admin/`:
+Tạo file `.env.local` trong thư mục `web-app/`:
 
 ```bash
-# web-admin/.env.local
+# web-app/.env.local
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
 ### 3. Khởi chạy môi trường Development
 
 ```bash
-# Từ thư mục web-admin/
+# Từ thư mục web-app/
 pnpm dev
 
 # Hoặc từ root monorepo, chạy riêng app này
-pnpm --filter web-admin dev
+pnpm --filter web-app dev
 ```
 
 Ứng dụng chạy tại: **http://localhost:3000**
@@ -354,7 +354,7 @@ pnpm --filter web-admin dev
 ### 4. Kiểm tra TypeScript
 
 ```bash
-# Từ thư mục web-admin/
+# Từ thư mục web-app/
 pnpm typecheck
 
 # Tương đương với:

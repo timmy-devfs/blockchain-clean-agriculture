@@ -1,4 +1,4 @@
-// frontend/web-public/data/public-trace-demo.ts
+// frontend/web-app/public-site/data/public-trace-demo.ts
 // Ưu tiên đọc lô hàng thật từ shared/orders.json
 // Fallback sang demo nếu không tìm thấy
 
@@ -85,7 +85,9 @@ const PRODUCT_ORIGIN_COPY: Record<string, { intro: string; origin: string }> = {
 // ── Đọc lô hàng thật từ shared JSON ─────────────────────────────────────────
 function readRealOrders(): any[] {
   try {
-    const filePath = path.resolve(process.cwd(), '..', 'shared', 'orders.json');
+    // Sau khi merge web-shipping vào web-app, dữ liệu sync orders nằm chung
+    // /tmp/bicap-shared-orders.json (xem app/api/sync-orders/route.ts).
+    const filePath = process.env.SHARED_ORDERS_PATH ?? '/tmp/bicap-shared-orders.json';
     if (!fs.existsSync(filePath)) return [];
     const raw = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(raw) ?? [];
@@ -94,7 +96,7 @@ function readRealOrders(): any[] {
   }
 }
 
-// Convert lô hàng thật (từ web-shipping) → TraceData cho web-public
+// Convert lô hàng thật (từ shipping module) → TraceData cho public routes
 function realOrderToTraceData(order: any): TraceData {
   // Map status sang tiếng Việt thân thiện
   const statusMap: Record<string, string> = {
@@ -264,7 +266,7 @@ export function getDemoTraceData(qrCode: string): TraceData | null {
   if (!code) return null;
   const upper = code.toUpperCase();
 
-  // 1. Ưu tiên tìm trong lô hàng THẬT từ web-shipping
+  // 1. Ưu tiên tìm trong lô hàng THẬT từ shipping module
   const realOrders = readRealOrders();
   const realOrder = realOrders.find(
     (o: any) => o.id?.toUpperCase() === upper || o.id?.toUpperCase().includes(upper)

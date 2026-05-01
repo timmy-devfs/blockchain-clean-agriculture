@@ -1,13 +1,40 @@
-import axios from "axios";
-import dayjs from "dayjs";
+import axios, { isAxiosError } from "axios";
 import { NotificationItem, Product, RetailOrder, RetailOrderStatus, SearchFilters, TraceResult } from "../types";
 
+/**
+ * Retailer-service qua API Gateway. Base URL = `${NEXT_PUBLIC_API_URL}/retail` (vd. http://localhost/api/retail).
+ * So khớp backend: services/retailer-service (routes + swagger.config.ts). File contracts/api-specs/retailer-service.openapi.yaml
+ * có thể ngắn hơn runtime — các path dưới đây là đúng với gateway `/api/retail/**`.
+ *
+ * Định dạng tóm tắt (path tương đối trên axios base):
+ * - (cũ) base NEXT_PUBLIC_RETAIL_API_BASE_URL tách biệt → (mới) dùng NEXT_PUBLIC_API_URL + `/retail` — Lý do: một nguồn env với web-app (next.config.js), tránh lệch gateway.
+ * - GET `/marketplace/products` → GET `/api/retail/marketplace/products` — Đúng với marketplace.route + gateway.
+ * - GET `/marketplace/products/:id` → GET `/api/retail/marketplace/products/:id` — Chi tiết listing (swagger đầy đủ trong retailer-service, chưa copy hết vào contracts yaml).
+ * - POST `/orders` → POST `/api/retail/orders` — order.route.
+ * - POST `/orders/payment-callback` → POST `/api/retail/orders/payment-callback` — order.route.
+ * - GET `/orders` → GET `/api/retail/orders` — order.route (query status, fromDate, toDate).
+ * - GET `/orders/:orderId/shipping` → GET `/api/retail/orders/:orderId/shipping` — retailFlow.route.
+ * - POST `/qr/scan` → POST `/api/retail/qr/scan` — retailFlow.route.
+ * - POST `/orders/:orderId/confirm-delivery` → POST `/api/retail/orders/:orderId/confirm-delivery` — retailFlow.route (multipart).
+ */
+
+function apiGatewayPrefix(): string {
+  return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api").replace(/\/$/, "");
+}
+
+/** Override tùy chọn: URL đầy đủ tới prefix retail (vd. cùng gateway). */
+function retailServiceBaseUrl(): string {
+  const explicit = process.env.NEXT_PUBLIC_RETAIL_API_BASE_URL?.replace(/\/$/, "").trim();
+  if (explicit) return explicit;
+  return `${apiGatewayPrefix()}/retail`;
+}
+
 const retailApi = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_RETAIL_API_BASE_URL ?? "http://localhost/api/retail",
+  baseURL: retailServiceBaseUrl(),
   timeout: 8000
 });
 
-/** Cùng key với web-farm để dùng chung JWT sau khi login qua Gateway. */
+/** Dùng chung key JWT với các role routes trong web-app sau khi login qua Gateway. */
 const ACCESS_TOKEN_KEY = "bicap_access_token";
 
 const demoHeadersWhenNoJwt: Record<string, string> = {
@@ -19,8 +46,8 @@ const demoHeadersWhenNoJwt: Record<string, string> = {
 let autoLoginPromise: Promise<void> | null = null;
 
 function gatewayOrigin(): string {
-  const base = process.env.NEXT_PUBLIC_RETAIL_API_BASE_URL ?? "http://localhost/api/retail";
-  const stripped = base.replace(/\/api\/retail\/?$/i, "");
+  const api = apiGatewayPrefix();
+  const stripped = api.replace(/\/api\/?$/i, "");
   return stripped.length > 0 ? stripped : "http://localhost";
 }
 
@@ -66,7 +93,6 @@ async function ensureRetailToken(): Promise<void> {
   if (existing) return;
   if (!autoLoginPromise) {
     autoLoginPromise = (async () => {
-      // Try seed account first, then user-created demo account.
       try {
         await loginRetailer("retailer@bicap.io", "password");
         return;
@@ -90,90 +116,21 @@ retailApi.interceptors.request.use(async (config) => {
   return config;
 });
 
-const mockProducts: Product[] = Array.from({ length: 60 }).map((_, idx) => ({
-  id: `prod-${idx + 1}`,
-  title: idx % 2 === 0 ? `Tomato Organic Lot ${idx + 1}` : `Lettuce Premium Lot ${idx + 1}`,
-  province: idx % 3 === 0 ? "Lam Dong" : idx % 3 === 1 ? "Can Tho" : "Dong Nai",
-  category: idx % 2 === 0 ? "Vegetable" : "Leafy",
-  price: 18000 + idx * 250,
-  certified: idx % 4 !== 0,
-  imageUrls: [
-    `https://picsum.photos/seed/retail-${idx + 10}/480/280`,
-    `https://picsum.photos/seed/retail-${idx + 11}/480/280`
-  ],
-  farmId: `farm-${(idx % 8) + 1}`,
-  seasonId: `season-${(idx % 12) + 1}`,
-  txHash: idx % 5 === 0 ? undefined : `0x${(1000000 + idx).toString(16)}abc`
-}));
-
-let mockOrders: RetailOrder[] = [
-  {
-    id: "ord-01",
-    productName: "Tomato Organic Lot 1",
-    quantity: 20,
-    totalAmount: 450000,
-    paymentGateway: "VNPAY",
-    status: "PENDING_PAYMENT",
-    createdAt: dayjs().subtract(2, "hour").toISOString()
-  },
-  {
-    id: "ord-02",
-    productName: "Lettuce Premium Lot 3",
-    quantity: 12,
-    totalAmount: 310000,
-    paymentGateway: "MOMO",
-    status: "SHIPPING",
-    createdAt: dayjs().subtract(1, "day").toISOString(),
-    shipmentTimeline: [
-      { status: "CONFIRMED", at: dayjs().subtract(18, "hour").toISOString(), note: "Farm confirmed" },
-      { status: "SHIPPING", at: dayjs().subtract(8, "hour").toISOString(), note: "In transit" }
-    ]
-  },
-  {
-    id: "ord-03",
-    productName: "Tomato Organic Lot 8",
-    quantity: 9,
-    totalAmount: 250000,
-    paymentGateway: "VNPAY",
-    status: "DELIVERED",
-    createdAt: dayjs().subtract(3, "day").toISOString(),
-    shipmentTimeline: [
-      { status: "CONFIRMED", at: dayjs().subtract(60, "hour").toISOString() },
-      { status: "SHIPPING", at: dayjs().subtract(50, "hour").toISOString() },
-      { status: "DELIVERED", at: dayjs().subtract(44, "hour").toISOString() }
-    ]
-  }
-];
-
-let mockNotifications: NotificationItem[] = [
-  { id: "ntf-1", title: "Đơn ord-02 đang giao", read: false, createdAt: dayjs().subtract(30, "minute").toISOString() },
-  { id: "ntf-2", title: "Có sản phẩm mới từ Lam Dong", read: false, createdAt: dayjs().subtract(1, "hour").toISOString() }
-];
-
-const applyFilters = (items: Product[], filters: SearchFilters): Product[] =>
-  items.filter((item) => {
-    if (filters.keyword && !item.title.toLowerCase().includes(filters.keyword.toLowerCase())) {
-      return false;
-    }
-    if (filters.province && item.province !== filters.province) {
-      return false;
-    }
-    if (filters.category && item.category !== filters.category) {
-      return false;
-    }
-    if (filters.certified !== undefined && item.certified !== filters.certified) {
-      return false;
-    }
-    if (filters.priceMin !== undefined && item.price < filters.priceMin) {
-      return false;
-    }
-    if (filters.priceMax !== undefined && item.price > filters.priceMax) {
-      return false;
-    }
-    return true;
-  });
-
 const PLACEHOLDER_IMAGE = "https://picsum.photos/seed/retail-placeholder/480/280";
+
+function logRetailFailure(context: string, error: unknown): void {
+  if (isAxiosError(error)) {
+    const base = error.config?.baseURL ?? "";
+    const path = error.config?.url ?? "";
+    console.warn(`[retail-api] ${context}`, {
+      requestUrl: base && path ? `${base.replace(/\/$/, "")}/${path.replace(/^\//, "")}` : path,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+  } else {
+    console.warn(`[retail-api] ${context}`, error);
+  }
+}
 
 function normalizeProduct(raw: unknown): Product {
   const row = (raw ?? {}) as Record<string, unknown>;
@@ -195,6 +152,28 @@ function normalizeProduct(raw: unknown): Product {
   };
 }
 
+function normalizeRetailOrder(raw: unknown): RetailOrder {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  const created = row.createdAt;
+  const createdAt =
+    typeof created === "string"
+      ? created
+      : created && typeof created === "object" && "toISOString" in created && typeof (created as Date).toISOString === "function"
+        ? (created as Date).toISOString()
+        : new Date().toISOString();
+
+  return {
+    id: String(row.id ?? ""),
+    productName: String(row.productName ?? ""),
+    quantity: Number(row.quantity ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    paymentGateway: (row.paymentGateway === "MOMO" ? "MOMO" : "VNPAY") as RetailOrder["paymentGateway"],
+    status: row.status as RetailOrderStatus,
+    createdAt,
+    shipmentTimeline: Array.isArray(row.shipmentTimeline) ? (row.shipmentTimeline as RetailOrder["shipmentTimeline"]) : undefined
+  };
+}
+
 export const searchProducts = async (
   filters: SearchFilters,
   page: number,
@@ -206,31 +185,43 @@ export const searchProducts = async (
       params: { ...filters, page, size }
     });
 
-    const source = Array.isArray(response.data?.items)
-      ? response.data.items
-      : Array.isArray(response.data?.content)
-        ? response.data.content
+    const data = response.data as Record<string, unknown> | undefined;
+    const source = Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data?.content)
+        ? data.content
         : Array.isArray(response.data)
           ? response.data
           : [];
-    const items = source.map((row: unknown) => normalizeProduct(row));
-    const hasNext = (response.data?.totalPages ?? page + 1) > page + 1;
+    const items = (source as unknown[]).map((row: unknown) => normalizeProduct(row));
+
+    const total =
+      typeof data?.total === "number"
+        ? data.total
+        : typeof data?.totalElements === "number"
+          ? (data.totalElements as number)
+          : undefined;
+    const totalPages =
+      typeof data?.totalPages === "number"
+        ? (data.totalPages as number)
+        : total !== undefined && size > 0
+          ? Math.ceil(total / size)
+          : undefined;
+    const hasNext = totalPages !== undefined ? page + 1 < totalPages : items.length >= size;
     return { items, nextPage: hasNext ? page + 1 : null };
-  } catch {
-    const filtered = applyFilters(mockProducts, filters);
-    const start = page * size;
-    const items = filtered.slice(start, start + size);
-    const nextPage = start + size < filtered.length ? page + 1 : null;
-    return { items, nextPage };
+  } catch (e) {
+    logRetailFailure("searchProducts", e);
+    throw e;
   }
 };
 
 export const getProductDetail = async (id: string): Promise<Product> => {
   try {
-    const response = await retailApi.get(`/marketplace/products/${id}`, { headers: getRetailAuthHeaders() });
+    const response = await retailApi.get(`/marketplace/products/${encodeURIComponent(id)}`, { headers: getRetailAuthHeaders() });
     return normalizeProduct(response.data);
-  } catch {
-    return mockProducts.find((item) => item.id === id) ?? normalizeProduct({});
+  } catch (e) {
+    logRetailFailure(`getProductDetail(${id})`, e);
+    throw e;
   }
 };
 
@@ -240,46 +231,27 @@ export const createOrder = async (payload: {
   address: string;
   gateway: "VNPAY" | "MOMO";
 }): Promise<{ orderId: string; paymentUrl: string; skipPayment: boolean }> => {
-  try {
-    const response = await retailApi.post(
-      "/orders",
-      {
-        retailerId: getStoredRetailerUserIdFromJwt() ?? "retailer-user-01",
-        farmId: payload.product.farmId,
-        listingId: payload.product.id,
-        productName: payload.product.title,
-        quantity: payload.quantity,
-        totalAmount: payload.quantity * payload.product.price,
-        depositAmount: payload.quantity * payload.product.price,
-        deliveryAddress: payload.address,
-        gateway: payload.gateway
-      },
-      { headers: getRetailAuthHeaders() }
-    );
-    const paymentUrl = String(response.data?.paymentUrl ?? "");
-    return {
-      orderId: response.data?.order?.id ?? response.data?.id ?? `ord-${Date.now()}`,
-      paymentUrl: paymentUrl || "",
-      skipPayment: !paymentUrl
-    };
-  } catch {
-    const orderId = `ord-${Date.now()}`;
-    const newOrder: RetailOrder = {
-      id: orderId,
+  const response = await retailApi.post(
+    "/orders",
+    {
+      retailerId: getStoredRetailerUserIdFromJwt() ?? "retailer-user-01",
+      farmId: payload.product.farmId,
+      listingId: payload.product.id,
       productName: payload.product.title,
       quantity: payload.quantity,
       totalAmount: payload.quantity * payload.product.price,
-      paymentGateway: payload.gateway,
-      status: "PENDING_PAYMENT",
-      createdAt: new Date().toISOString()
-    };
-    mockOrders = [newOrder, ...mockOrders];
-    return {
-      orderId,
-      paymentUrl: `${window.location.origin}/retailer/orders/callback?orderId=${orderId}&gateway=${payload.gateway}&status=success`,
-      skipPayment: false
-    };
-  }
+      depositAmount: payload.quantity * payload.product.price,
+      deliveryAddress: payload.address,
+      gateway: payload.gateway
+    },
+    { headers: getRetailAuthHeaders() }
+  );
+  const paymentUrl = String(response.data?.paymentUrl ?? "");
+  return {
+    orderId: response.data?.order?.id ?? response.data?.id ?? "",
+    paymentUrl,
+    skipPayment: !paymentUrl
+  };
 };
 
 export const callbackPaymentSuccess = async (orderId: string, gateway: "VNPAY" | "MOMO"): Promise<void> => {
@@ -294,15 +266,9 @@ export const callbackPaymentSuccess = async (orderId: string, gateway: "VNPAY" |
       },
       { headers: getRetailAuthHeaders() }
     );
-  } catch {
-    mockOrders = mockOrders.map((order) =>
-      order.id === orderId
-        ? {
-            ...order,
-            status: "PLACED"
-          }
-        : order
-    );
+  } catch (e) {
+    logRetailFailure("callbackPaymentSuccess", e);
+    throw e;
   }
 };
 
@@ -312,18 +278,24 @@ export const getOrdersByStatus = async (status: RetailOrderStatus): Promise<Reta
       headers: getRetailAuthHeaders(),
       params: { status }
     });
-    return (response.data ?? []) as RetailOrder[];
-  } catch {
-    return mockOrders.filter((item) => item.status === status);
+    const raw = response.data;
+    const list = Array.isArray(raw) ? raw : [];
+    return list.map((row) => normalizeRetailOrder(row));
+  } catch (e) {
+    logRetailFailure(`getOrdersByStatus(${status})`, e);
+    throw e;
   }
 };
 
 export const getShippingTimeline = async (orderId: string): Promise<RetailOrder["shipmentTimeline"]> => {
   try {
-    const response = await retailApi.get(`/orders/${orderId}/shipping`, { headers: getRetailAuthHeaders() });
-    return (response.data?.timeline ?? []) as RetailOrder["shipmentTimeline"];
-  } catch {
-    return mockOrders.find((item) => item.id === orderId)?.shipmentTimeline ?? [];
+    const response = await retailApi.get(`/orders/${encodeURIComponent(orderId)}/shipping`, { headers: getRetailAuthHeaders() });
+    const data = response.data as { timeline?: unknown; events?: unknown; shipmentTimeline?: unknown } | undefined;
+    const timeline = data?.timeline ?? data?.shipmentTimeline ?? data?.events;
+    return (Array.isArray(timeline) ? timeline : []) as RetailOrder["shipmentTimeline"];
+  } catch (e) {
+    logRetailFailure(`getShippingTimeline(${orderId})`, e);
+    throw e;
   }
 };
 
@@ -331,18 +303,9 @@ export const qrScanTrace = async (qrCode: string): Promise<TraceResult> => {
   try {
     const response = await retailApi.post("/qr/scan", { qrCode }, { headers: getRetailAuthHeaders() });
     return response.data as TraceResult;
-  } catch {
-    return {
-      seasonId: "season-3",
-      farmId: "farm-2",
-      cropType: "Tomato",
-      txHash: "0xabc123retail",
-      history: [
-        { status: "PREPARING", at: dayjs().subtract(40, "day").toISOString() },
-        { status: "ACTIVE", at: dayjs().subtract(25, "day").toISOString() },
-        { status: "HARVESTED", at: dayjs().subtract(5, "day").toISOString() }
-      ]
-    };
+  } catch (e) {
+    logRetailFailure("qrScanTrace", e);
+    throw e;
   }
 };
 
@@ -352,31 +315,24 @@ export const confirmDelivery = async (orderId: string, recipientNote: string, fi
   files.forEach((file) => form.append("deliveryProofs", file));
 
   try {
-    await retailApi.post(`/orders/${orderId}/confirm-delivery`, form, {
-      headers: getRetailAuthHeaders()
+    await retailApi.post(`/orders/${encodeURIComponent(orderId)}/confirm-delivery`, form, {
+      headers: {
+        ...getRetailAuthHeaders()
+      }
     });
-  } catch {
-    mockOrders = mockOrders.map((item) =>
-      item.id === orderId
-        ? {
-            ...item,
-            status: "DELIVERED",
-            shipmentTimeline: [
-              ...(item.shipmentTimeline ?? []),
-              {
-                status: "DELIVERED",
-                at: new Date().toISOString(),
-                note: recipientNote
-              }
-            ]
-          }
-        : item
-    );
+  } catch (e) {
+    logRetailFailure(`confirmDelivery(${orderId})`, e);
+    throw e;
   }
 };
 
+/** Không có GET /api/retail/notifications trong retailer-service — chờ spec/backend. */
 export const getNotifications = async (): Promise<NotificationItem[]> => {
-  return mockNotifications;
+  console.warn(
+    "[retail-api] getNotifications: không có endpoint trong retailer-service — không dùng mock; trả []. " +
+      "(contracts/api-specs/retailer-service.openapi.yaml cũng chưa định nghĩa notifications.)"
+  );
+  return [];
 };
 
 export const getKeywordSuggestions = async (keyword: string): Promise<string[]> => {
@@ -384,8 +340,19 @@ export const getKeywordSuggestions = async (keyword: string): Promise<string[]> 
   if (!trimmed) {
     return [];
   }
-  return mockProducts
-    .filter((item) => item.title.toLowerCase().includes(trimmed))
-    .slice(0, 8)
-    .map((item) => item.title);
+  try {
+    const response = await retailApi.get("/marketplace/products", {
+      headers: getRetailAuthHeaders(),
+      params: { keyword: trimmed, page: 0, size: 8 }
+    });
+    const data = response.data as { items?: unknown[] } | undefined;
+    const source = Array.isArray(data?.items) ? data.items : [];
+    return source
+      .map((row) => normalizeProduct(row).title)
+      .filter((t, i, a) => t && a.indexOf(t) === i)
+      .slice(0, 8);
+  } catch (e) {
+    logRetailFailure("getKeywordSuggestions", e);
+    return [];
+  }
 };

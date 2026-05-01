@@ -1,13 +1,22 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import { axiosInstance } from "@bicap/api-client";
+import { useAuth } from "@bicap/auth";
+import { tokenStorage } from "@bicap/api-client";
 import { decodeJWT } from "@bicap/auth";
-import type { ApiResponse, AuthTokens } from "@bicap/types";
+
+const ROLE_HOME: Record<string, string> = {
+  ADMIN: "/admin/dashboard",
+  FARM_MANAGER: "/farm/dashboard",
+  RETAILER: "/retailer/dashboard",
+  SHIPPING_MANAGER: "/shipping/dashboard",
+  SHIP_DRIVER: "/shipping/dashboard",
+  SHIPPER: "/shipping/dashboard",
+  GUEST: "/public",
+};
 
 export default function LoginPage() {
-  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -19,39 +28,18 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data } = await axiosInstance.post<ApiResponse<AuthTokens>>("/api/auth/login", {
-        email: email.trim(),
-        password,
-      });
+      // Cập nhật cả AuthProvider context lẫn localStorage + cookie qua tokenStorage.setTokens().
+      await login(email.trim(), password);
 
-      const accessToken = data.data.accessToken;
-      const refreshToken = data.data.refreshToken;
-      localStorage.setItem("bicap_access_token", accessToken);
-      localStorage.setItem("bicap_refresh_token", refreshToken);
-      document.cookie = `bicap_access_token=${accessToken}; path=/; max-age=900; SameSite=Strict`;
+      const token = tokenStorage.getAccessToken();
+      const role = token ? decodeJWT(token)?.role : null;
+      const target = (role && ROLE_HOME[role]) ?? "/public";
 
-      const payload = decodeJWT(accessToken);
-      const role = payload?.role;
-
-      switch (role) {
-        case "ADMIN":
-          router.replace("/admin/dashboard");
-          break;
-        case "FARM_MANAGER":
-          router.replace("/farm/dashboard");
-          break;
-        case "RETAILER":
-          router.replace("/retailer/dashboard");
-          break;
-        case "SHIPPING_MANAGER":
-          router.replace("/shipping/dashboard");
-          break;
-        default:
-          router.replace("/search");
-      }
-    } catch {
-      setError("Email hoac mat khau khong dung.");
-    } finally {
+      // Hard-nav để chắc chắn middleware đọc cookie mới và mọi context được mount lại sạch sẽ.
+      window.location.href = target;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      setError(message || "Email hoac mat khau khong dung.");
       setIsLoading(false);
     }
   };
@@ -108,6 +96,13 @@ export default function LoginPage() {
             {isLoading ? "Dang dang nhap..." : "Dang nhap"}
           </button>
         </form>
+
+        <div className="mt-6 grid grid-cols-2 gap-2 text-center text-[11px] text-gray-400">
+          <span>admin@bicap.io / 123456</span>
+          <span>farm1@bicap.io / 123456</span>
+          <span>retail1@bicap.io / 123456</span>
+          <span>shipper1@bicap.io / 123456</span>
+        </div>
       </div>
     </div>
   );

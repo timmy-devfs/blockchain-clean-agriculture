@@ -1,4 +1,4 @@
-// Local copy for web-shipping build isolation
+// Local copy for shipping module build isolation
 // (kept in sync with frontend/shared/data.ts for demo UI)
 
 export const DRIVERS: {

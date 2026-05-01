@@ -6,17 +6,16 @@ import type { NavItem } from "@bicap/ui";
 import { ProtectedRoute } from "@bicap/auth";
 import { UserRole } from "@bicap/types";
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/retailer/dashboard", label: "Dashboard", allowedRoles: [UserRole.RETAILER] },
-  { href: "/retailer/marketplace", label: "Tim kiem", allowedRoles: [UserRole.RETAILER] },
-  { href: "/retailer/orders", label: "Don hang", allowedRoles: [UserRole.RETAILER] },
-  { href: "/retailer/shipments", label: "Van chuyen", allowedRoles: [UserRole.RETAILER] },
-];
+// Legacy Retailer console (Vite App.tsx) đã có Ant Sider + Header riêng,
+// nên ẩn sidebar/padding của AppShell để tránh double-sidebar và tab tràn.
+const NAV_ITEMS: NavItem[] = [];
 
 export default function RetailerLayout({ children }: { children: ReactNode }) {
   return (
     <ProtectedRoute allowedRoles={[UserRole.RETAILER]}>
-      <AppShell navItems={NAV_ITEMS}>{children}</AppShell>
+      <AppShell navItems={NAV_ITEMS} hideSidebar noContentPadding>
+        {children}
+      </AppShell>
     </ProtectedRoute>
   );
 }

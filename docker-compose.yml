@@ -529,6 +529,10 @@ services:
     build:
       context: ./frontend
       dockerfile: web-app/Dockerfile
+      args:
+        DOCKER_BUILD: "1"
+        # URL gọi từ TRÌNH DUYỆT — phải đi qua nginx (:80) để host resolve được.
+        NEXT_PUBLIC_API_URL: http://localhost/api
     container_name: bicap-web-app
     <<: *default-restart
     networks: [bicap-network]
