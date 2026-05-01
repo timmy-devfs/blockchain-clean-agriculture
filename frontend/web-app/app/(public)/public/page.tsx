@@ -1,195 +1,294 @@
-﻿// app/page.tsx — Landing Page (SSG)
-// BIC-035: hero + search bar + HowItWorks + FeaturedProducts + stats
+﻿"use client";
 
-import Link from 'next/link';
-import { getPublicProducts } from "@/public-site/data/public-trace-demo";
-import '../home.css';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ARTICLES_INDEX } from "@/public-site/data/articles-content";
+import { PUBLIC_PRODUCT_IMAGE_OVERRIDES } from "@/public-site/data/public-product-images";
 
-const STATS = [
-  { value: '1,240+', label: 'Lô hàng đã truy xuất' },
-  { value: '320+',   label: 'Nông trại tham gia' },
-  { value: '98%',    label: 'Dữ liệu blockchain xác thực' },
-  { value: '15+',    label: 'Tỉnh thành phủ sóng' },
+type ProductCardData = {
+  id: string;
+  name: string;
+  farmName: string;
+  province: string;
+  imageUrl?: string;
+  certification?: string;
+};
+
+type Announcement = {
+  id: string;
+  title: string;
+  message?: string;
+};
+
+type ArticlePreview = {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  thumbnail?: string;
+};
+
+const FALLBACK_PRODUCTS: ProductCardData[] = [
+  { id: "SP001", name: "Gạo ST25 Sóc Trăng", farmName: "Farm Mekong Delta", province: "Sóc Trăng", certification: "VietGAP", imageUrl: PUBLIC_PRODUCT_IMAGE_OVERRIDES.SP001 },
+  { id: "SP002", name: "Cà phê Arabica Đà Lạt", farmName: "Highland Coffee Farm", province: "Lâm Đồng", certification: "OCOP", imageUrl: PUBLIC_PRODUCT_IMAGE_OVERRIDES.SP002 },
+  { id: "SP004", name: "Thanh long ruột đỏ", farmName: "Dragon Fruit Farm", province: "Bình Thuận", certification: "GlobalGAP", imageUrl: PUBLIC_PRODUCT_IMAGE_OVERRIDES.SP004 },
 ];
 
-const HOW_IT_WORKS = [
-  {
-    step: '01',
-    icon: '🌾',
-    title: 'Nông trại',
-    desc: 'Dữ liệu mùa vụ, chăm sóc, thu hoạch được ghi nhận tại nguồn theo thời gian thực.',
-  },
-  {
-    step: '02',
-    icon: '⛓',
-    title: 'Blockchain',
-    desc: 'Thông tin được mã hóa và ghi vĩnh viễn lên VeChainThor — không thể chỉnh sửa hay xóa.',
-  },
-  {
-    step: '03',
-    icon: '🛒',
-    title: 'Người tiêu dùng',
-    desc: 'Tra cứu bằng mã lô hàng để xem ngay toàn bộ hành trình từ đất đến tay bạn.',
-  },
-];
+const FALLBACK_ARTICLES: ArticlePreview[] = ARTICLES_INDEX.slice(0, 3).map((a) => ({
+  id: a.id,
+  title: a.title,
+  category: a.category,
+  date: a.date,
+}));
 
-export default function HomePage() {
-  const FEATURED_PRODUCTS = getPublicProducts().slice(0, 6);
+function normalizePublicData<T>(payload: unknown): T | null {
+  if (payload != null && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
+function mapFeaturedProducts(payload: unknown): ProductCardData[] {
+  const data = normalizePublicData<unknown>(payload);
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { content?: unknown[] } | null)?.content)
+      ? (data as { content: unknown[] }).content
+      : [];
+  return rows
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      const id = String(r.id ?? r.code ?? "");
+      return {
+        id,
+        name: String(r.name ?? r.productName ?? "Nông sản"),
+        farmName: String(r.farmName ?? r.farm ?? "Nông trại BICAP"),
+        province: String(r.province ?? r.origin ?? "Việt Nam"),
+        imageUrl:
+          (typeof r.imageUrl === "string" && r.imageUrl.trim()) ||
+          PUBLIC_PRODUCT_IMAGE_OVERRIDES[id.toUpperCase()],
+        certification: String(r.certification ?? r.badge ?? "Blockchain xác thực"),
+      } as ProductCardData;
+    })
+    .filter((x) => x.id && x.name);
+}
+
+function mapAnnouncements(payload: unknown): Announcement[] {
+  const data = normalizePublicData<unknown>(payload);
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { content?: unknown[] } | null)?.content)
+      ? (data as { content: unknown[] }).content
+      : [];
+  return rows
+    .map((row, i) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: String(r.id ?? `ann-${i}`),
+        title: String(r.title ?? "Thông báo"),
+        message: String(r.message ?? r.content ?? ""),
+      };
+    })
+    .filter((x) => x.title);
+}
+
+function mapArticles(payload: unknown): ArticlePreview[] {
+  const data = normalizePublicData<unknown>(payload);
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { content?: unknown[] } | null)?.content)
+      ? (data as { content: unknown[] }).content
+      : [];
+  return rows
+    .map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: String(r.id ?? ""),
+        title: String(r.title ?? "Bài viết"),
+        category: String(r.category ?? "Tin tức"),
+        date: String(r.date ?? r.publishedAt ?? ""),
+        thumbnail: typeof r.thumbnail === "string" ? r.thumbnail : undefined,
+      };
+    })
+    .filter((x) => x.id && x.title)
+    .slice(0, 3);
+}
+
+function ProductCard({ name, farmName, province, imageUrl, certification }: ProductCardData) {
   return (
-    <main className="home-page">
-      <nav className="home-nav">
-        <div className="home-nav-inner">
-          <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 22 }}>🌿</span>
-            <span style={{ fontFamily: 'Lora, Georgia, serif', fontWeight: 700, fontSize: 18, color: '#1a1a0e' }}>BICAP</span>
-            <span
-              style={{
-                fontSize: 10,
-                color: '#aaa',
-                fontFamily: '"Be Vietnam Pro", sans-serif',
-                letterSpacing: '0.8px',
-                marginTop: 2,
-                whiteSpace: 'nowrap',
-                textTransform: 'uppercase',
-              }}
-            >
-              Truy xuất nguồn gốc
-            </span>
-          </Link>
-          <div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap' }}>
-            <a href="#how-it-works" className="nav-link">
-              Cách hoạt động
-            </a>
-            <Link href="/products" className="nav-link">
-              Sản phẩm
-            </Link>
-            <Link href="/articles" className="nav-link">
-              Tin tức
-            </Link>
-            <Link href="/trace" className="nav-qr-btn">
-              Tra cứu
-            </Link>
-          </div>
-        </div>
-      </nav>
+    <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className="h-44 bg-linear-to-br from-green-100 to-emerald-50">
+        {imageUrl ? (
+          <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-4xl">🌿</div>
+        )}
+      </div>
+      <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-1 text-xs font-semibold text-white">
+        {certification ?? "Blockchain"}
+      </span>
+      <div className="space-y-1 p-4">
+        <h3 className="line-clamp-2 text-base font-semibold text-gray-900">{name}</h3>
+        <p className="text-sm text-gray-600">{farmName}</p>
+        <p className="text-xs text-gray-500">{province}</p>
+      </div>
+    </article>
+  );
+}
 
-      {/* ── HERO ── */}
-      <section style={{
-        background: 'linear-gradient(160deg, #1a3d1a 0%, #2d6a2d 50%, #4a8c4a 100%)',
-        padding: '100px 24px 80px', textAlign: 'center', position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', top: -80, right: -80, width: 400, height: 400, borderRadius: '50%', background: 'rgba(255,255,255,.04)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -60, left: -60, width: 300, height: 300, borderRadius: '50%', background: 'rgba(255,255,255,.03)', pointerEvents: 'none' }} />
+export default function PublicLandingPage() {
+  const [featuredProducts, setFeaturedProducts] = useState<ProductCardData[]>(FALLBACK_PRODUCTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [articles, setArticles] = useState<ArticlePreview[]>(FALLBACK_ARTICLES);
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
 
-        <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
-          <p className="fade-up fade-up-1" style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 11, fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase', color: '#a8d5a8', marginBottom: 20 }}>
-            Blockchain · VeChainThor · Minh bạch
-          </p>
-          <h1 className="hero-title fade-up fade-up-2" style={{ fontSize: 'clamp(32px, 5.5vw, 62px)', fontWeight: 700, color: '#fff', lineHeight: 1.2, marginBottom: 24 }}>
-            Biết rõ hành trình{' '}
-            <span style={{ color: '#a8d5a8', fontStyle: 'italic' }}>từng hạt gạo</span>{' '}
-            đến tay bạn
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPublicSections() {
+      try {
+        const res = await fetch("/api/public/products/featured", { cache: "no-store" });
+        if (res.ok) {
+          const body = (await res.json()) as unknown;
+          const rows = mapFeaturedProducts(body);
+          if (mounted && rows.length > 0) setFeaturedProducts(rows.slice(0, 6));
+        }
+      } catch {
+        // fallback data is already set
+      }
+
+      try {
+        const res = await fetch("/api/public/announcements", { cache: "no-store" });
+        if (res.ok) {
+          const body = (await res.json()) as unknown;
+          if (mounted) setAnnouncements(mapAnnouncements(body));
+        }
+      } catch {
+        if (mounted) setAnnouncements([]);
+      }
+
+      try {
+        const res = await fetch("/api/public/articles?page=0&size=3", { cache: "no-store" });
+        if (res.ok) {
+          const body = (await res.json()) as unknown;
+          const rows = mapArticles(body);
+          if (mounted && rows.length > 0) setArticles(rows);
+        }
+      } catch {
+        // keep fallback
+      }
+    }
+
+    void loadPublicSections();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (announcements.length <= 1) return;
+    const id = window.setInterval(() => {
+      setAnnouncementIndex((cur) => (cur + 1) % announcements.length);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [announcements.length]);
+
+  const activeAnnouncement = useMemo(
+    () => (announcements.length > 0 ? announcements[announcementIndex] : null),
+    [announcements, announcementIndex],
+  );
+
+  return (
+    <main className="bg-gray-50">
+      <section className="relative overflow-hidden bg-linear-to-br from-green-900 to-green-700 px-6 py-20 text-white">
+        <div className="pointer-events-none absolute -right-20 -top-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-14 -left-16 h-52 w-52 rounded-full bg-emerald-300/20 blur-2xl" />
+
+        <div className="mx-auto max-w-5xl text-center">
+          <h1 className="text-4xl font-bold leading-tight md:text-5xl">
+            Nông sản sạch — Minh bạch từ gốc
           </h1>
-          <p className="fade-up fade-up-3" style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 17, color: 'rgba(255,255,255,.75)', lineHeight: 1.8, maxWidth: 520, margin: '0 auto 40px' }}>
-            Nhập mã lô hàng — xem ngay toàn bộ hành trình nông sản được ghi nhận bất biến trên blockchain.
+          <p className="mx-auto mt-4 max-w-2xl text-base text-green-100 md:text-lg">
+            Quét QR để truy xuất nguồn gốc blockchain ngay trên điện thoại
           </p>
-
-          <div className="fade-up fade-up-4 search-wrap">
-            <form action="/trace" method="get">
-              <input
-                className="search-inp"
-                name="id"
-                type="text"
-                autoComplete="off"
-                aria-label="Mã lô hàng"
-              />
-              <button type="submit" className="search-btn">🔍 Tra cứu</button>
-            </form>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/search"
+              className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-green-800 transition hover:bg-green-50"
+            >
+              Tìm kiếm nông sản
+            </Link>
+            <Link
+              href="/trace"
+              className="rounded-xl border border-white/40 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+            >
+              Quét mã QR
+            </Link>
           </div>
-          <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 12, color: 'rgba(255,255,255,.4)', marginTop: 14 }}>
-            Không cần đăng nhập · Hoàn toàn miễn phí
-          </p>
         </div>
       </section>
 
-      {/* ── STATS ── */}
-      <section style={{ background: '#2d6a2d', padding: '36px 24px' }}>
-        <div className="stats-grid">
-          {STATS.map((s, i) => (
-            <div key={i} className="stat-item">
-              <div style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 34, fontWeight: 700, color: '#fff' }}>{s.value}</div>
-              <div
-                style={{
-                  fontFamily: 'Be Vietnam Pro, sans-serif',
-                  fontSize: 13,
-                  color: 'rgba(255,255,255,.65)',
-                  marginTop: 4,
-                  lineHeight: 1.35,
-                  wordBreak: 'break-word',
-                }}
-              >
-                {s.label}
-              </div>
+      {activeAnnouncement && (
+        <section className="border-b border-emerald-200 bg-emerald-50 px-6 py-4">
+          <div className="mx-auto max-w-5xl transition-all duration-500">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Thông báo</p>
+            <p className="mt-1 text-sm font-semibold text-emerald-900">{activeAnnouncement.title}</p>
+            {activeAnnouncement.message ? (
+              <p className="mt-0.5 text-sm text-emerald-800">{activeAnnouncement.message}</p>
+            ) : null}
+          </div>
+        </section>
+      )}
+
+      <section className="px-6 py-14">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Nổi bật</p>
+              <h2 className="mt-1 text-2xl font-bold text-gray-900">Sản phẩm tiêu biểu</h2>
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ── */}
-      <section id="how-it-works" style={{ padding: '96px 24px', background: '#fafaf7' }}>
-        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
-          <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 11, fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase', color: '#2d6a2d', textAlign: 'center', marginBottom: 12 }}>Quy trình</p>
-          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 38, fontWeight: 700, textAlign: 'center', color: '#1a1a0e', marginBottom: 60 }}>Cách hoạt động</h2>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            {HOW_IT_WORKS.map((h, i) => (
-              <div key={i} className="step-card">
-                <div style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 52, fontWeight: 700, color: '#ede9d8', position: 'absolute', top: 16, right: 20, lineHeight: 1 }}>{h.step}</div>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>{h.icon}</div>
-                <h3 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 21, fontWeight: 700, color: '#1a1a0e', marginBottom: 10 }}>{h.title}</h3>
-                <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 15, color: '#5a5a4a', lineHeight: 1.75 }}>{h.desc}</p>
-              </div>
+            <Link href="/products" className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+              Xem tất cả →
+            </Link>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {featuredProducts.slice(0, 6).map((product) => (
+              <ProductCard key={product.id} {...product} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── FEATURED PRODUCTS ── */}
-      <section style={{ padding: '80px 24px', background: '#f2f2ec' }}>
-        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 48, flexWrap: 'wrap', gap: 16 }}>
+      <section className="bg-white px-6 py-14">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 11, fontWeight: 600, letterSpacing: '3px', textTransform: 'uppercase', color: '#2d6a2d', marginBottom: 10 }}>Nổi bật</p>
-              <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 34, fontWeight: 700, color: '#1a1a0e' }}>Sản phẩm tiêu biểu</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Bài viết</p>
+              <h2 className="mt-1 text-2xl font-bold text-gray-900">Góc chia sẻ mới nhất</h2>
             </div>
-            <Link href="/products" style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 14, fontWeight: 600, color: '#2d6a2d', textDecoration: 'none', borderBottom: '2px solid #2d6a2d', paddingBottom: 2 }}>
-              Xem tất cả →
+            <Link href="/articles" className="text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+              Xem tất cả bài viết →
             </Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 22 }}>
-            {FEATURED_PRODUCTS.map(p => (
-              <Link key={p.id} href={`/trace/${p.id}`} style={{ textDecoration: 'none' }}>
-                <div className="product-card">
-                  <div style={{ background: `linear-gradient(135deg, ${p.color})`, height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
-                    {p.imageUrl ? (
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      p.img
-                    )}
-                  </div>
-                  <div style={{ padding: '18px 20px' }}>
-                    <div style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 10, fontWeight: 600, letterSpacing: '1.2px', textTransform: 'uppercase', color: '#2d6a2d', marginBottom: 6 }}>
-                      {p.origin}
-                    </div>
-                    <h3 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 18, fontWeight: 600, color: '#1a1a0e', marginBottom: 6, lineHeight: 1.35 }}>{p.name}</h3>
-                    <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 12, color: '#999', marginBottom: 14 }}>{p.farm}</p>
-                    <span style={{ fontSize: 11, background: '#e8f5e9', color: '#2d6a2d', padding: '3px 10px', borderRadius: 99, fontWeight: 600, fontFamily: 'Be Vietnam Pro, sans-serif' }}>
-                      ⛓ Blockchain xác thực
-                    </span>
-                  </div>
+
+          <div className="space-y-3">
+            {articles.slice(0, 3).map((article) => (
+              <Link
+                key={article.id}
+                href={`/articles/${article.id}`}
+                className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 transition hover:border-emerald-300 md:flex-row md:items-center"
+              >
+                <div className="h-20 w-full shrink-0 rounded-lg bg-linear-to-br from-green-200 to-emerald-100 md:w-28">
+                  {article.thumbnail ? (
+                    <img src={article.thumbnail} alt={article.title} className="h-full w-full rounded-lg object-cover" />
+                  ) : null}
+                </div>
+                <div className="min-w-0">
+                  <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                    {article.category}
+                  </span>
+                  <h3 className="mt-2 line-clamp-2 text-base font-semibold text-gray-900">{article.title}</h3>
+                  <p className="mt-1 text-xs text-gray-500">{article.date}</p>
                 </div>
               </Link>
             ))}
@@ -197,28 +296,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── CTA BANNER ── */}
-      <section style={{ padding: '96px 24px', background: '#1a3d1a', textAlign: 'center' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 40, fontWeight: 700, color: '#fff', marginBottom: 20, lineHeight: 1.25 }}>
-            Tra cứu nguồn gốc ngay hôm nay
-          </h2>
-          <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 16, color: 'rgba(255,255,255,.65)', lineHeight: 1.8, marginBottom: 40 }}>
-            Mỗi mã lô là một cam kết minh bạch. Hàng ngàn lô nông sản đang chờ bạn khám phá hành trình của chúng.
-          </p>
-          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/trace" className="cta-btn" style={{ background: '#fff', color: '#1a3d1a' }}>🔍 Tra cứu ngay</Link>
-            <Link href="/products" className="cta-btn" style={{ background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,.35)' }}>Xem sản phẩm →</Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FOOTER ── */}
-      <footer style={{ background: '#111', padding: '40px 24px', textAlign: 'center' }}>
-        <div style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 20, fontWeight: 700, color: '#fff', marginBottom: 8 }}>🌿 BICAP</div>
-        <p style={{ fontFamily: 'Be Vietnam Pro, sans-serif', fontSize: 13, color: '#555' }}>
-          Blockchain Integration in Clean Agricultural Production · © 2026
+      <footer className="border-t border-gray-200 bg-gray-950 px-6 py-8 text-center text-gray-300">
+        <p className="text-sm">
+          BICAP © 2025 — Blockchain Integration in Clean Agricultural Production
         </p>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm">
+          <Link href="/search" className="hover:text-white">Tìm kiếm</Link>
+          <Link href="/articles" className="hover:text-white">Bài viết</Link>
+          <Link href="/trace" className="hover:text-white">Truy xuất QR</Link>
+          <Link href="/login" className="hover:text-white">Đăng nhập</Link>
+        </div>
       </footer>
     </main>
   );

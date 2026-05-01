@@ -120,3 +120,56 @@ P1/P2 da xu ly:
 - Repo da sach hon sau cleanup app cu.
 - Team co the tiep tuc trien khai tren `web-app` ma khong can quay lai 5 web legacy.
 
+
+7) MIGRATION AUDIT SNAPSHOT (GOP TU WEB_APP_MIGRATION_AUDIT_SUMMARY)
+================================================================================
+
+7.1) Routing theo role (tham chieu app cu)
+
+| URL Prefix    | Role              | App cu        |
+|---------------|-------------------|---------------|
+| `/admin/*`    | ADMIN             | web-admin     |
+| `/farm/*`     | FARM_MANAGER      | web-farm      |
+| `/retailer/*` | RETAILER          | web-retailer  |
+| `/shipping/*` | SHIPPING_MANAGER  | web-shipping  |
+| `/public/*`   | GUEST             | web-public    |
+
+7.2) Auth flow tom tat
+
+Login -> JWT -> cookie `bicap_access_token` -> middleware decode role -> redirect dung dashboard.
+
+7.3) Legacy code (ly do nhung tam thoi)
+
+Do gioi han thoi gian sprint, code legacy farm/retailer/shipping duoc nhung vao Next.js qua
+`next/dynamic` + `ssr:false`. Ke hoach refactor native page sau khi demo on dinh.
+
+7.4) Trang thai module hien tai
+
+- Admin: DONE
+- Farm: DONE
+- Retailer: DONE
+- Shipping: DONE
+- Public: DONE
+
+7.5) Known issues (dang theo doi)
+
+- IoT health qua gateway (`/api/iot/health`) co the yeu cau token tuy config auth.
+- Neu doi `NEXT_PUBLIC_API_URL` can rebuild web-app image de browser bundle cap nhat.
+- `pnpm dev` co the loi `EADDRINUSE` neu port 3000 dang bi process khac chiem.
+
+7.6) Cach chay cho nguoi moi clone ve
+
+cd frontend
+pnpm install
+cd web-app
+pnpm typecheck
+pnpm dev
+
+Mo: http://localhost:3000
+
+7.7) Cach chay Docker
+
+docker compose up -d --build web-app nginx api-gateway
+
+Mo: http://localhost (qua Nginx)
+

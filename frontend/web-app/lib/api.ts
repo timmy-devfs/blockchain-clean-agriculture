@@ -6,6 +6,7 @@ import type {
   Farm,
   Order,
   Shipment,
+  IoTReading,
 } from "@bicap/types";
 
 function unwrapBody<T>(body: unknown): T {
@@ -471,4 +472,13 @@ export interface DashboardStats {
 export const getDashboardStats = () =>
   axiosInstance
     .get<ApiResponse<DashboardStats>>("/api/reports/admin/dashboard")
+    .then((r) => r.data.data);
+
+// ─── IoT ──────────────────────────────────────────────────────────────────
+
+export const getIoTReadings = (farmId: string, type?: string) =>
+  axiosInstance
+    .get<ApiResponse<PageResponse<IoTReading>>>("/api/iot/readings", {
+      params: { farmId, type },
+    })
     .then((r) => r.data.data);

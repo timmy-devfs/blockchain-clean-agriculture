@@ -1,0 +1,163 @@
+BICAP TEAM ONBOARDING QUICKSTART (1 FILE)
+=========================================
+
+Last update: 2026-05-01
+Muc tieu: Huong dan thanh vien moi chay duoc he thong nhanh, dung thu tu, khong bo sot cau hinh quan trong.
+
+
+0) YEU CAU MAY
+==============
+
+- Docker Desktop (bat Linux engine)
+- Node.js LTS + pnpm
+- Make (de chay `make make-topics`)
+- OS khuyen nghi: Windows + PowerShell (neu dung PowerShell, uu tien `curl.exe`)
+
+
+1) CAU TRUC HE THONG FRONTEND HIEN TAI
+======================================
+
+- Frontend da gop ve 1 app duy nhat: `frontend/web-app` (Next.js 14).
+- Route chinh:
+  - `/admin/*` (ADMIN)
+  - `/farm/*` (FARM_MANAGER)
+  - `/retailer/*` (RETAILER)
+  - `/shipping/*` (SHIPPING_MANAGER/SHIPPER)
+  - `/public/*` (khong can login)
+- Browser goi API qua gateway:
+  - `NEXT_PUBLIC_API_URL=http://localhost/api`
+
+
+2) BAT BUOC CAU HINH ENV
+========================
+
+File can co: `frontend/web-app/.env.local`
+
+Noi dung toi thieu:
+`NEXT_PUBLIC_API_URL=http://localhost/api`
+
+Luu y quan trong:
+- Neu de `http://localhost:8080` trong frontend bundle se de gay CORS/route mismatch.
+- Sau khi doi `NEXT_PUBLIC_API_URL`, neu chay Docker frontend can rebuild image `web-app`.
+
+
+3) CHAY FULL STACK BANG DOCKER (KHUYEN NGHI CHO TEAM)
+======================================================
+
+Dung o root repo: `D:\Projects\blockchain-clean-agriculture`
+
+1) Clean stack cu:
+   docker compose down --volumes --remove-orphans
+
+2) Build + up:
+   docker compose up -d --build
+
+3) Tao Kafka topics:
+   make make-topics
+
+4) Kiem tra health:
+   docker compose ps
+   curl.exe -s http://localhost/nginx-health
+   curl.exe -s http://localhost:8080/actuator/health
+
+Expected:
+- Nginx: `{"status":"UP"}`
+- Gateway: status `UP`
+- Cac service chinh la `Up (healthy)`
+
+
+4) DANG KY TAI KHOAN DEMO (NEU CAN RESET)
+=========================================
+
+1) Reset user demo + Redis:
+   docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io','retail1@bicap.io','shipper1@bicap.io');"
+   docker exec bicap-redis redis-cli FLUSHALL
+
+2) Register lai:
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"retail1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Retail Demo\",\"role\":\"RETAILER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Shipping Demo\",\"role\":\"SHIPPER\"}"
+
+
+5) CHAY WEB LOCAL (OPTIONAL, KHI DEV FRONTEND)
+==============================================
+
+Neu backend da chay bang Docker, co the chay frontend local:
+
+1) cd frontend
+2) pnpm install
+3) cd web-app
+4) pnpm typecheck
+5) pnpm dev
+
+Mo:
+- Local dev: http://localhost:3000
+- Qua Nginx: http://localhost
+
+
+6) SMOKE TEST BAT BUOC SAU KHI CHAY
+===================================
+
+A. API/Gateway:
+- curl.exe -s http://localhost/nginx-health
+- curl.exe -s http://localhost:8080/actuator/health
+
+B. Web routes:
+- http://localhost/login
+- http://localhost/public
+- http://localhost/admin/dashboard
+- http://localhost/farm/dashboard
+- http://localhost/retailer/dashboard
+- http://localhost/shipping/dashboard
+
+C. Public pages:
+- http://localhost/articles
+- http://localhost/products
+- http://localhost/trace
+
+
+7) TEST LUONG FARM -> BLOCKCHAIN (RUT GON)
+==========================================
+
+1) Login admin + farm de lay `ADMIN_ID`, `FARMER_ID`
+2) FARM_MANAGER tao farm: `POST /api/farm/farms`
+3) ADMIN approve farm: `PUT /api/farm/admin/farms/{farmId}/approve`
+4) FARM_MANAGER tao season: `POST /api/farm/seasons`
+5) ADMIN approve season: `PUT /api/farm/admin/seasons/{seasonId}/approve`
+6) FARM_MANAGER xem season detail: `GET /api/farm/seasons/{seasonId}`
+7) Kiem tra `txHash` duoc cap nhat (tuy env co the delay/null neu callback chain khong ve)
+
+Chi tiet command day du xem file:
+- `docs/FARM_CHECK_CREATE_BLOCKCHAIN.txt`
+
+
+8) TROUBLESHOOT NHANH
+=====================
+
+1) Loi Docker engine pipe / khong ket noi duoc Docker:
+- Mo Docker Desktop, doi engine running
+- Thu lai: `docker info`
+
+2) Loi port 3000 dang bi chiem:
+- netstat -ano | findstr :3000
+- taskkill /PID <PID> /F
+
+3) Frontend van goi API URL cu sau khi sua env:
+- docker compose build --no-cache web-app
+- docker compose up -d web-app
+- hard refresh browser (Ctrl+Shift+R)
+
+4) IoT health check qua gateway bao can token:
+- `/api/iot/health` co the bi auth filter
+- check truc tiep service: `curl.exe -s http://localhost:8087/health`
+
+
+9) FILE THAM CHIEU CHINH
+========================
+
+- `docs/API_CHECK_AUTH+WEB.txt`
+- `docs/FARM_CHECK_CREATE_BLOCKCHAIN.txt`
+- `docs/FE_CURRENT_STATUS.txt`
+- `docs/WEB_APP_SUM_UPDATE.txt`
+
