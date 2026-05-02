@@ -43,7 +43,7 @@ const roleHomePath: Record<string, string> = {
   SHIPPING_MANAGER: "/shipping/dashboard",
   SHIP_DRIVER: "/shipping/dashboard",
   SHIPPER: "/shipping/dashboard",
-  GUEST: "/search",
+  GUEST: "/public",
 };
 
 function decodeJWTPayload(token: string): JwtPayload | null {
@@ -52,7 +52,7 @@ function decodeJWTPayload(token: string): JwtPayload | null {
     if (!base64Payload) return null;
     const normalized = base64Payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
-    const decoded = atob(padded);
+    const decoded = Buffer.from(padded, "base64").toString("utf8");
     return JSON.parse(decoded);
   } catch {
     return null;
@@ -86,8 +86,8 @@ export function middleware(request: NextRequest) {
 
   const target = roleRouteGuard.find((item) => pathname.startsWith(item.prefix));
   if (!target) {
-    const homePath = payload.role ? roleHomePath[payload.role] : "/search";
-    return NextResponse.redirect(new URL(homePath ?? "/search", request.url));
+    const homePath = payload.role ? roleHomePath[payload.role] : "/public";
+    return NextResponse.redirect(new URL(homePath ?? "/public", request.url));
   }
 
   if (target.allowedRoles && (!payload.role || !target.allowedRoles.includes(payload.role))) {

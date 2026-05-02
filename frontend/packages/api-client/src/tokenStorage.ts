@@ -15,12 +15,12 @@ function readCookie(name: string): string | null {
 
 function writeAccessCookie(token: string): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${ACCESS_COOKIE_MAX_AGE_SEC}; SameSite=Lax`;
+  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${ACCESS_COOKIE_MAX_AGE_SEC}; SameSite=Strict`;
 }
 
 function clearAccessCookie(): void {
   if (typeof document === "undefined") return;
-  document.cookie = `${ACCESS_TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${ACCESS_TOKEN_KEY}=; path=/; max-age=0; SameSite=Strict`;
 }
 
 export const tokenStorage = {

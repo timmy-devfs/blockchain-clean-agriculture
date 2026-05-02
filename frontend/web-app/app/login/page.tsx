@@ -32,6 +32,9 @@ export default function LoginPage() {
       await login(email.trim(), password);
 
       const token = tokenStorage.getAccessToken();
+      if (token) {
+        document.cookie = `bicap_access_token=${encodeURIComponent(token)}; path=/; max-age=28800; SameSite=Strict`;
+      }
       const role = token ? decodeJWT(token)?.role : null;
       const target = (role && ROLE_HOME[role]) ?? "/public";
 
