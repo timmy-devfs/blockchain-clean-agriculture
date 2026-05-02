@@ -78,6 +78,7 @@ public class ReportService {
         payload.put("approvedFarms", 0);
         payload.put("totalRetailers", 0);
         payload.put("ordersToday", 0);
+        payload.put("blockchainTxns", 0);
         payload.put("revenueThisMonth", 0);
         payload.put("revenueByMonth", List.of());
         payload.put("ordersByMonth", List.of());

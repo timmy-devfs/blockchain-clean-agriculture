@@ -4,6 +4,54 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 import { PublicNav } from "@/components/public/PublicNav";
 import { ARTICLES_INDEX } from "@/public-site/data/articles-content";
+import { getPublicApiBaseUrl } from "@/lib/publicApiUrl";
+
+type ArticleCard = (typeof ARTICLES_INDEX)[number];
+
+function unwrapPublicPayload(payload: unknown): unknown {
+  if (payload != null && typeof payload === "object" && "data" in payload) {
+    return (payload as { data: unknown }).data;
+  }
+  return payload;
+}
+
+function mapPublicArticles(payload: unknown): ArticleCard[] {
+  const raw = unwrapPublicPayload(payload);
+  const rows = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as { content?: unknown[] } | null)?.content)
+      ? (raw as { content: unknown[] }).content
+      : [];
+  return rows
+    .map((row, i) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: String(r.id ?? `api-${i}`),
+        title: String(r.title ?? "Bài viết"),
+        excerpt: String(r.excerpt ?? r.summary ?? ""),
+        category: String(r.category ?? "Tin tức"),
+        date: String(r.date ?? r.publishedAt ?? ""),
+        readTime: String(r.readTime ?? "—"),
+        img: "📰",
+      };
+    })
+    .filter((x) => x.id && x.title);
+}
+
+async function loadArticleIndex(): Promise<ArticleCard[]> {
+  try {
+    const base = getPublicApiBaseUrl();
+    const res = await fetch(`${base}/public/articles?page=0&size=50`, {
+      next: { revalidate: 120 },
+    });
+    if (!res.ok) return ARTICLES_INDEX;
+    const body = (await res.json()) as unknown;
+    const mapped = mapPublicArticles(body);
+    return mapped.length > 0 ? mapped : ARTICLES_INDEX;
+  } catch {
+    return ARTICLES_INDEX;
+  }
+}
 
 export const metadata: Metadata = {
   title: 'Tin tức & Kiến thức nông nghiệp | BICAP',
@@ -22,10 +70,11 @@ export default async function ArticlesPage({
 }: {
   searchParams: Promise<{ cat?: string }> | { cat?: string };
 }) {
+  const articlesSource = await loadArticleIndex();
   const sp = await Promise.resolve(searchParams);
   const cat = sp.cat || 'Tất cả';
   const filtered =
-    cat === 'Tất cả' ? ARTICLES_INDEX : ARTICLES_INDEX.filter((a) => a.category === cat);
+    cat === 'Tất cả' ? articlesSource : articlesSource.filter((a) => a.category === cat);
   const hero = filtered[0];
   const rest = filtered.slice(1);
 
@@ -130,8 +179,8 @@ export default async function ArticlesPage({
         )}
 
         <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
-          {filtered.length === ARTICLES_INDEX.length
-            ? `Tất cả ${ARTICLES_INDEX.length} bài viết`
+          {filtered.length === articlesSource.length
+            ? `Tất cả ${articlesSource.length} bài viết`
             : `Hiển thị ${filtered.length} bài trong mục “${cat}”`}
         </p>
 

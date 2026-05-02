@@ -196,6 +196,10 @@ function mapFarmRow(f: Record<string, unknown>): Farm {
               : toIsoString((licenseRaw as Record<string, unknown>).expiresAt),
           createdAt: toIsoString((licenseRaw as Record<string, unknown>).createdAt),
           updatedAt: toIsoString((licenseRaw as Record<string, unknown>).updatedAt),
+          fileUrl:
+            typeof (licenseRaw as Record<string, unknown>).fileUrl === "string"
+              ? String((licenseRaw as Record<string, unknown>).fileUrl)
+              : undefined,
         }
       : null;
 
@@ -464,15 +468,41 @@ export interface DashboardStats {
   approvedFarms: number;
   totalRetailers: number;
   ordersToday: number;
+  /** Giao dịch / mốc blockchain (dashboard báo cáo) */
+  blockchainTxns?: number;
   revenueThisMonth: number;
   revenueByMonth: { month: string; revenue: number }[];
   ordersByMonth: { month: string; orders: number }[];
 }
 
+const EMPTY_DASHBOARD: DashboardStats = {
+  approvedFarms: 0,
+  totalRetailers: 0,
+  ordersToday: 0,
+  blockchainTxns: 0,
+  revenueThisMonth: 0,
+  revenueByMonth: [],
+  ordersByMonth: [],
+};
+
 export const getDashboardStats = () =>
   axiosInstance
     .get<ApiResponse<DashboardStats>>("/api/reports/admin/dashboard")
-    .then((r) => r.data.data);
+    .then((r) => {
+      const d = r.data.data;
+      return {
+        ...EMPTY_DASHBOARD,
+        ...d,
+        approvedFarms: Number(d?.approvedFarms ?? 0),
+        totalRetailers: Number(d?.totalRetailers ?? 0),
+        ordersToday: Number(d?.ordersToday ?? 0),
+        blockchainTxns: Number(d?.blockchainTxns ?? 0),
+        revenueThisMonth: Number(d?.revenueThisMonth ?? 0),
+        revenueByMonth: Array.isArray(d?.revenueByMonth) ? d!.revenueByMonth : [],
+        ordersByMonth: Array.isArray(d?.ordersByMonth) ? d!.ordersByMonth : [],
+      };
+    })
+    .catch(() => EMPTY_DASHBOARD);
 
 // ─── IoT ──────────────────────────────────────────────────────────────────
 

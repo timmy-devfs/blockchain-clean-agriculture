@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { StatCard, DataTable } from "@bicap/ui";
 import type { Column } from "@bicap/ui";
-import { getDashboardStats, getAdminFarms, getAdminUsers } from "@/lib/api";
+import { getDashboardStats, getAdminFarms } from "@/lib/api";
 import type { Farm } from "@bicap/types";
 import Link from "next/link";
 
@@ -37,18 +37,12 @@ export default function DashboardPage() {
     queryFn: getDashboardStats,
   });
 
-  const { data: userCountPage, isLoading: usersCountLoading } = useQuery({
-    queryKey: ["admin-users", "count-only"],
-    queryFn: () => getAdminUsers({ page: 0, size: 1 }),
-  });
-
   const { data: pendingFarms, isLoading: farmsLoading } = useQuery({
     queryKey: ["admin-farms", "PENDING"],
     queryFn: () => getAdminFarms("PENDING"),
   });
 
   const L = statsLoading;
-  const UL = usersCountLoading;
 
   return (
     <div className="space-y-6">
@@ -58,31 +52,31 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500">Tổng quan hệ thống BICAP</p>
       </div>
 
-      {/* ── Stats Row 1: 4 cards ── */}
+      {/* ── Stats Row 1: 4 cards (API /api/reports/admin/dashboard) ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          title="Tổng người dùng"
-          value={UL ? "—" : (userCountPage?.total ?? 0)}
-          icon={<span>👤</span>}
-          color="blue"
-        />
-        <StatCard
           title="Farms đã duyệt"
-          value={L ? "—" : (stats?.approvedFarms ?? 0)}
+          value={L ? "…" : (stats?.approvedFarms ?? 0)}
           icon={<span>🌾</span>}
           color="green"
         />
         <StatCard
-          title="Nhà bán lẻ"
-          value={L ? "—" : (stats?.totalRetailers ?? 0)}
+          title="Nhà bán lẻ hoạt động"
+          value={L ? "…" : (stats?.totalRetailers ?? 0)}
           icon={<span>🏪</span>}
           color="purple"
         />
         <StatCard
           title="Đơn hàng hôm nay"
-          value={L ? "—" : (stats?.ordersToday ?? 0)}
+          value={L ? "…" : (stats?.ordersToday ?? 0)}
           icon={<span>📦</span>}
           color="orange"
+        />
+        <StatCard
+          title="Blockchain Txns"
+          value={L ? "…" : (stats?.blockchainTxns ?? 0)}
+          icon={<span>⛓</span>}
+          color="teal"
         />
       </div>
 
@@ -90,13 +84,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           title="Farms chờ duyệt"
-          value={farmsLoading ? "—" : (pendingFarms?.total ?? 0)}
+          value={farmsLoading ? "…" : (pendingFarms?.total ?? 0)}
           icon={<span>⏳</span>}
           color="rose"
         />
         <StatCard
           title="Doanh thu tháng (VNĐ)"
-          value={L ? "—" : (stats?.revenueThisMonth ?? 0).toLocaleString("vi-VN")}
+          value={L ? "…" : (stats?.revenueThisMonth ?? 0).toLocaleString("vi-VN")}
           icon={<span>💰</span>}
           color="teal"
         />

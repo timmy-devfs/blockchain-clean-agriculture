@@ -5,19 +5,16 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { PublicNav } from "@/components/public/PublicNav";
-import { getDemoTraceData, type TraceData } from "@/public-site/data/public-trace-demo";
-
-// ── Server-side fetch (thay bằng guest-service khi có API) ────────────────────
-async function fetchTraceData(qrCode: string): Promise<TraceData | null> {
-  return getDemoTraceData(qrCode);
-}
+import type { TraceData } from "@/public-site/data/public-trace-demo";
+import { loadTraceForQr } from "@/lib/trace/loadTrace";
 
 // ── generateMetadata (SSR SEO) ────────────────────────────────────────────────
 export async function generateMetadata(
   { params }: { params: Promise<{ qrCode: string }> }
 ): Promise<Metadata> {
   const { qrCode } = await params;
-  const data = await fetchTraceData(qrCode);
+  const loaded = await loadTraceForQr(qrCode);
+  const data = loaded?.data;
   if (!data) {
     return { title: 'Không tìm thấy | BICAP', description: 'Mã QR không hợp lệ hoặc chưa được đăng ký.' };
   }
@@ -35,7 +32,8 @@ export async function generateMetadata(
 // ── Page Component ─────────────────────────────────────────────────────────────
 export default async function TracePage({ params }: { params: Promise<{ qrCode: string }> }) {
   const { qrCode } = await params;
-  const data = await fetchTraceData(qrCode);
+  const loaded = await loadTraceForQr(qrCode);
+  const data = loaded?.data;
   const isDemoExample = qrCode.trim().toLowerCase() === 'demo';
   const statusPalette: Record<string, { bg: string; color: string; dot: string }> = {
     'Đang chuẩn bị': { bg: '#fef9c3', color: '#854d0e', dot: '#f59e0b' },
@@ -72,7 +70,7 @@ export default async function TracePage({ params }: { params: Promise<{ qrCode: 
         </div>
         <div style={{ fontSize: 64, marginBottom: 20 }}>🔍</div>
         <h1 style={{ fontFamily: 'Lora, Georgia, serif', fontSize: 28, fontWeight: 700, color: '#1a1a0e', marginBottom: 12 }}>
-          Không tìm thấy lô hàng
+          Không tìm thấy sản phẩm với mã này
         </h1>
         <p style={{ fontSize: 15, color: '#888', marginBottom: 32, maxWidth: 400 }}>
           Mã <code style={{ background: '#f0f0e8', padding: '2px 8px', borderRadius: 4 }}>{qrCode}</code> chưa được đăng ký hoặc không hợp lệ.

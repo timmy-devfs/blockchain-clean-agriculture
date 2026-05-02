@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ARTICLES_INDEX } from "@/public-site/data/articles-content";
 import { PUBLIC_PRODUCT_IMAGE_OVERRIDES } from "@/public-site/data/public-product-images";
+import { getPublicApiBaseUrl } from "@/lib/publicApiUrl";
 
 type ProductCardData = {
   id: string;
@@ -146,36 +147,90 @@ export default function PublicLandingPage() {
     let mounted = true;
 
     async function loadPublicSections() {
+      const base = getPublicApiBaseUrl();
+
       try {
-        const res = await fetch("/api/public/products/featured", { cache: "no-store" });
+        const res = await fetch(`${base}/public/products/featured`, { cache: "no-store" });
         if (res.ok) {
           const body = (await res.json()) as unknown;
           const rows = mapFeaturedProducts(body);
-          if (mounted && rows.length > 0) setFeaturedProducts(rows.slice(0, 6));
+          if (mounted && rows.length > 0) {
+            setFeaturedProducts(rows.slice(0, 6));
+          } else if (mounted) {
+            const fb = await fetch("/fallback/featured-products.json", { cache: "no-store" });
+            if (fb.ok) {
+              const arr = (await fb.json()) as unknown;
+              const mapped = mapFeaturedProducts(arr);
+              if (mapped.length > 0) setFeaturedProducts(mapped.slice(0, 6));
+            }
+          }
+        } else if (mounted) {
+          const fb = await fetch("/fallback/featured-products.json", { cache: "no-store" });
+          if (fb.ok) {
+            const arr = (await fb.json()) as unknown;
+            const mapped = mapFeaturedProducts(arr);
+            if (mapped.length > 0) setFeaturedProducts(mapped.slice(0, 6));
+          }
         }
       } catch {
-        // fallback data is already set
+        if (mounted) {
+          try {
+            const fb = await fetch("/fallback/featured-products.json", { cache: "no-store" });
+            if (fb.ok) {
+              const arr = (await fb.json()) as unknown;
+              const mapped = mapFeaturedProducts(arr);
+              if (mapped.length > 0) setFeaturedProducts(mapped.slice(0, 6));
+            }
+          } catch {
+            /* keep FALLBACK_PRODUCTS */
+          }
+        }
       }
 
       try {
-        const res = await fetch("/api/public/announcements", { cache: "no-store" });
+        const res = await fetch(`${base}/public/announcements`, { cache: "no-store" });
         if (res.ok) {
           const body = (await res.json()) as unknown;
-          if (mounted) setAnnouncements(mapAnnouncements(body));
+          const rows = mapAnnouncements(body);
+          if (mounted && rows.length > 0) {
+            setAnnouncements(rows);
+          } else if (mounted) {
+            const fb = await fetch("/fallback/announcements.json", { cache: "no-store" });
+            if (fb.ok) {
+              const arr = (await fb.json()) as unknown;
+              setAnnouncements(mapAnnouncements(arr));
+            }
+          }
+        } else if (mounted) {
+          const fb = await fetch("/fallback/announcements.json", { cache: "no-store" });
+          if (fb.ok) {
+            const arr = (await fb.json()) as unknown;
+            setAnnouncements(mapAnnouncements(arr));
+          }
         }
       } catch {
-        if (mounted) setAnnouncements([]);
+        if (mounted) {
+          try {
+            const fb = await fetch("/fallback/announcements.json", { cache: "no-store" });
+            if (fb.ok) {
+              const arr = (await fb.json()) as unknown;
+              setAnnouncements(mapAnnouncements(arr));
+            }
+          } catch {
+            setAnnouncements([]);
+          }
+        }
       }
 
       try {
-        const res = await fetch("/api/public/articles?page=0&size=3", { cache: "no-store" });
+        const res = await fetch(`${base}/public/articles?page=0&size=3`, { cache: "no-store" });
         if (res.ok) {
           const body = (await res.json()) as unknown;
           const rows = mapArticles(body);
           if (mounted && rows.length > 0) setArticles(rows);
         }
       } catch {
-        // keep fallback
+        // keep ARTICLES_INDEX fallback
       }
     }
 
@@ -228,7 +283,7 @@ export default function PublicLandingPage() {
         </div>
       </section>
 
-      {activeAnnouncement && (
+      {activeAnnouncement ? (
         <section className="border-b border-emerald-200 bg-emerald-50 px-6 py-4">
           <div className="mx-auto max-w-5xl transition-all duration-500">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Thông báo</p>
@@ -238,8 +293,9 @@ export default function PublicLandingPage() {
             ) : null}
           </div>
         </section>
-      )}
+      ) : null}
 
+      {featuredProducts.length > 0 ? (
       <section className="px-6 py-14">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex items-end justify-between gap-4">
@@ -258,7 +314,9 @@ export default function PublicLandingPage() {
           </div>
         </div>
       </section>
+      ) : null}
 
+      {articles.length > 0 ? (
       <section className="bg-white px-6 py-14">
         <div className="mx-auto max-w-5xl">
           <div className="mb-6 flex items-end justify-between gap-4">
@@ -295,10 +353,11 @@ export default function PublicLandingPage() {
           </div>
         </div>
       </section>
+      ) : null}
 
       <footer className="border-t border-gray-200 bg-gray-950 px-6 py-8 text-center text-gray-300">
         <p className="text-sm">
-          BICAP © 2025 — Blockchain Integration in Clean Agricultural Production
+          BICAP © 2026 — Blockchain Integration in Clean Agricultural Production
         </p>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm">
           <Link href="/search" className="hover:text-white">Tìm kiếm</Link>

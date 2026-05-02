@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ConfirmDialog, Toast } from "@bicap/ui";
 import { getFarmDetail, approveFarm, rejectFarm } from "@/lib/api";
 import { RejectModal } from "@/components/admin/farms/RejectModal";
+import { LicensePdfPanel } from "@/components/admin/farms/LicensePdfPanel";
 import { useParams, useRouter } from "next/navigation";
 
 export default function FarmDetailPage() {
@@ -48,7 +49,11 @@ export default function FarmDetailPage() {
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="flex items-center gap-4">
-        <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-900">
+        <button
+          type="button"
+          onClick={() => router.push("/admin/farms")}
+          className="text-sm text-gray-500 hover:text-gray-900"
+        >
           ← Quay lại
         </button>
         <h1 className="text-2xl font-bold text-gray-900">{farm.farmName}</h1>
@@ -92,7 +97,7 @@ export default function FarmDetailPage() {
         )}
       </div>
 
-      {/* PDF Viewer — giấy phép kinh doanh */}
+      {/* Giấy phép kinh doanh — metadata + PDF (react-pdf) */}
       <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
         <h2 className="mb-4 font-semibold text-gray-800">Giấy phép kinh doanh</h2>
         {(() => {
@@ -101,28 +106,41 @@ export default function FarmDetailPage() {
             return <p className="text-sm text-gray-500">Chưa có thông tin giấy phép.</p>;
           }
 
+          const pdfSrc = license.fileUrl ?? "/documents/sample-license.pdf";
+          const demoPdf = !license.fileUrl;
+
           return (
-            <div className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Mã giấy phép</span>
-                <span className="font-medium text-gray-900">{license.licenseNumber ?? "—"}</span>
+            <div className="space-y-4">
+              <div className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Mã giấy phép</span>
+                  <span className="font-medium text-gray-900">{license.licenseNumber ?? "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Nơi cấp</span>
+                  <span className="font-medium text-gray-900">{license.issuedBy ?? "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Ngày cấp</span>
+                  <span className="font-medium text-gray-900">
+                    {license.issuedAt ? new Date(license.issuedAt).toLocaleDateString("vi-VN") : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Hết hạn</span>
+                  <span className="font-medium text-gray-900">
+                    {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString("vi-VN") : "—"}
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Nơi cấp</span>
-                <span className="font-medium text-gray-900">{license.issuedBy ?? "—"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Ngày cấp</span>
-                <span className="font-medium text-gray-900">
-                  {license.issuedAt ? new Date(license.issuedAt).toLocaleDateString("vi-VN") : "—"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Hết hạn</span>
-                <span className="font-medium text-gray-900">
-                  {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString("vi-VN") : "—"}
-                </span>
-              </div>
+              <LicensePdfPanel
+                fileUrl={pdfSrc}
+                caption={
+                  demoPdf
+                    ? "Tệp minh họa (demo) — khi hệ thống lưu URL giấy phép từ nông trại, tệp thật sẽ hiển thị tại đây."
+                    : undefined
+                }
+              />
             </div>
           );
         })()}

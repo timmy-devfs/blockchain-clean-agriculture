@@ -111,6 +111,8 @@ export interface Farm {
     expiresAt: string | null;
     createdAt: string;
     updatedAt: string;
+    /** URL tệp PDF trên blob/storage — khi backend trả về */
+    fileUrl?: string;
   } | null;
 }
 
