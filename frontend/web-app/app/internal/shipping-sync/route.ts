@@ -1,46 +1,38 @@
-import fs from "fs";
 import { NextResponse } from "next/server";
 import {
-  getSharedOrdersFilePath,
   mapDashboardOrdersToSyncPayload,
   type DashboardSyncedOrder,
 } from "@/lib/shipping-sync-shared";
 
 /**
  * Admin đọc dữ liệu đã sync từ shipping dashboard.
- * Đọc trực tiếp file JSON (cùng path với POST /api/sync-orders) — không HTTP self-fetch
- * tới localhost (tránh sai PORT trong Docker / race với nhiều instance).
+ * GET /api/sync-orders (route Next.js) rồi map sang payload admin.
  */
 export async function GET() {
-  const filePath = getSharedOrdersFilePath();
+  const port = process.env.PORT ?? "3000";
+  const url = `http://127.0.0.1:${port}/api/sync-orders`;
+
   try {
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ data: [], source: filePath, error: null });
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) {
+      return NextResponse.json({ data: [], source: "fallback_empty", error: null });
     }
-    const raw = fs.readFileSync(filePath, "utf-8");
+
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = await res.json();
     } catch {
-      return NextResponse.json({
-        data: [],
-        source: filePath,
-        error: "invalid_json",
-      });
+      return NextResponse.json({ data: [], source: "fallback_empty", error: null });
     }
 
     const rows = Array.isArray(parsed) ? (parsed as DashboardSyncedOrder[]) : [];
-    const mapped = mapDashboardOrdersToSyncPayload(rows);
+    if (rows.length === 0) {
+      return NextResponse.json({ data: [], source: "sync_empty", error: null });
+    }
 
-    return NextResponse.json({ data: mapped, source: filePath, error: null });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        data: [],
-        source: filePath,
-        error: error instanceof Error ? error.message : "read_failed",
-      },
-      { status: 200 },
-    );
+    const mapped = mapDashboardOrdersToSyncPayload(rows);
+    return NextResponse.json({ data: mapped, source: "sync_ok", error: null });
+  } catch {
+    return NextResponse.json({ data: [], source: "fallback_empty", error: null });
   }
 }

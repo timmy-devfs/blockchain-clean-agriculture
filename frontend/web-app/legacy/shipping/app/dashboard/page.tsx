@@ -1106,7 +1106,12 @@ export default function ShippingDashboard() {
   const [editDriver, setEditDriver] = useState<{ idx: number; data: Driver } | null>(null);
   const [toast, setToast]     = useState('');
 
-  useSyncOrders(orders);
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2200);
+  }, []);
+
+  useSyncOrders(orders, () => showToast('Đã đồng bộ dữ liệu'));
 
   const [traceQ, setTraceQ]           = useState('');
   const [traceResult, setTraceResult] = useState<Order | 'not-found' | null>(null);
@@ -1174,8 +1179,6 @@ export default function ShippingDashboard() {
 
   function saveO(next: Order[]) { setOrders(next); localStorage.setItem('agri_orders', JSON.stringify(next)); }
   function saveD(next: Driver[]) { setDrivers(next); localStorage.setItem('agri_drivers', JSON.stringify(next)); }
-
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2200); }
 
   function doTrace(q = traceQ) {
     if (!q.trim()) return;

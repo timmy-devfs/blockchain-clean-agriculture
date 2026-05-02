@@ -22,6 +22,8 @@ type JwtPayload = {
 
 const roleRouteGuard: Array<{ prefix: string; allowedRoles: string[] | null }> = [
   { prefix: "/admin", allowedRoles: ["ADMIN"] },
+  /** Fallback sync cho admin shipments — chỉ ADMIN (xem lib/api getAdminShipments). */
+  { prefix: "/internal", allowedRoles: ["ADMIN"] },
   { prefix: "/dashboard", allowedRoles: ["ADMIN"] },
   { prefix: "/accounts", allowedRoles: ["ADMIN"] },
   { prefix: "/farms", allowedRoles: ["ADMIN"] },

@@ -5,18 +5,26 @@
 
 import { useEffect, useRef } from "react";
 
-export function useSyncOrders(orders: any[]) {
+/** POST tương đối `/api/sync-orders` (Next.js), không qua gateway. */
+export function useSyncOrders(orders: unknown[], onSynced?: () => void) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onSyncedRef = useRef(onSynced);
+  onSyncedRef.current = onSynced;
 
   useEffect(() => {
-    // Debounce 800ms để tránh gọi API liên tục khi thao tác nhanh
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       fetch("/api/sync-orders", {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orders),
-      }).catch(() => {/* silent fail */});
+      })
+        .then((res) => {
+          if (res.ok) onSyncedRef.current?.();
+        })
+        .catch(() => {
+          /* silent */
+        });
     }, 800);
 
     return () => {

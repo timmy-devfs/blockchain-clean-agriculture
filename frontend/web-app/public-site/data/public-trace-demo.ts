@@ -3,7 +3,7 @@
 // Fallback sang demo nếu không tìm thấy
 
 import fs from 'fs';
-import path from 'path';
+import { getSharedOrdersFilePath } from '@/lib/shipping-sync-shared';
 import { PUBLIC_PRODUCT_IMAGE_OVERRIDES } from './public-product-images';
 
 export interface TraceData {
@@ -85,9 +85,7 @@ const PRODUCT_ORIGIN_COPY: Record<string, { intro: string; origin: string }> = {
 // ── Đọc lô hàng thật từ shared JSON ─────────────────────────────────────────
 function readRealOrders(): any[] {
   try {
-    // Sau khi merge web-shipping vào web-app, dữ liệu sync orders nằm chung
-    // /tmp/bicap-shared-orders.json (xem app/api/sync-orders/route.ts).
-    const filePath = process.env.SHARED_ORDERS_PATH ?? '/tmp/bicap-shared-orders.json';
+    const filePath = getSharedOrdersFilePath();
     if (!fs.existsSync(filePath)) return [];
     const raw = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(raw) ?? [];

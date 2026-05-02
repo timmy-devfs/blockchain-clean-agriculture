@@ -1,9 +1,12 @@
+import path from "path";
+
 /**
  * File JSON dùng chung: POST /api/sync-orders ghi, GET /internal/shipping-sync đọc.
- * Cùng biến môi trường với route handlers để tránh lệch đường dẫn giữa ghi/đọc.
+ * Mặc định: `tmp/sync-orders.json` dưới cwd (Next.js app root).
  */
 export function getSharedOrdersFilePath(): string {
-  return process.env.SHARED_ORDERS_PATH ?? "/tmp/bicap-shared-orders.json";
+  if (process.env.SHARED_ORDERS_PATH) return process.env.SHARED_ORDERS_PATH;
+  return path.join(process.cwd(), "tmp", "sync-orders.json");
 }
 
 export type DashboardSyncedOrder = {
