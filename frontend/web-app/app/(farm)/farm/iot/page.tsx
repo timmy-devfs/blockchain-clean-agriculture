@@ -5,7 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@bicap/ui";
 import type { Column } from "@bicap/ui";
 import type { IoTReading } from "@bicap/types";
-import { useAuth } from "@bicap/auth";
+import { ProtectedRoute, useAuth } from "@bicap/auth";
+import { UserRole } from "@bicap/types";
 import { getIoTReadings } from "@/lib/api";
 
 type ReadingTypeFilter = "ALL" | IoTReading["type"];
@@ -175,6 +176,7 @@ export default function FarmIotPage() {
   const hasNoData = !isLoading && filteredRows.length === 0;
 
   return (
+    <ProtectedRoute allowedRoles={[UserRole.FARM_MANAGER]}>
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -253,5 +255,6 @@ export default function FarmIotPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   );
 }

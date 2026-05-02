@@ -179,7 +179,7 @@ const mockAlerts: AlertItem[] = [
 
 export const getMyFarms = async (): Promise<{ id: string; name: string }[]> => {
   try {
-    const { data } = await gateway.get<unknown>("/api/farm/farms");
+    const { data } = await gateway.get<unknown>("/farm/farms");
     const list = Array.isArray(data) ? data : [];
     const mapped = (list as Record<string, unknown>[]).map((f) => ({
       id: String(f.id),
@@ -197,7 +197,7 @@ export const getMyFarms = async (): Promise<{ id: string; name: string }[]> => {
 
 export const getFarmProfile = async (): Promise<FarmProfile> => {
   try {
-    const { data } = await gateway.get<unknown>("/api/farm/farms");
+    const { data } = await gateway.get<unknown>("/farm/farms");
     const list = Array.isArray(data) ? data : [];
     if (list.length > 0) {
       const f = list[0] as Record<string, unknown>;
@@ -226,7 +226,7 @@ export const getFarmProfile = async (): Promise<FarmProfile> => {
 
 export const saveFarmStepOne = async (payload: Omit<FarmProfile, "id">): Promise<FarmProfile> => {
   try {
-    const { data } = await gateway.post("/api/farm/farms", payload);
+    const { data } = await gateway.post("/farm/farms", payload);
     const row = (data as { data?: FarmProfile })?.data ?? (data as FarmProfile);
     mockProfile = row as FarmProfile;
     if (mockProfile.id) cachedFarmId = mockProfile.id;
@@ -249,7 +249,7 @@ export const uploadFarmLicense = async (file: File): Promise<void> => {
   form.append("file", file);
   form.append("licenseNumber", `LIC-${Date.now()}`);
   try {
-    await gateway.post(`/api/farm/farms/${farmId}/license`, form);
+    await gateway.post(`/farm/farms/${farmId}/license`, form);
   } catch (error) {
     if (useFarmMockFallback()) {
       return;
@@ -261,7 +261,7 @@ export const uploadFarmLicense = async (file: File): Promise<void> => {
 export const subscribePackage = async (packageId: string): Promise<{ paymentUrl: string }> => {
   const farmId = cachedFarmId ?? mockProfile.id;
   try {
-    const { data } = await gateway.post(`/api/farm/packages/${packageId}/subscribe`, {
+    const { data } = await gateway.post(`/farm/packages/${packageId}/subscribe`, {
       farmId
     });
     return data as { paymentUrl: string };
@@ -281,7 +281,7 @@ export const subscribePackage = async (packageId: string): Promise<{ paymentUrl:
 export const getIotDashboard = async (): Promise<IotDashboard> => {
   const farmId = cachedFarmId ?? mockProfile.id;
   try {
-    const { data } = await gateway.get("/api/iot/sensors/dashboard", {
+    const { data } = await gateway.get("/iot/sensors/dashboard", {
       params: { farmId }
     });
     return data as IotDashboard;
@@ -311,7 +311,7 @@ export const getAlerts = async (): Promise<AlertItem[]> => {
 
 export const getSeasons = async (): Promise<Season[]> => {
   try {
-    const { data } = await gateway.get<unknown>("/api/farm/seasons", { params: { page: 1, limit: 50 } });
+    const { data } = await gateway.get<unknown>("/farm/seasons", { params: { page: 1, limit: 50 } });
     const items = extractSeasonRows(data);
     return items.map((row) => mapApiSeason(row));
   } catch (error) {
@@ -339,7 +339,7 @@ export const createSeason = async (payload: CreateSeasonPayload): Promise<Season
     body.estimatedEndDate = payload.estimatedEndDate.slice(0, 10);
   }
   try {
-    const { data } = await gateway.post<unknown>("/api/farm/seasons", body);
+    const { data } = await gateway.post<unknown>("/farm/seasons", body);
     const row = unwrapApiData<Record<string, unknown>>(data);
     return mapApiSeason(row);
   } catch (error: unknown) {
@@ -349,7 +349,7 @@ export const createSeason = async (payload: CreateSeasonPayload): Promise<Season
 
 export const updateSeason = async (id: string, payload: Partial<Season>): Promise<Season> => {
   try {
-    const { data } = await gateway.put<unknown>(`/api/farm/seasons/${id}`, payload);
+    const { data } = await gateway.put<unknown>(`/farm/seasons/${id}`, payload);
     const row = unwrapApiData<Record<string, unknown>>(data);
     return mapApiSeason(row);
   } catch (error) {
@@ -369,7 +369,7 @@ export const getSeasonUpdates = async (seasonId: string): Promise<SeasonUpdate[]
     throw new Error("Season ID không hợp lệ (cần Mongo ObjectId 24 ký tự hex).");
   }
   try {
-    const { data } = await gateway.get<Record<string, unknown>>(`/api/farm/seasons/${seasonId}`);
+    const { data } = await gateway.get<Record<string, unknown>>(`/farm/seasons/${seasonId}`);
     return (data?.updates ?? []) as SeasonUpdate[];
   } catch (error) {
     if (useFarmMockFallback()) {
@@ -397,7 +397,7 @@ export const addSeasonUpdate = async (seasonId: string, note: string): Promise<v
     throw new Error("Season ID không hợp lệ (cần Mongo ObjectId 24 ký tự hex).");
   }
   try {
-    await gateway.post(`/api/farm/seasons/${seasonId}/updates`, {
+    await gateway.post(`/farm/seasons/${seasonId}/updates`, {
       status: "ACTIVE",
       note
     });
@@ -430,7 +430,7 @@ export const exportSeasonPdf = (season: Season): void => {
 
 export const downloadQr = async (seasonId: string): Promise<void> => {
   try {
-    const response = await gateway.get(`/api/chain/qr/${seasonId}`, { responseType: "blob" });
+    const response = await gateway.get(`/chain/qr/${seasonId}`, { responseType: "blob" });
     const url = URL.createObjectURL(response.data);
     const a = document.createElement("a");
     a.href = url;
@@ -461,7 +461,7 @@ export const downloadQr = async (seasonId: string): Promise<void> => {
 
 export const getMarketplace = async (): Promise<MarketplaceItem[]> => {
   try {
-    const { data } = await gateway.get("/api/farm/marketplace/listings/my", {
+    const { data } = await gateway.get("/farm/marketplace/listings/my", {
       params: { page: 1, limit: 50 }
     });
     return (data?.items ?? []) as MarketplaceItem[];
@@ -485,7 +485,7 @@ export type CreateListingPayload = {
 
 export const createMarketplace = async (payload: CreateListingPayload): Promise<void> => {
   try {
-    await gateway.post("/api/farm/marketplace/listings", payload);
+    await gateway.post("/farm/marketplace/listings", payload);
   } catch (error) {
     if (useFarmMockFallback()) {
       mockMarketplace = [
@@ -524,7 +524,7 @@ function mapFarmOrderApiRow(row: Record<string, unknown>): Order {
 
 export const getOrdersByStatus = async (status: OrderStatus): Promise<Order[]> => {
   try {
-    const { data } = await gateway.get("/api/farm/orders", {
+    const { data } = await gateway.get("/farm/orders", {
       params: { status, page: 1, limit: 100 }
     });
     const raw = (data?.items ?? []) as Record<string, unknown>[];
@@ -539,7 +539,7 @@ export const getOrdersByStatus = async (status: OrderStatus): Promise<Order[]> =
 
 export const confirmOrder = async (id: string): Promise<void> => {
   try {
-    await gateway.put(`/api/farm/orders/${id}/confirm`);
+    await gateway.put(`/farm/orders/${id}/confirm`);
   } catch (error) {
     if (useFarmMockFallback()) {
       mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "CONFIRMED" } : item));
@@ -551,7 +551,7 @@ export const confirmOrder = async (id: string): Promise<void> => {
 
 export const rejectOrder = async (id: string, rejectReason: string): Promise<void> => {
   try {
-    await gateway.put(`/api/farm/orders/${id}/reject`, { rejectReason });
+    await gateway.put(`/farm/orders/${id}/reject`, { rejectReason });
   } catch (error) {
     if (useFarmMockFallback()) {
       mockOrders = mockOrders.map((item) => (item.id === id ? { ...item, status: "REJECTED", rejectReason } : item));
@@ -563,7 +563,7 @@ export const rejectOrder = async (id: string, rejectReason: string): Promise<voi
 
 export const getPackages = async (): Promise<PackageInfo[]> => {
   try {
-    const { data } = await gateway.get("/api/farm/packages");
+    const { data } = await gateway.get("/farm/packages");
     return data as PackageInfo[];
   } catch (error) {
     if (useFarmMockFallback()) {
@@ -586,7 +586,7 @@ export const getCurrentPackage = async (): Promise<{ packageName: string; expiry
   }
 
   try {
-    const { data } = await gateway.get("/api/farm/packages/my", { params: { farmId } });
+    const { data } = await gateway.get("/farm/packages/my", { params: { farmId } });
     return {
       packageName: data?.subscription?.packageName ?? mockProfile.packageName ?? "PRO",
       expiryDate: data?.expiryDate ?? mockProfile.packageExpiryDate ?? dayjs().add(30, "day").toISOString()

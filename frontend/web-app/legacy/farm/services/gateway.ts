@@ -4,18 +4,14 @@ const ACCESS_TOKEN_KEY = "bicap_access_token";
 const REFRESH_TOKEN_KEY = "bicap_refresh_token";
 
 /**
- * Origin gateway: **không** có hậu tố `/api` vì mọi request dùng path đầy đủ `/api/...`.
- * Trùng logic với `packages/api-client/src/axiosInstance.ts` để tránh `.../api/api/auth/me`.
+ * Trùng khóa env với web-app: `NEXT_PUBLIC_API_URL` đã là gateway mount (vd. `http://localhost/api`).
+ * Mọi request dùng path tương đối `/farm/...`, `/auth/...` — không lặp `/api/api`.
  */
-function gatewayOriginFromEnv(): string {
-  const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api").replace(/\/+$/, "");
-  if (raw.endsWith("/api")) {
-    return raw.slice(0, -4);
-  }
-  return raw;
+function gatewayBaseUrlFromEnv(): string {
+  return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api").replace(/\/+$/, "");
 }
 
-const GATEWAY_BASE_URL = gatewayOriginFromEnv();
+const GATEWAY_BASE_URL = gatewayBaseUrlFromEnv();
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -48,16 +44,16 @@ gateway.interceptors.request.use((config) => {
   return config;
 });
 
-let isRedirectingToLogin = false;
+let isRedirecting = false;
 
 gateway.interceptors.response.use(
   (res) => res,
   (error) => {
     const url = String(error?.config?.url ?? "");
     const isPublicAuth =
-      url.includes("/api/auth/login") ||
-      url.includes("/api/auth/register") ||
-      url.includes("/api/auth/refresh-token");
+      url.includes("/auth/login") ||
+      url.includes("/auth/register") ||
+      url.includes("/auth/refresh-token");
     const onLoginPage =
       typeof window !== "undefined" &&
       (window.location.pathname === "/login" || window.location.pathname.startsWith("/login/"));
@@ -67,11 +63,11 @@ gateway.interceptors.response.use(
       !isPublicAuth &&
       typeof window !== "undefined" &&
       !onLoginPage &&
-      !isRedirectingToLogin
+      !isRedirecting
     ) {
       clearTokens();
-      isRedirectingToLogin = true;
-      window.location.assign("/login");
+      isRedirecting = true;
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   },

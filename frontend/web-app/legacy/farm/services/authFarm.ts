@@ -21,7 +21,7 @@ function unwrap<T>(body: unknown): T {
 
 export async function loginWithPassword(email: string, password: string): Promise<void> {
   clearTokens();
-  const { data } = await gateway.post("/api/auth/login", { email, password });
+  const { data } = await gateway.post("/auth/login", { email, password });
   const inner = unwrap<{ accessToken: string; refreshToken?: string }>(data);
   if (!inner?.accessToken) {
     throw new Error("Invalid login response");
@@ -30,7 +30,7 @@ export async function loginWithPassword(email: string, password: string): Promis
 }
 
 export async function fetchMe(): Promise<FarmMeUser> {
-  const { data } = await gateway.get("/api/auth/me");
+  const { data } = await gateway.get("/auth/me");
   return unwrap<FarmMeUser>(data);
 }
 
