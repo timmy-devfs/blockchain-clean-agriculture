@@ -37,14 +37,6 @@ const retailApi = axios.create({
 /** Dùng chung key JWT với các role routes trong web-app sau khi login qua Gateway. */
 const ACCESS_TOKEN_KEY = "bicap_access_token";
 
-const demoHeadersWhenNoJwt: Record<string, string> = {
-  Authorization: "Bearer retailer-secret",
-  "X-User-Id": "retailer-user-01",
-  "X-User-Role": "RETAILER"
-};
-
-let autoLoginPromise: Promise<void> | null = null;
-
 function gatewayOrigin(): string {
   const api = apiGatewayPrefix();
   const stripped = api.replace(/\/api\/?$/i, "");
@@ -58,7 +50,7 @@ export function getRetailAuthHeaders(): Record<string, string> {
       return { Authorization: `Bearer ${token}` };
     }
   }
-  return { ...demoHeadersWhenNoJwt };
+  return {};
 }
 
 export function getStoredRetailerUserIdFromJwt(): string | null {
@@ -87,31 +79,13 @@ export async function loginRetailer(email: string, password: string): Promise<vo
   localStorage.setItem(ACCESS_TOKEN_KEY, token);
 }
 
-async function ensureRetailToken(): Promise<void> {
-  if (typeof window === "undefined") return;
-  const existing = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim();
-  if (existing) return;
-  if (!autoLoginPromise) {
-    autoLoginPromise = (async () => {
-      try {
-        await loginRetailer("retailer@bicap.io", "password");
-        return;
-      } catch {
-        await loginRetailer("retail1@bicap.io", "123456");
-      }
-    })().finally(() => {
-      autoLoginPromise = null;
-    });
-  }
-  await autoLoginPromise;
-}
-
-retailApi.interceptors.request.use(async (config) => {
-  await ensureRetailToken();
-  const token = typeof window !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY)?.trim() : null;
-  if (token) {
-    config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
+retailApi.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY)?.trim();
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -326,13 +300,11 @@ export const confirmDelivery = async (orderId: string, recipientNote: string, fi
   }
 };
 
-/** Không có GET /api/retail/notifications trong retailer-service — chờ spec/backend. */
+/** Không có GET /retail/notifications trong retailer-service — backend cần implement. */
 export const getNotifications = async (): Promise<NotificationItem[]> => {
-  console.warn(
-    "[retail-api] getNotifications: không có endpoint trong retailer-service — không dùng mock; trả []. " +
-      "(contracts/api-specs/retailer-service.openapi.yaml cũng chưa định nghĩa notifications.)"
-  );
-  return [];
+  const path = "/notifications";
+  console.warn(`[RETAILER] Endpoint chưa có: GET ${path} — backend cần implement`);
+  throw new Error(`Endpoint chưa sẵn sàng: /retail${path}`);
 };
 
 export const getKeywordSuggestions = async (keyword: string): Promise<string[]> => {
@@ -353,6 +325,6 @@ export const getKeywordSuggestions = async (keyword: string): Promise<string[]> 
       .slice(0, 8);
   } catch (e) {
     logRetailFailure("getKeywordSuggestions", e);
-    return [];
+    throw e;
   }
 };

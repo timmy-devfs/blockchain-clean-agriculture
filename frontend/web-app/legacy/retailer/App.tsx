@@ -2,6 +2,7 @@ import "./styles.css";
 import {
   BellOutlined,
   CheckCircleOutlined,
+  KeyOutlined,
   QrcodeOutlined,
   SearchOutlined,
   ShoppingCartOutlined,
@@ -66,6 +67,30 @@ import { Product, RetailOrder, RetailOrderStatus, SearchFilters } from "./types"
 
 const { Header, Sider, Content } = Layout;
 
+function DashboardHome() {
+  return (
+    <Card title="Retailer dashboard">
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <p className="text-gray-600">Chào mừng đến BIC Retailer Console — truy cập marketplace và đơn hàng từ menu hoặc các nút dưới đây.</p>
+        <Space wrap>
+          <Link to="/marketplace">
+            <Button type="primary">Marketplace</Button>
+          </Link>
+          <Link to="/orders">
+            <Button>Đơn hàng</Button>
+          </Link>
+          <Link to="/qr-scan">
+            <Button>QR Scan</Button>
+          </Link>
+          <Link to="/onboarding">
+            <Button>Onboarding / đăng nhập token</Button>
+          </Link>
+        </Space>
+      </Space>
+    </Card>
+  );
+}
+
 function App() {
   return (
     <Layout className="app">
@@ -74,11 +99,12 @@ function App() {
         <Menu
           mode="inline"
           items={[
-            { key: "onboarding", icon: <UserOutlined />, label: <Link to="/retailer/onboarding">Onboarding</Link> },
-            { key: "search", icon: <SearchOutlined />, label: <Link to="/retailer/search">Search + Order</Link> },
-            { key: "orders", icon: <ShoppingCartOutlined />, label: <Link to="/retailer/orders">Orders</Link> },
-            { key: "qr", icon: <QrcodeOutlined />, label: <Link to="/retailer/qr-scan">QR Scan</Link> },
-            { key: "delivery", icon: <CheckCircleOutlined />, label: <Link to="/retailer/confirm-delivery">Confirm Delivery</Link> }
+            { key: "dashboard", icon: <UserOutlined />, label: <Link to="/dashboard">Dashboard</Link> },
+            { key: "onboarding", icon: <KeyOutlined />, label: <Link to="/onboarding">Onboarding</Link> },
+            { key: "search", icon: <SearchOutlined />, label: <Link to="/marketplace">Marketplace</Link> },
+            { key: "orders", icon: <ShoppingCartOutlined />, label: <Link to="/orders">Orders</Link> },
+            { key: "qr", icon: <QrcodeOutlined />, label: <Link to="/qr-scan">QR Scan</Link> },
+            { key: "delivery", icon: <CheckCircleOutlined />, label: <Link to="/confirm-delivery">Confirm Delivery</Link> }
           ]}
         />
       </Sider>
@@ -89,15 +115,16 @@ function App() {
         </Header>
         <Content className="content">
           <Routes>
-            <Route path="/" element={<Navigate to="/retailer/search" />} />
-            <Route path="/retailer/onboarding" element={<OnboardingPage />} />
-            <Route path="/retailer/search" element={<SearchPage />} />
-            <Route path="/retailer/products/:id" element={<ProductDetailPage />} />
-            <Route path="/retailer/orders" element={<OrdersPage />} />
-            <Route path="/retailer/orders/callback" element={<OrderCallbackPage />} />
-            <Route path="/retailer/orders/success" element={<OrderSuccessPage />} />
-            <Route path="/retailer/qr-scan" element={<QrScanPage />} />
-            <Route path="/retailer/confirm-delivery" element={<ConfirmDeliveryPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardHome />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/marketplace" element={<SearchPage />} />
+            <Route path="/products/:id" element={<ProductDetailPage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/orders/callback" element={<OrderCallbackPage />} />
+            <Route path="/orders/success" element={<OrderSuccessPage />} />
+            <Route path="/qr-scan" element={<QrScanPage />} />
+            <Route path="/confirm-delivery" element={<ConfirmDeliveryPage />} />
           </Routes>
         </Content>
       </Layout>
@@ -106,11 +133,20 @@ function App() {
 }
 
 function NotificationBell() {
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey: ["notifications"],
     queryFn: getNotifications,
-    refetchInterval: 30_000
+    refetchInterval: 30_000,
+    retry: false
   });
+
+  if (isError) {
+    return (
+      <span title="Tính năng đang được phát triển">
+        <BellOutlined style={{ fontSize: 20, opacity: 0.45 }} />
+      </span>
+    );
+  }
 
   const unread = (data ?? []).filter((item) => !item.read).length;
   return (
@@ -194,7 +230,8 @@ function SearchPage() {
     queryKey: ["search-products", filters],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => searchProducts(filters, pageParam),
-    getNextPageParam: (lastPage) => lastPage.nextPage
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    retry: false
   });
 
   useEffect(() => {
@@ -210,6 +247,17 @@ function SearchPage() {
   }, [query]);
 
   const products = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
+
+  if (query.isError) {
+    return (
+      <div className="text-center py-10 text-gray-400">
+        Tính năng đang được phát triển
+        {query.error instanceof Error ? (
+          <p className="mt-2 text-xs text-gray-500">{query.error.message}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <Row gutter={16}>
@@ -274,7 +322,12 @@ function SearchPage() {
             options={suggestions.map((s) => ({ value: s }))}
             onSearch={(value) => {
               setKeyword(value);
-              void getKeywordSuggestions(value).then((items) => setSuggestions(items));
+              void getKeywordSuggestions(value)
+                .then((items) => setSuggestions(items))
+                .catch(() => {
+                  message.warning("Không tải được gợi ý từ máy chủ.");
+                  setSuggestions([]);
+                });
             }}
             onSelect={(value) => {
               setKeyword(value);
@@ -300,7 +353,7 @@ function SearchPage() {
                     <div className="section-gap">
                       <Tag color="blue">{item.price.toLocaleString()} VND/kg</Tag>
                       <Button size="small" type="primary">
-                        <Link to={`/retailer/products/${item.id}`}>Detail</Link>
+                        <Link to={`/products/${item.id}`}>Detail</Link>
                       </Button>
                     </div>
                   </Card>
@@ -323,28 +376,42 @@ function ProductDetailPage() {
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm();
   const navigate = useNavigate();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["product-detail", id],
-    queryFn: () => getProductDetail(id)
+    queryFn: () => getProductDetail(id),
+    retry: false
   });
 
   const submitOrder = async () => {
     const values = await form.validateFields();
-    const result = await createOrder({
-      product: data as Product,
-      quantity: values.quantity,
-      address: values.address,
-      gateway: values.gateway
-    });
-    if (result.skipPayment || !result.paymentUrl) {
-      message.success("Đặt hàng thành công — đã bỏ qua thanh toán, đơn chuyển sang vận chuyển.");
-      navigate(`/retailer/orders?tab=confirmed`);
-      setOpen(false);
-      return;
+    try {
+      const result = await createOrder({
+        product: data as Product,
+        quantity: values.quantity,
+        address: values.address,
+        gateway: values.gateway
+      });
+      if (result.skipPayment || !result.paymentUrl) {
+        message.success("Đặt hàng thành công — đã bỏ qua thanh toán, đơn chuyển sang vận chuyển.");
+        navigate(`/orders?tab=confirmed`);
+        setOpen(false);
+        return;
+      }
+      message.success("Order created, redirecting payment...");
+      window.location.href = result.paymentUrl;
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Đặt hàng thất bại — kiểm tra API.");
     }
-    message.success("Order created, redirecting payment...");
-    window.location.href = result.paymentUrl;
   };
+
+  if (isError) {
+    return (
+      <div className="text-center py-10 text-gray-400">
+        Tính năng đang được phát triển
+        {error instanceof Error ? <p className="mt-2 text-xs text-gray-500">{error.message}</p> : null}
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return <Spin />;
@@ -384,7 +451,7 @@ function ProductDetailPage() {
             <Button type="primary" onClick={() => setOpen(true)}>
               Place Order
             </Button>
-            <Button onClick={() => navigate("/retailer/search")}>Back</Button>
+            <Button onClick={() => navigate("/marketplace")}>Back</Button>
           </Space>
         </Col>
       </Row>
@@ -416,7 +483,7 @@ function OrderCallbackPage() {
   useEffect(() => {
     if (status === "success" && orderId) {
       void callbackPaymentSuccess(orderId, gateway).then(() => {
-        navigate(`/retailer/orders/success?orderId=${orderId}`, { replace: true });
+        navigate(`/orders/success?orderId=${orderId}`, { replace: true });
       });
     }
   }, [gateway, navigate, orderId, status]);
@@ -432,7 +499,7 @@ function OrderSuccessPage() {
       <Alert type="success" showIcon message={`Payment success, order ${orderId} -> status PLACED`} />
       <div className="section-gap">
         <Button type="primary">
-          <Link to="/retailer/orders">Go to Orders</Link>
+          <Link to="/orders">Go to Orders</Link>
         </Button>
       </div>
     </Card>
@@ -444,9 +511,10 @@ function OrdersPage() {
   const [active, setActive] = useState<RetailOrderStatus>("PENDING_PAYMENT");
   const [timelines, setTimelines] = useState<Record<string, RetailOrder["shipmentTimeline"]>>({});
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["orders", active],
-    queryFn: () => getOrdersByStatus(active)
+    queryFn: () => getOrdersByStatus(active),
+    retry: false
   });
 
   useEffect(() => {
@@ -465,6 +533,20 @@ function OrdersPage() {
     { key: "SHIPPING", label: "Đang giao" },
     { key: "DELIVERED", label: "Hoàn tất" }
   ];
+
+  if (isError) {
+    return (
+      <Card title="Đơn hàng">
+        <Alert
+          type="warning"
+          showIcon
+          message="Không tải được danh sách đơn hàng"
+          description={error instanceof Error ? error.message : "Lỗi máy chủ hoặc mạng."}
+        />
+        <div className="text-center py-10 text-gray-400">Tính năng đang được phát triển</div>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Order list: 5 tabs + ShipmentTimeline">
@@ -527,6 +609,9 @@ function QrScanPage() {
     try {
       const data = await qrScanTrace(value);
       setTrace(data);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Quét QR thất bại.");
+      setTrace(null);
     } finally {
       setLoading(false);
     }
@@ -579,12 +664,16 @@ function ConfirmDeliveryPage() {
   const [shippingOrders, setShippingOrders] = useState<RetailOrder[]>([]);
 
   useEffect(() => {
-    void getOrdersByStatus("SHIPPING").then((items) => {
-      setShippingOrders(items);
-      if (items[0]) {
-        setOrderId(items[0].id);
-      }
-    });
+    void getOrdersByStatus("SHIPPING")
+      .then((items) => {
+        setShippingOrders(items);
+        if (items[0]) {
+          setOrderId(items[0].id);
+        }
+      })
+      .catch(() => {
+        message.warning("Không tải được đơn đang giao.");
+      });
   }, []);
 
   const submit = async () => {
@@ -592,8 +681,12 @@ function ConfirmDeliveryPage() {
       message.error("Chọn đơn hàng");
       return;
     }
-    await confirmDelivery(orderId, note, files);
-    message.success("Xác nhận giao hàng thành công");
+    try {
+      await confirmDelivery(orderId, note, files);
+      message.success("Xác nhận giao hàng thành công");
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : "Xác nhận giao hàng thất bại.");
+    }
   };
 
   return (
