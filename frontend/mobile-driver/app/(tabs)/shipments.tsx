@@ -102,7 +102,7 @@ export default function ShipmentsScreen() {
         </View>
       ) : sections.length === 0 ? (
         <View className="flex-1 items-center justify-center">
-          <Text className="text-gray-400 text-sm">Không có chuyến hàng</Text>
+          <Text className="text-gray-400 text-sm">Chưa có chuyến hàng nào</Text>
         </View>
       ) : (
         <SectionList

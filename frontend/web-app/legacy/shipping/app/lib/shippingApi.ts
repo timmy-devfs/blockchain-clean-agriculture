@@ -53,13 +53,16 @@ export type DriverApiRow = {
   licenseNo: string | null;
   licenseClass: string | null;
   isActive: boolean | null;
+  /** UUID identity (JWT sub) — dùng cho FCM / gắn tài khoản tài xế */
+  identityUserId?: string | null;
 };
 
 export type VehicleApiRow = {
   id: number;
   licensePlate: string;
   type: string;
-  capacity: number | null;
+  /** Dung tích (kg/m³) — optional trong một số response */
+  capacity?: number | null;
   isActive: boolean | null;
 };
 
@@ -124,10 +127,17 @@ export const ShippingApi = {
     return apiFetch<ApiResponse<DriverApiRow[]>>(`/api/shipping/drivers`, {}, auth);
   },
   async createDriver(
-    body: { fullName: string; phone?: string; licenseNumber?: string },
+    body: { fullName: string; phone?: string; licenseNumber?: string; identityUserId?: string | null },
     auth: { userId: string; role: string },
   ) {
     return apiFetch<ApiResponse<DriverApiRow>>(`/api/shipping/drivers`, { method: "POST", body: JSON.stringify(body) }, auth);
+  },
+  /** POST /api/notify/notifications/send — gửi FCM tới user (cần quyền SHIPPING_MANAGER / ADMIN trên gateway). */
+  async sendDriverPush(
+    body: { userId: string; title: string; body: string; data?: Record<string, string> },
+    auth: { userId: string; role: string },
+  ) {
+    return apiFetch<ApiResponse<null>>(`/api/notify/notifications/send`, { method: "POST", body: JSON.stringify(body) }, auth);
   },
   async listVehicles(auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<VehicleApiRow[]>>(`/api/shipping/vehicles`, {}, auth);

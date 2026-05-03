@@ -118,6 +118,7 @@ public class ShipmentService {
                     .imageUrls(null)
                     .build());
 
+            eventPublisher.publishShipmentUpdated(saved, "Driver/vehicle assigned", null, null);
             return toResponse(saved);
         }
 
@@ -149,6 +150,7 @@ public class ShipmentService {
                 .imageUrls(null)
                 .build());
 
+        eventPublisher.publishShipmentUpdated(created, "Shipment created", null, null);
         return toResponse(created);
     }
 

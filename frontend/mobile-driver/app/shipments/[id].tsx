@@ -8,9 +8,9 @@ import { useShipmentDetail } from "@/hooks/useShipments";
 import { StatusTimeline } from "@/components/StatusTimeline";
 
 const STATUS_ACTION: Record<string, { label: string; actionType: string } | null> = {
-  ASSIGNED: { label: "🔍 Bắt đầu nhận hàng", actionType: "pickup" },
-  PICKED_UP: { label: "🚚 Bắt đầu vận chuyển", actionType: "scan_only" }, // Tạm thời
-  IN_TRANSIT: { label: "✅ Xác nhận giao hàng", actionType: "deliver" },
+  ASSIGNED: { label: "Bắt đầu nhận hàng", actionType: "pickup" },
+  PICKED_UP: { label: "Đang vận chuyển", actionType: "scan_only" },
+  IN_TRANSIT: { label: "Xác nhận giao hàng", actionType: "deliver" },
   DELIVERED: null,
   CANCELLED: null,
 };
@@ -84,6 +84,14 @@ export default function ShipmentDetailScreen() {
           >
             <Text className="text-white text-sm font-semibold">🗺 Điều hướng Google Maps</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Địa chỉ giao hàng */}
+        <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <Text className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
+            📍 Địa chỉ giao hàng
+          </Text>
+          <Text className="text-sm text-gray-800 leading-6">{shipment.deliveryAddress}</Text>
         </View>
 
         {/* Status Timeline */}

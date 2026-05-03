@@ -64,6 +64,10 @@ IV) RESET DEMO DATA (IDEMPOTENT)
 2) Clear JWT cache:
    docker exec bicap-redis redis-cli FLUSHALL
 
+   Gợi ý: sau bước 1–2, đợi 2–5 giây (hoặc kiểm tra
+   curl.exe -s http://localhost:8081/actuator/health) rồi mới register. Lần gọi /api/auth/register
+   đầu tiên đôi khi trả mã 9002; gọi lại cùng lệnh thường thành công — xem Note bên dưới.
+
 
 V) REGISTER DEMO USERS
 ======================
@@ -76,6 +80,10 @@ curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: applicatio
 Note:
 - Identity DB base roles in this demo: ADMIN, FARM_MANAGER, RETAILER, SHIPPER.
 - Frontend may define extra display roles (SHIPPING_MANAGER/SHIP_DRIVER) for routing logic.
+- Mã 9002 "identity service is temporarily unavailable": do API Gateway (Resilience4j) kích hoạt
+  fallback khi tuyến tới identity-service lỗi/timeout tạm thời (JVM “nóng máy” sau restart, mạng Docker,
+  circuit breaker còn mở vài giây). Không phải lỗi logic register. Cách xử: đợi 2–10s, kiểm tra
+  http://localhost:8081/actuator/health, gọi lại register; thường lần 2 ổn định.
 
 
 VI) CORE API GATEWAY FLOWS

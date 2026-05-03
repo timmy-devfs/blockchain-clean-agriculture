@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import * as LocalAuthentication from "expo-local-authentication";
 import messaging from "@react-native-firebase/messaging";
-import { authApi, TOKEN_KEY, REFRESH_KEY, EMAIL_KEY, syncFcmTokenToBackend } from "@/lib/api";
+import { authApi, TOKEN_KEY, REFRESH_KEY, EMAIL_KEY, USER_ID_KEY, syncFcmTokenToBackend } from "@/lib/api";
 import type { DriverUser } from "@/lib/api";
 
 export function useAuth() {
@@ -19,11 +19,15 @@ export function useAuth() {
       const result = await authApi.login(email, password);
       await SecureStore.setItemAsync(TOKEN_KEY, result.accessToken);
       await SecureStore.setItemAsync(REFRESH_KEY, result.refreshToken);
+      await SecureStore.setItemAsync(USER_ID_KEY, result.user.id);
       if (remember) await SecureStore.setItemAsync(EMAIL_KEY, email);
       setUser(result.user);
       try {
         const fcm = await messaging().getToken();
-        if (fcm) await syncFcmTokenToBackend(fcm);
+        if (fcm) {
+          await syncFcmTokenToBackend(fcm);
+          console.log("[PUSH] Token registered for user:", result.user.id);
+        }
       } catch {
         /* FCM chua cau hinh hoac thieu google-services — bo qua */
       }
@@ -40,6 +44,7 @@ export function useAuth() {
     try {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_KEY);
+      await SecureStore.deleteItemAsync(USER_ID_KEY);
       setUser(null);
       
       // 2. Chuyển giao diện sang Login ngay lập tức

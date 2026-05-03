@@ -35,13 +35,16 @@ public class DriverFleetService {
 
     @Transactional
     public DriverResponse createDriver(CreateDriverRequest req) {
-        Driver d = driverRepository.save(Driver.builder()
+        var builder = Driver.builder()
                 .fullName(req.fullName())
                 .phone(req.phone())
                 .licenseNo(req.licenseNumber())
                 .licenseClass("B2")
-                .isActive(true)
-                .build());
+                .isActive(true);
+        if (req.identityUserId() != null && !req.identityUserId().isBlank()) {
+            builder.identityUserId(req.identityUserId().trim());
+        }
+        Driver d = driverRepository.save(builder.build());
         return toDriverResponse(d);
     }
 
@@ -82,7 +85,8 @@ public class DriverFleetService {
                 d.getPhone(),
                 d.getLicenseNo(),
                 d.getLicenseClass(),
-                d.getIsActive()
+                d.getIsActive(),
+                d.getIdentityUserId()
         );
     }
 

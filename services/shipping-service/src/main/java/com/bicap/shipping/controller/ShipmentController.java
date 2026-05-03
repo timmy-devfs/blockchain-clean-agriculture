@@ -106,6 +106,40 @@ public class ShipmentController {
         return ApiResponse.success(shipmentService.listForDriver(driverId));
     }
 
+    @GetMapping("/driver/shipments/{id}")
+    @Operation(summary = "Driver lấy chi tiết một shipment của mình")
+    public ApiResponse<ShipmentResponse> getDriverShipment(@PathVariable Long id) {
+        if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        return ApiResponse.success(shipmentService.getById(id));
+    }
+
+    @GetMapping("/driver/shipments/{id}/history")
+    @Operation(summary = "Driver lấy lịch sử trạng thái shipment của mình")
+    public ApiResponse<List<ShipmentStatusHistoryResponse>> getDriverShipmentHistory(@PathVariable Long id) {
+        if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        return ApiResponse.success(shipmentService.history(id));
+    }
+
     @PostMapping("/driver/shipments/{id}/pickup")
     @Operation(summary = "Driver xác nhận đã lấy hàng")
     @ApiResponses({

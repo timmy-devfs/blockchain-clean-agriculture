@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback, useRef, CSSProperties } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import jsQR from 'jsqr';
 import { useSyncOrders } from '../hooks/useSyncOrders';
-import { ShippingApi, type Shipment, type PendingConfirmedOrder } from '../lib/shippingApi';
+import {
+  ShippingApi,
+  type Shipment,
+  type PendingConfirmedOrder,
+  type DriverApiRow,
+  type VehicleApiRow,
+} from '../lib/shippingApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Order {
@@ -1107,10 +1113,59 @@ export default function ShippingDashboard() {
   const [toast, setToast]     = useState('');
   const [apiShipmentsSnapshot, setApiShipmentsSnapshot] = useState<Shipment[]>([]);
   const [pendingConfirmed, setPendingConfirmed] = useState<PendingConfirmedOrder[]>([]);
+  /** Danh sách tài xế / xe từ shipping-service — chọn trước khi «Tạo chuyến hàng». */
+  const [fleetDriversApi, setFleetDriversApi] = useState<DriverApiRow[]>([]);
+  const [fleetVehiclesApi, setFleetVehiclesApi] = useState<VehicleApiRow[]>([]);
+  const [selectedFleetDriverId, setSelectedFleetDriverId] = useState<number | null>(null);
+  const [selectedFleetVehicleId, setSelectedFleetVehicleId] = useState<number | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2200);
+  }, []);
+
+  /** Tải danh sách shipment, đơn chờ, tài xế & xe (dropdown). Không auto-chọn tài xế/xe đầu tiên. */
+  const loadShippingDashboardData = useCallback(async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (!token) return;
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+    try {
+      const [shipRes, pendRes, drvRes, vehRes] = await Promise.all([
+        ShippingApi.listShipments(auth),
+        ShippingApi.listConfirmedOrders(auth),
+        ShippingApi.listDrivers(auth),
+        ShippingApi.listVehicles(auth),
+      ]);
+      const rows = shipRes?.data;
+      if (Array.isArray(rows)) {
+        setApiShipmentsSnapshot(rows);
+        if (rows.length > 0) {
+          const next = rows.map(mapGatewayShipmentToOrder);
+          setOrders(next);
+          localStorage.setItem("agri_orders", JSON.stringify(next));
+        }
+      }
+      if (Array.isArray(pendRes?.data)) {
+        setPendingConfirmed(pendRes.data);
+      }
+      const drvList = Array.isArray(drvRes?.data) ? drvRes.data : [];
+      const vehList = Array.isArray(vehRes?.data) ? vehRes.data : [];
+      setFleetDriversApi(drvList);
+      setFleetVehiclesApi(vehList);
+      setSelectedFleetDriverId((prev) => {
+        if (drvList.length === 0) return null;
+        if (prev != null && drvList.some((d) => d.id === prev)) return prev;
+        return null;
+      });
+      setSelectedFleetVehicleId((prev) => {
+        if (vehList.length === 0) return null;
+        if (prev != null && vehList.some((v) => v.id === prev)) return prev;
+        return null;
+      });
+    } catch {
+      /* giữ dữ liệu đã hydrate từ localStorage */
+    }
   }, []);
 
   const [traceQ, setTraceQ]           = useState('');
@@ -1150,30 +1205,8 @@ export default function ShippingDashboard() {
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
-      if (!token) return;
-      const sub = decodeJwtSub(token);
-      const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
-      try {
-        const [shipRes, pendRes] = await Promise.all([
-          ShippingApi.listShipments(auth),
-          ShippingApi.listConfirmedOrders(auth),
-        ]);
-        const rows = shipRes?.data;
-        if (!cancelled && Array.isArray(rows)) {
-          setApiShipmentsSnapshot(rows);
-          if (rows.length > 0) {
-            const next = rows.map(mapGatewayShipmentToOrder);
-            setOrders(next);
-            localStorage.setItem("agri_orders", JSON.stringify(next));
-          }
-        }
-        if (!cancelled && Array.isArray(pendRes?.data)) {
-          setPendingConfirmed(pendRes.data);
-        }
-      } catch {
-        /* giữ dữ liệu đã hydrate từ localStorage */
-      }
+      if (cancelled) return;
+      await loadShippingDashboardData();
     };
     void tick();
     const id = setInterval(tick, 10000);
@@ -1181,77 +1214,107 @@ export default function ShippingDashboard() {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [loadShippingDashboardData]);
 
   const handleCreateShipment = async (row: PendingConfirmedOrder) => {
     const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
     if (!token) {
-      showToast("⚠️ Cần đăng nhập BICAP.");
+      alert("⚠️ Cần đăng nhập BICAP.");
+      return;
+    }
+    if (!selectedFleetDriverId) {
+      alert("Vui lòng chọn tài xế trước khi tạo chuyến hàng");
+      return;
+    }
+    if (!selectedFleetVehicleId) {
+      alert("Vui lòng chọn phương tiện trước khi tạo chuyến hàng");
       return;
     }
     const sub = decodeJwtSub(token);
     const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+    const chosenDriver = fleetDriversApi.find((d) => d.id === selectedFleetDriverId);
+
     try {
-      const driversRes = await ShippingApi.listDrivers(auth);
-      const vehiclesRes = await ShippingApi.listVehicles(auth);
-      const drivers = driversRes?.data ?? [];
-      const vehicles = vehiclesRes?.data ?? [];
-      if (!drivers.length || !vehicles.length) {
-        showToast("Chưa có tài xế hoặc phương tiện. Bấm «Tạo tài xế & xe demo» hoặc thêm trong phần Tài xế.");
-        return;
-      }
-      const shipmentRes = await ShippingApi.createShipment(
+      const shipmentResult = await ShippingApi.createShipment(
         {
           orderId: row.orderId,
           farmId: row.farmId ?? 0,
           retailerId: row.retailerId ?? 0,
-          driverId: drivers[0]!.id,
-          vehicleId: vehicles[0]!.id,
+          driverId: selectedFleetDriverId,
+          vehicleId: selectedFleetVehicleId,
           deliveryAddress: row.deliveryAddress ?? undefined,
         },
         auth,
       );
-      const shipmentId = shipmentRes?.data?.id;
-      console.log("[DEMO] SHIPMENT_ID =", shipmentId);
-      showToast(`Đã tạo chuyến hàng: ${shipmentId ?? "—"}`);
-      const [shipRes, pendRes] = await Promise.all([
-        ShippingApi.listShipments(auth),
-        ShippingApi.listConfirmedOrders(auth),
-      ]);
-      const rows = shipRes?.data;
-      if (Array.isArray(rows)) {
-        setApiShipmentsSnapshot(rows);
-        if (rows.length > 0) {
-          const next = rows.map(mapGatewayShipmentToOrder);
-          setOrders(next);
-          localStorage.setItem("agri_orders", JSON.stringify(next));
+
+      const shipmentId =
+        (shipmentResult as { data?: { id?: number }; id?: number })?.data?.id ??
+        (shipmentResult as { id?: number })?.id ??
+        "unknown";
+      console.log("[SHIPMENT] Created:", shipmentId);
+
+      const targetUserId = chosenDriver?.identityUserId?.trim() || "";
+      if (targetUserId) {
+        try {
+          await ShippingApi.sendDriverPush(
+            {
+              userId: targetUserId,
+              title: "Đơn hàng mới",
+              body: "Bạn có 1 đơn hàng mới. Vui lòng kiểm tra ứng dụng.",
+              data: {
+                shipmentId: String(shipmentId),
+                type: "NEW_SHIPMENT",
+                screen: "shipment_detail",
+              },
+            },
+            auth,
+          );
+          console.log("[FCM] Push sent to driver userId:", targetUserId);
+        } catch (fcmErr) {
+          console.warn("[FCM] Push failed (non-blocking):", fcmErr);
         }
+      } else {
+        console.warn("[FCM] Driver has no identityUserId — push skipped. Driver:", chosenDriver);
       }
-      if (Array.isArray(pendRes?.data)) setPendingConfirmed(pendRes.data);
+
+      alert(`✅ Tạo chuyến hàng thành công!\nMã chuyến: ${shipmentId}`);
+      setSelectedFleetDriverId(null);
+      setSelectedFleetVehicleId(null);
+      await loadShippingDashboardData();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showToast("Tạo chuyến hàng thất bại: " + msg);
+      console.error("[SHIPMENT] Create failed:", err);
+      const anyErr = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = anyErr?.response?.data?.message ?? (err instanceof Error ? err.message : String(err));
+      alert(`❌ Tạo chuyến hàng thất bại: ${msg ?? "Unknown error"}`);
     }
   };
 
   const seedFleetDemo = async () => {
     const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
     if (!token) {
-      showToast("⚠️ Cần đăng nhập BICAP.");
+      alert("⚠️ Cần đăng nhập BICAP.");
       return;
     }
     const sub = decodeJwtSub(token);
     const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
     try {
-      await ShippingApi.createDriver(
-        { fullName: "Demo Tài xế BICAP", phone: "0909123001", licenseNumber: "GPLX-DEMO-001" },
+      const created = await ShippingApi.createDriver(
+        {
+          fullName: "Demo Tài xế BICAP",
+          phone: "0909123001",
+          licenseNumber: "GPLX-DEMO-001",
+          ...(sub ? { identityUserId: sub } : {}),
+        },
         auth,
       );
+      const iid = created?.data?.identityUserId ?? sub ?? "";
+      console.log("[SEED] Driver created with identityUserId:", iid || "(none)");
       await ShippingApi.createVehicle({ licensePlate: "51H-90001", type: "VAN", capacity: 800 }, auth);
-      showToast("Đã tạo tài xế & xe demo.");
+      await loadShippingDashboardData();
+      alert("✅ Đã tạo tài xế & xe demo. Tài xế được liên kết với tài khoản hiện tại.");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      showToast("Không tạo được: " + msg);
+      alert("Không tạo được: " + msg);
     }
   };
 
@@ -1625,6 +1688,88 @@ export default function ShippingDashboard() {
                   >
                     + Tạo tài xế & xe demo
                   </button>
+                </div>
+                {/* === PHÂN CÔNG CHUYẾN HÀNG === */}
+                <div
+                  style={{
+                    background: '#fff',
+                    borderRadius: 12,
+                    padding: 16,
+                    border: '1px solid #f1f5f9',
+                    marginBottom: 14,
+                  }}
+                >
+                  <h3 style={{ fontWeight: 600, color: '#1e293b', marginBottom: 12, fontSize: 15, marginTop: 0 }}>
+                    Phân công chuyến hàng
+                  </h3>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                      gap: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', marginBottom: 4, display: 'block' }}>Tài xế *</label>
+                      <select
+                        value={selectedFleetDriverId ?? ''}
+                        onChange={(e) => setSelectedFleetDriverId(Number(e.target.value) || null)}
+                        style={{ ...S.inp, width: '100%', fontSize: 13, borderRadius: 8, padding: '8px 10px' } as CSSProperties}
+                      >
+                        <option value="">-- Chọn tài xế --</option>
+                        {fleetDriversApi.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.fullName} {d.phone ? `(${d.phone})` : ''}
+                            {d.identityUserId ? ' ✓' : ' ⚠️'}
+                          </option>
+                        ))}
+                      </select>
+                      {fleetDriversApi.length === 0 && (
+                        <p style={{ fontSize: 11, color: '#ea580c', marginTop: 6, marginBottom: 0 }}>
+                          Chưa có tài xế. Bấm «Tạo demo» bên dưới.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', marginBottom: 4, display: 'block' }}>Phương tiện *</label>
+                      <select
+                        value={selectedFleetVehicleId ?? ''}
+                        onChange={(e) => setSelectedFleetVehicleId(Number(e.target.value) || null)}
+                        style={{ ...S.inp, width: '100%', fontSize: 13, borderRadius: 8, padding: '8px 10px' } as CSSProperties}
+                      >
+                        <option value="">-- Chọn xe --</option>
+                        {fleetVehiclesApi.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.licensePlate} — {v.type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {selectedFleetDriverId
+                    ? (() => {
+                        const driver = fleetDriversApi.find((d) => d.id === selectedFleetDriverId);
+                        if (driver && !driver.identityUserId) {
+                          return (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: '#c2410c',
+                                background: '#fff7ed',
+                                borderRadius: 8,
+                                padding: '8px 12px',
+                                marginBottom: 12,
+                              }}
+                            >
+                              ⚠️ Tài xế này chưa có liên kết tài khoản app (identityUserId trống).
+                              FCM sẽ không gửi được. Dùng nút «Tạo tài xế & xe demo» để tạo tài xế demo có liên kết.
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()
+                    : null}
                 </div>
                 {pendingConfirmed.length === 0 ? (
                   <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '12px 0' }}>

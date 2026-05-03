@@ -6,6 +6,7 @@ public record DriverResponse(
         String phone,
         String licenseNo,
         String licenseClass,
-        Boolean isActive
+        Boolean isActive,
+        String identityUserId
 ) {
 }

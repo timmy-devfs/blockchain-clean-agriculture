@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_TEXT: Record<string, string> = {
-  ASSIGNED: "Đã phân công",
+  ASSIGNED: "Được phân công",
   PICKED_UP: "Đã nhận hàng",
   IN_TRANSIT: "Đang giao",
   DELAYED: "Bị trì hoãn",

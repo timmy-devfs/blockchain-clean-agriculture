@@ -9,13 +9,22 @@ import { View, ActivityIndicator } from "react-native";
 import { useFirebaseMessaging } from '@/lib/useFirebaseMessaging';
 
 import messaging from '@react-native-firebase/messaging';
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
 
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   console.log('[Background] Nhận được thông báo:', remoteMessage);
 });
 
 const queryClient = new QueryClient();
+
+function fcmDataStrings(data: Record<string, unknown> | undefined): Record<string, string> {
+  if (!data) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v != null) out[k] = typeof v === "string" ? v : String(v);
+  }
+  return out;
+}
 
 export default function RootLayout() {
   const router = useRouter();
@@ -24,6 +33,50 @@ export default function RootLayout() {
   const [hasInitialized, setHasInitialized] = useState(false);
 
   useFirebaseMessaging();
+
+  // Tap notification → màn shipment (background / cold start)
+  useEffect(() => {
+    const handleNotificationTap = (shipmentId: string) => {
+      if (shipmentId) router.push(`/shipments/${shipmentId}`);
+    };
+
+    const navFromData = (data: Record<string, unknown> | undefined) => {
+      const sid = data?.shipmentId;
+      if (sid != null && String(sid).length > 0) {
+        handleNotificationTap(String(sid));
+      }
+    };
+
+    const unsubOpened = messaging().onNotificationOpenedApp((rm) => {
+      console.log("[PUSH] onNotificationOpenedApp", rm?.data);
+      navFromData(rm.data as Record<string, unknown> | undefined);
+    });
+
+    void messaging()
+      .getInitialNotification()
+      .then((rm) => {
+        if (rm?.data) {
+          console.log("[PUSH] getInitialNotification", rm.data);
+          const sid = rm.data?.shipmentId;
+          if (sid != null && String(sid).length > 0) {
+            setTimeout(() => handleNotificationTap(String(sid)), 500);
+          }
+        }
+      });
+
+    const unsubNotifee = notifee.onForegroundEvent(({ type, detail }) => {
+      if (type === EventType.PRESS) {
+        const raw = detail.notification?.data;
+        console.log("[PUSH] notifee press", raw);
+        navFromData(raw as Record<string, unknown> | undefined);
+      }
+    });
+
+    return () => {
+      unsubOpened();
+      unsubNotifee();
+    };
+  }, [router]);
 
   // TÍCH HỢP NOTIFEE CHO FOREGROUND
   useEffect(() => {
@@ -41,14 +94,16 @@ export default function RootLayout() {
         importance: AndroidImportance.HIGH,
       });
 
-      // Hiển thị thông báo (Local Notification)
+      const dataPayload = fcmDataStrings(remoteMessage.data as Record<string, unknown> | undefined);
+
+      // Hiển thị thông báo (Local Notification) — giữ data để bấm vào điều hướng
       await notifee.displayNotification({
         title: remoteMessage.notification?.title || "Thông báo",
         body: remoteMessage.notification?.body || "Bạn có tin nhắn mới",
+        data: dataPayload,
         android: {
           channelId,
           importance: AndroidImportance.HIGH,
-          // Hành động khi người dùng bấm vào thông báo
           pressAction: {
             id: 'default',
           },
@@ -103,6 +158,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="shipments/[id]" options={{ headerShown: false }} />
       </Stack>
     </QueryClientProvider>
   );

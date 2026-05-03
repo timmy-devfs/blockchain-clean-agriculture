@@ -41,6 +41,42 @@ Tóm lại:
 
 - **Kiểu production/unified**: http://localhost/api/... **phải** có accessToken — không thay bằng chỉ ID.
 
+
+LUỒNG KHỞI ĐỘNG CHUẨN — ĐỂ txHash KHÔNG BỊ NULL
+==============================================
+(Câu hỏi thường gặp: blockchain có phải chạy *trước* `make make-topics` không?)
+
+**Không bắt buộc** blockchain start trước hay sau farm-service. Điều **bắt buộc** là:
+
+- Topic Kafka `bicap.season.created` (và các topic BICAP) **đã được tạo** trên broker.
+
+- Container `blockchain-service` sau khi khởi động phải **subscribe thành công** (không vào **degraded mode**).
+
+Nếu blockchain khởi động **khi topic chưa có**, nó có thể báo lỗi metadata rồi **bỏ qua consumer** → dù sau đó bạn tạo topic, service vẫn **không đọc message** cho đến khi bạn **restart** `blockchain-service`.
+
+**Thứ tự an toàn nhất mỗi lần dựng stack / sau `down -v`:**
+
+  1. `docker compose up -d` (hoặc `--build` lần đầu).
+
+  2. Đợi **Kafka healthy** (và Zookeeper nếu có).
+
+  3. **`make make-topics`** — luôn chạy bước này trước khi tin pipeline season→chain đã chạy.
+
+  4. **`docker compose restart blockchain-service`** — đảm bảo consumer subscribe *sau* khi topic đã tồn tại.
+
+  5. Kiểm tra log một lần:
+
+     `docker compose logs --tail=40 blockchain-service`
+
+     - Phải có: **Subscribed to: bicap.season.created, bicap.season.updated, bicap.season.exported**
+
+     - Không được có (sau lần start đó): **Kafka unavailable, starting in degraded mode**
+
+  6. Rồi mới làm flow curl (farm → approve farm → season → approve season) hoặc qua `/api` + Bearer.
+
+**Tóm tắt một dòng:** Topic trước, restart blockchain nếu cần, xác nhận log “Subscribed”, sau đó mới test — không phụ thuộc “ai start trước” giữa farm và blockchain, chỉ phụ thuộc **topic + consumer còn sống**.
+
+
 0) ĐIỀU KIỆN TRƯỚC KHI CHẠY
 ============================
 - Stack Docker đã chạy:

@@ -6,6 +6,8 @@ import type { ApiResponse, PageResponse } from "@bicap/types";
 export const TOKEN_KEY = "bicap_access_token";
 export const REFRESH_KEY = "bicap_refresh_token";
 export const EMAIL_KEY = "bicap_remember_email";
+/** UUID người dùng — lưu sau login để đăng ký FCM kèm userId */
+export const USER_ID_KEY = "bicap_user_id";
 
 // ─── TÍCH HỢP MOCK DB CHO CHẾ ĐỘ TEST ─────────────────────────────────────
 export const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
@@ -82,6 +84,7 @@ api.interceptors.response.use(
     } catch {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_KEY);
+      await SecureStore.deleteItemAsync(USER_ID_KEY);
       return Promise.reject(error);
     } finally {
       isRefreshing = false;
@@ -98,13 +101,22 @@ function assertShippingOk<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
-/** Đăng ký FCM token với notification-service (cần JWT trên gateway). */
+/**
+ * POST /api/notify/tokens — Bearer bắt buộc (axios interceptor).
+ * Gọi sau khi login khi đã có TOKEN_KEY và USER_ID_KEY (useAuth set trước khi gọi).
+ */
 export async function syncFcmTokenToBackend(fcmToken: string): Promise<void> {
   if (isMockMode) return;
   const jwt = await SecureStore.getItemAsync(TOKEN_KEY);
-  if (!jwt?.trim()) return;
+  const userId = await SecureStore.getItemAsync(USER_ID_KEY);
+  if (!jwt?.trim() || !userId?.trim()) return;
   const platform = Platform.OS === "ios" ? "IOS" : "ANDROID";
-  await api.post("/api/notify/tokens", { token: fcmToken, platform });
+  await api.post("/api/notify/tokens", {
+    token: fcmToken,
+    deviceType: "MOBILE",
+    platform,
+    userId,
+  });
 }
 
 export interface DriverUser {
@@ -259,10 +271,18 @@ export const shipmentApi = {
     } as PageResponse<ShipmentListItem>;
   },
 
-  getDetail: (id: string) =>
-    Promise.all([
-      api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/shipments/${id}`),
-      api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/shipments/${id}/history`),
+  getDetail: (id: string) => {
+    if (isMockMode) {
+      const row = MOCK_SHIPPING_ROWS.find((r) => String(r.id) === id);
+      if (!row) return Promise.reject(new Error("Not found"));
+      return Promise.resolve({
+        ...mapShipmentRow(row),
+        statusHistory: [],
+      } as ShipmentDetail);
+    }
+    return Promise.all([
+      api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/driver/shipments/${id}`),
+      api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/driver/shipments/${id}/history`),
     ]).then(([shipmentRes, historyRes]) => {
       const shipmentBody = shipmentRes.data;
       if (shipmentBody.code !== 200) throw new Error(shipmentBody.message);
@@ -273,7 +293,8 @@ export const shipmentApi = {
         ...base,
         statusHistory: mapHistoryRows(hist),
       } as ShipmentDetail;
-    }),
+    });
+  },
 
   pickup: async (shipmentId: string, qrCode: string, photoUri: string) => {
     return api.post<ApiResponse<any>>(

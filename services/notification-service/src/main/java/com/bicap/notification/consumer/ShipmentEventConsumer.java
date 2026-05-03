@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -31,7 +32,7 @@ public class ShipmentEventConsumer extends BaseJsonConsumer {
                     farmId,
                     "Cap nhat van chuyen",
                     body,
-                    Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+                    baseShipmentData(payload, orderId, status, false)
             );
         }
 
@@ -41,7 +42,7 @@ public class ShipmentEventConsumer extends BaseJsonConsumer {
                     retailerId,
                     "Cap nhat van chuyen",
                     body,
-                    Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+                    baseShipmentData(payload, orderId, status, false)
             );
         }
 
@@ -49,21 +50,47 @@ public class ShipmentEventConsumer extends BaseJsonConsumer {
         if (driverUserId != null && !driverUserId.isBlank()) {
             dispatcher.notifyUser(
                     driverUserId,
-                    "Cap nhat van chuyen (tai xe)",
-                    body,
-                    Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+                    "Đơn hàng mới",
+                    "Bạn có 1 đơn hàng mới.",
+                    baseShipmentData(payload, orderId, status, true)
             );
         } else {
             String driverId = text(payload, "driverId");
             if (driverId != null && !driverId.isBlank()) {
                 dispatcher.notifyUser(
                         driverId,
-                        "Cap nhat van chuyen (tai xe)",
-                        body,
-                        Map.of("eventType", "SHIPMENT_UPDATED", "orderId", orderId == null ? "" : orderId)
+                        "Đơn hàng mới",
+                        "Bạn có 1 đơn hàng mới.",
+                        baseShipmentData(payload, orderId, status, true)
                 );
             }
         }
+    }
+
+    private Map<String, String> baseShipmentData(
+            JsonNode payload,
+            String orderId,
+            String status,
+            boolean forDriver) {
+        Map<String, String> m = new HashMap<>();
+        m.put("eventType", "SHIPMENT_UPDATED");
+        m.put("orderId", orderId == null ? "" : orderId);
+        String shipmentId = text(payload, "shipmentId");
+        if (shipmentId != null) {
+            m.put("shipmentId", shipmentId);
+        }
+        if (status != null) {
+            m.put("status", status);
+        }
+        if (forDriver) {
+            m.put("screen", "shipment_detail");
+            if ("ASSIGNED".equalsIgnoreCase(status)) {
+                m.put("type", "NEW_SHIPMENT");
+            } else {
+                m.put("type", "SHIPMENT_UPDATE");
+            }
+        }
+        return m;
     }
 }
 
