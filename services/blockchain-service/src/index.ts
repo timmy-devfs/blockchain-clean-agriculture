@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv   from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { createLogger }             from './utils/logger';
 import { connectVeChain }           from './config/VeChainConfig';
 import { initKafka, sendTestMessage, disconnectKafka } from './config/KafkaConfig';
@@ -31,7 +32,7 @@ app.use('/api/chain', traceRouter);
 app.get('/test-season-created', async (_req, res) => {
   const seasonId = `S${Date.now()}`;
   const event = {
-    eventId:   crypto.randomUUID(),
+    eventId:   randomUUID(),
     eventType: 'SEASON_CREATED',
     timestamp: new Date().toISOString(),
     version:   '1.0',
@@ -60,7 +61,7 @@ app.get('/test-season-created', async (_req, res) => {
 app.get('/test-season-updated', async (req, res) => {
   const seasonId = (req.query.seasonId as string) ?? 'S001';
   const event = {
-    eventId:   crypto.randomUUID(),
+    eventId:   randomUUID(),
     eventType: 'SEASON_UPDATED',
     timestamp: new Date().toISOString(),
     version:   '1.0',
@@ -86,7 +87,7 @@ app.get('/test-season-updated', async (req, res) => {
 app.get('/test-season-exported', async (req, res) => {
   const seasonId = (req.query.seasonId as string) ?? 'S001';
   const event = {
-    eventId:   crypto.randomUUID(),
+    eventId:   randomUUID(),
     eventType: 'SEASON_EXPORTED',
     timestamp: new Date().toISOString(),
     version:   '1.0',

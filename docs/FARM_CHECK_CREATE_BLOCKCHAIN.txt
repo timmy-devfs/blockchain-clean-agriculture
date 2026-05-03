@@ -1,166 +1,311 @@
-FARM -> ADMIN APPROVAL -> BLOCKCHAIN FLOW (GATEWAY PATH)
-========================================================
+FARM → ADMIN DUYỆT → BLOCKCHAIN (ĐI QUA API GATEWAY)
+====================================================
+Cập nhật: 2026-05-03
+Base URL khuyến nghị cho thử nghiệm từ trình duyệt/curl: http://localhost/api
+API GATEWAY KHÁC GỌI TRỰC TIẾP FARM-SERVICE
+===========================================
+Mọi request tới http://localhost/api/... đi qua API Gateway. Gateway kiểm tra JWT trước:
+  - Bắt buộc gửi: Authorization: Bearer <accessToken> (lấy từ /api/auth/login).
+  - Thiếu Bearer → mã 1004 "Authorization token is required".
+Sau khi introspect token, gateway chèn/chuyển tiếp các header: X-User-Id, X-User-Role, X-User-Email
+xuống farm-service.
+Chỉ gửi X-User-* mà không có Bearer chỉ phù hợp khi gọi **trực tiếp** farm-service (ví d
+http://localhost:8082), **không** dùng được với đường /api.
+SO SÁNH VỚI BẢN CŨ (NHIỀU SERVICE / GỌI THẲNG CỔNG)
+===================================================
+Trước khi gom về một “app” thống nhất (nginx + gateway, URL /api):
 
-Last update: 2026-05-01
-Recommended base URL for all browser-facing tests: http://localhost/api
+- Auth có thể chạy riêng (ví dụ :8081), farm-service riêng :8082 — mỗi service một cổng.
 
+- Khi bạn curl **thẳng** http://localhost:8082/... request chỉ vào Express của farm-service.
 
-0) PREREQUISITES
-================
+  Middleware ở đó chỉ gán `req.user` từ header **X-User-Id** và **X-User-Role** (không có lớp kiểm JWT
 
-- Docker stack is up:
+  ở cổng đó). Vì vậy curl chỉ cần hai header đó — đúng như lệnh cũ của bạn.
+
+Sau khi dùng **một điểm vào** cho client (http://localhost/api):
+
+- Traffic đi: client → nginx → **API Gateway** → farm-service.
+
+- Gateway là chỗ **bắt buộc** có `Authorization: Bearer` (JWT), introspect/cache, rồi mới chèn
+
+  X-User-* đúng theo user thật rồi forward xuống farm.
+
+- Client **không** được “tự khai” chỉ X-User-* qua /api vì sẽ giả mạo được danh tính — nên thiết kế
+
+  yêu cầu Bearer ở edge.
+
+Tóm lại:
+
+- **Giữ được** kiểu test cũ: gọi **trực tiếp** http://localhost:8082/... + X-User-* (thường dùng dev).
+
+- **Kiểu production/unified**: http://localhost/api/... **phải** có accessToken — không thay bằng chỉ ID.
+
+0) ĐIỀU KIỆN TRƯỚC KHI CHẠY
+============================
+- Stack Docker đã chạy:
+
   docker compose up -d --build
-- Kafka topics created:
+
+- Đã tạo topic Kafka (bắt buộc để có txHash — xem mục 0b bên dưới):
+
   make make-topics
-- Core health:
+
+- Kiểm tra nhanh:
+
   curl.exe -s http://localhost/nginx-health
+
   curl.exe -s http://localhost:8080/actuator/health
 
+0b) KAFKA VÀ txHash — NẾU BỎ QUA BƯỚC NÀY SẼ LUÔN NULL
+=====================================================
 
-1) ONE-TIME MONGO FIX (ONLY IF REPLICA ERRORS)
-===============================================
+Topic `bicap.season.created` (và các topic trong `infrastructure/kafka/create-topics.sh`) **phải tồn tại**
 
+trước khi `blockchain-service` subscribe. Nếu container blockchain khởi động khi topic chưa có, KafkaJS báo
+
+lỗi kiểu **"This server does not host this topic-partition"**, service vào **degraded mode** (KAFKA_OPTIONAL),
+
+**không chạy consumer** → không xử lý SEASON_CREATED → **không gọi VeChain / không callback** → `txHash` trong
+
+farm **mãi null** (dù admin approve vẫn trả 200).
+
+Cách xử lý:
+
+1. Chạy: `make make-topics`
+
+2. Khởi động lại consumer: `docker compose restart blockchain-service`
+
+3. Kiểm tra log phải có dòng **Subscribed to: bicap.season.created, ...** và **không** có
+
+   **Kafka unavailable, starting in degraded mode** sau lần khởi động đó.
+
+Sau mỗi lần `docker compose down -v` hoặc reset volume Kafka, phải `make make-topics` lại.
+1) SỬA MONGO MỘT LẦN (CHỈ KHI LỖI REPLICA)
+
+============================================
 docker exec bicap-mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]})"
+
 docker compose restart farm-service
+2) XÓA USER DEMO + ĐĂNG KÝ LẠI
 
-
-2) RESET USERS + REGISTER FRESH
-===============================
-
+================================
 docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io');"
-docker exec bicap-redis redis-cli FLUSHALL
 
+docker exec bicap-redis redis-cli FLUSHALL
 curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+
 curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
 
+3) ĐĂNG NHẬP + SAO CHÉP ID / TOKEN
 
-3) LOGIN + COPY IDS
-===================
+===================================
 
 curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\"}"
+
 curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
 
-Copy values:
-- ADMIN_ID  = data.user.id from admin login response
-- FARMER_ID = data.user.id from farm login response
-- ACCESS_TOKEN_ADMIN / ACCESS_TOKEN_FARM if needed for Bearer checks
+Sao chép từ JSON trả về:
 
+- ADMIN_ID  = data.user.id của admin
 
-4) FARMER CREATES FARM (PENDING)
-================================
+- FARMER_ID = data.user.id của farm manager
 
+- ACCESS_TOKEN_ADMIN = data.accessToken khi login admin
+
+- ACCESS_TOKEN_FARM  = data.accessToken khi login farm (bắt buộc cho mọi /api/farm/* qua gateway)
+
+4) NÔNG DÂN TẠO FARM (CHỜ DUYỆT)
+
+==================================
 curl.exe -X POST "http://localhost/api/farm/farms" ^
+
   -H "Content-Type: application/json" ^
-  -H "X-User-Id: <FARMER_ID>" ^
-  -H "X-User-Role: FARM_MANAGER" ^
+
+  -H "Authorization: Bearer <ACCESS_TOKEN_FARM>" ^
+
   -d "{\"name\":\"Farm Flow Test\",\"address\":\"Go Dau\",\"province\":\"Tay Ninh\",\"area\":3.2}"
 
-Copy:
-- FARM_ID from response.id (must be Mongo ObjectId: 24 hex chars)
+Sao chép:
 
+- FARM_ID = trường id trong response (Mongo ObjectId dạng 24 ký tự hex)
 
-5) ADMIN APPROVES FARM
-======================
+5) ADMIN PHÊ DUYỆT FARM
 
-curl.exe -X PUT "http://localhost/api/farm/admin/farms/<FARM_ID>/approve" ^
-  -H "X-User-Id: <ADMIN_ID>" ^
-  -H "X-User-Role: ADMIN"
-
-Expected:
-- Response confirms approval or returns updated farm.
-
-
-6) FARMER CREATES SEASON
 ========================
+curl.exe -X PUT "http://localhost/api/farm/admin/farms/<FARM_ID>/approve" ^
 
+  -H "Authorization: Bearer <ACCESS_TOKEN_ADMIN>"
+Kỳ vọng:
+
+- Response trả về farm đã isApproved=true hoặc thông báo phù hợp.
+6) NÔNG DÂN TẠO VỤ MÙA (SEASON)
+
+================================
 curl.exe -X POST "http://localhost/api/farm/seasons" ^
+
   -H "Content-Type: application/json" ^
-  -H "X-User-Id: <FARMER_ID>" ^
-  -H "X-User-Role: FARM_MANAGER" ^
+
+  -H "Authorization: Bearer <ACCESS_TOKEN_FARM>" ^
+
   -d "{\"farmId\":\"<FARM_ID>\",\"cropType\":\"Lua Jasmine\",\"startDate\":\"2026-05-01\",\"estimatedEndDate\":\"2026-09-30\"}"
 
-Copy:
-- SEASON_ID from response.id
+Sao chép:
 
-Expected:
-- season created successfully
-- txHash may be null initially (before callback/update)
+- SEASON_ID = id trong response
 
+Kỳ vọng:
 
-7) ADMIN APPROVES SEASON FOR BLOCKCHAIN PIPELINE
-================================================
+- Tạo season thành công.
+
+- txHash lúc này thường vẫn null (chưa ghi blockchain cho đến bước admin duyệt pipeline).
+7) ADMIN PHÊ DUYỆT SEASON ĐỂ ĐẨY VÀO PIPELINE BLOCKCHAIN
+
+=========================================================
 
 curl.exe -X PUT "http://localhost/api/farm/admin/seasons/<SEASON_ID>/approve" ^
-  -H "X-User-Id: <ADMIN_ID>" ^
-  -H "X-User-Role: ADMIN"
 
-Expected:
-- response indicates event published/accepted.
+  -H "Authorization: Bearer <ACCESS_TOKEN_ADMIN>"
 
+Kỳ vọng:
 
-8) FARMER CHECKS SEASON DETAIL
-==============================
+- Message kiểu: đã publish sự kiện SEASON_CREATED / ghi blockchain (tùy bản API).
+
+8) NÔNG DÂN XEM CHI TIẾT SEASON
+
+================================
 
 curl.exe -X GET "http://localhost/api/farm/seasons/<SEASON_ID>" ^
-  -H "X-User-Id: <FARMER_ID>" ^
-  -H "X-User-Role: FARM_MANAGER"
 
-Expected:
-- season exists
-- txHash eventually non-null if blockchain callback path works in env
+  -H "Authorization: Bearer <ACCESS_TOKEN_FARM>"
+Kỳ vọng:
 
+- Trả về đủ season; `txHash` là hash giao dịch testnet (tra Explorer: https://explore.vechain.org/ ).
 
-9) TROUBLESHOOTING
-==================
+- Nếu vừa approve, đợi vài giây rồi GET lại (xem mục dưới).
 
-A) "Invalid farm id format" / "Invalid season id format"
-- You used non-ObjectId value. Use exact 24-hex ID from API response.
+VÌ SAO txHash CÓ THỂ VẪN NULL (VECHAIN / API TRẢ JSON)
 
-B) txHash remains demo or null
-- Check logs:
+=====================================================
+Luồng thiết kế là **bất đồng bộ**:
+
+1) Admin approve chỉ ghi DB + **gửi message Kafka** (topic bicap.season.created). Response HTTP
+
+   thành công **không** đồng nghĩa VeChain đã ghi xong.
+
+2) **blockchain-service** tiêu thụ Kafka → gọi hợp đồng (nếu có FARM_TRACE_CONTRACT_ADDRESS)
+
+   hoặc dùng hash demo khi **không** cấu hình contract → sau đó **callback nội bộ** tới farm-service:
+
+   PUT /api/farm/seasons/:id/blockchain (header X-Internal-Key). **Chính bước này** mới lưu txHash
+
+   vào Mongo.
+
+3) Nếu bạn GET ngay sau approve (vài trăm ms), txHash thường vẫn null — hãy đợi 5–30 giây rồi GET lại.
+
+4) **Ưu tiên:** xem mục **0b** — consumer Kafka không chạy (degraded mode) là nguyên nhân phổ biến nhất.
+
+5) txHash vẫn null lâu — kiểm tra thêm:
+
+   - farm-service: KAFKA_OPTIONAL=true → nếu Kafka lỗi lúc publish, sự kiện có thể **không** gửi được
+
+     nhưng admin vẫn báo thành công (xem log farm-service).
+
+   - blockchain-service: consumer có chạy không (KAFKA_CONSUME không phải false), log có lỗi handler.
+
+   - INTERNAL_API_KEY khớp giữa farm-service và blockchain-service; nếu callback bị skip/thất bại
+
+     thì DB không cập nhật txHash.
+
+   - File .env của blockchain-service (nếu có) không được ghi đè INTERNAL_API_KEY thành rỗng.
+
+   - Khi có contract nhưng RPC/VeChain lỗi: consumer có thể fail trước khi callback.
+
+Lệnh xem log gợi ý:
   docker compose logs --tail=200 farm-service
+
   docker compose logs --tail=200 blockchain-service
-- Verify Kafka topics + connectivity.
 
-C) 401/403 on farm/admin endpoints
-- Verify headers:
-  X-User-Id, X-User-Role
-- Confirm role values: ADMIN / FARM_MANAGER.
+Lưu ý: Khi **không** set FARM_TRACE_CONTRACT_ADDRESS, code vẫn dùng hash **demo** và vẫn **cố**
 
+callback để lưu txHash — miễn là Kafka + callback nội bộ thành công.
 
-10) OPTIONAL POWERSHELL AUTO FLOW
-=================================
+9) XỬ LÝ SỰ CỐ
 
+==============
+A) Lỗi "Invalid farm id format" / "Invalid season id format"
+
+- ID không đúng ObjectId 24 hex — dùng đúng id từ response API.
+
+B) txHash mãi null hoặc chỉ là hash demo
+
+- Xem mục "Vì sao txHash có thể vẫn null" ở trên; kiểm tra Kafka, blockchain-service, callback.
+
+C) Mã 1004 "Authorization token is required"
+
+- Gọi http://localhost/api/... thiếu Authorization: Bearer.
+
+- Cách sửa: login lại, copy data.accessToken, thêm -H "Authorization: Bearer <token>".
+
+D) 401/403 sau khi đã có Bearer
+
+- Token hết hạn hoặc sai vai trò — login lại; đúng ADMIN vs FARM_MANAGER cho từng API.
+
+10) SCRIPT POWERSHELL TỰ ĐỘNG (TÙY CHỌN)
+
+=========================================
 $ErrorActionPreference='Stop'
+
 docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io');" | Out-Null
+
 docker exec bicap-redis redis-cli FLUSHALL | Out-Null
 
 Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/register' -ContentType 'application/json' -Body (@{ email='admin@bicap.io'; password='123456'; fullName='BICAP Administrator'; role='ADMIN' } | ConvertTo-Json) | Out-Null
+
 Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/register' -ContentType 'application/json' -Body (@{ email='farm1@bicap.io'; password='123456'; fullName='Nguyen Van A'; role='FARM_MANAGER' } | ConvertTo-Json) | Out-Null
 
 $adminLogin = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/login' -ContentType 'application/json' -Body (@{ email='admin@bicap.io'; password='123456' } | ConvertTo-Json)
+
 $farmLogin  = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/auth/login' -ContentType 'application/json' -Body (@{ email='farm1@bicap.io'; password='123456' } | ConvertTo-Json)
 
 $adminId  = $adminLogin.data.user.id
+
 $farmerId = $farmLogin.data.user.id
 
-$farm = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/farms' -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' } -ContentType 'application/json' -Body (@{ name='Farm Auto Flow'; address='Go Dau'; province='Tay Ninh'; area=3.2 } | ConvertTo-Json)
+$tokenAdmin = $adminLogin.data.accessToken
+
+$tokenFarm  = $farmLogin.data.accessToken
+
+$authFarm  = @{ Authorization = "Bearer $tokenFarm" }
+
+$authAdmin = @{ Authorization = "Bearer $tokenAdmin" }
+
+$farm = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/farms' -Headers $authFarm -ContentType 'application/json' -Body (@{ name='Farm Auto Flow'; address='Go Dau'; province='Tay Ninh'; area=3.2 } | ConvertTo-Json)
+
 $farmId = $farm.id
 
-Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/farms/{0}/approve" -f $farmId) -Headers @{ 'X-User-Id'=$adminId; 'X-User-Role'='ADMIN' } | Out-Null
+Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/farms/{0}/approve" -f $farmId) -Headers $authAdmin | Out-Null
 
-$season = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/seasons' -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' } -ContentType 'application/json' -Body (@{ farmId=$farmId; cropType='Lua Jasmine'; startDate='2026-05-01'; estimatedEndDate='2026-09-30' } | ConvertTo-Json)
+$season = Invoke-RestMethod -Method Post -Uri 'http://localhost/api/farm/seasons' -Headers $authFarm -ContentType 'application/json' -Body (@{ farmId=$farmId; cropType='Lua Jasmine'; startDate='2026-05-01'; estimatedEndDate='2026-09-30' } | ConvertTo-Json)
+
 $seasonId = $season.id
 
-$approveSeason = Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/seasons/{0}/approve" -f $seasonId) -Headers @{ 'X-User-Id'=$adminId; 'X-User-Role'='ADMIN' }
-Start-Sleep -Seconds 3
-$seasonDetail = Invoke-RestMethod -Method Get -Uri ("http://localhost/api/farm/seasons/{0}" -f $seasonId) -Headers @{ 'X-User-Id'=$farmerId; 'X-User-Role'='FARM_MANAGER' }
+$approveSeason = Invoke-RestMethod -Method Put -Uri ("http://localhost/api/farm/admin/seasons/{0}/approve" -f $seasonId) -Headers $authAdmin
+
+Start-Sleep -Seconds 10
+
+$seasonDetail = Invoke-RestMethod -Method Get -Uri ("http://localhost/api/farm/seasons/{0}" -f $seasonId) -Headers $authFarm
 
 "ADMIN_ID=$adminId"
-"FARMER_ID=$farmerId"
-"FARM_ID=$farmId"
-"SEASON_ID=$seasonId"
-"SEASON_TXHASH_INITIAL=$($season.txHash)"
-"SEASON_APPROVE_MESSAGE=$($approveSeason.message)"
-"SEASON_TXHASH_AFTER=$($seasonDetail.txHash)"
 
+"FARMER_ID=$farmerId"
+
+"FARM_ID=$farmId"
+
+"SEASON_ID=$seasonId"
+
+"SEASON_TXHASH_INITIAL=$($season.txHash)"
+
+"SEASON_APPROVE_MESSAGE=$($approveSeason.message)"
+
+"SEASON_TXHASH_AFTER=$($seasonDetail.txHash)"
