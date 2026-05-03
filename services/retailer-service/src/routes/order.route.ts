@@ -40,7 +40,11 @@ orderRouter.post("/orders/payment-callback", async (req, res, next) => {
 
 orderRouter.get("/orders", jwtMiddleware, async (req, res, next) => {
   try {
-    const orders = await orderService.listOrders(req.query);
+    const retailerId =
+      typeof req.headers["x-user-id"] === "string" && req.headers["x-user-id"].trim().length > 0
+        ? req.headers["x-user-id"].trim()
+        : undefined;
+    const orders = await orderService.listOrders(req.query, retailerId);
     res.json(orders);
   } catch (error) {
     next(error);

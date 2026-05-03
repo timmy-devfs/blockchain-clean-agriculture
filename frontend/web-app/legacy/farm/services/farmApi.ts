@@ -459,12 +459,27 @@ export const downloadQr = async (seasonId: string): Promise<void> => {
   }
 };
 
+function mapMarketplaceItem(row: Record<string, unknown>): MarketplaceItem {
+  return {
+    id: String(row.id ?? ""),
+    title: String(row.title ?? ""),
+    description: typeof row.description === "string" ? row.description : undefined,
+    quantity: Number(row.quantity ?? 0),
+    unitPrice: Number(row.unitPrice ?? 0),
+    imageUrl: typeof row.imageUrl === "string" ? row.imageUrl : undefined,
+    isActive: Boolean(row.isActive ?? true),
+    seasonId: typeof row.seasonId === "string" ? row.seasonId : undefined,
+    farmId: typeof row.farmId === "string" ? row.farmId : undefined
+  };
+}
+
 export const getMarketplace = async (): Promise<MarketplaceItem[]> => {
   try {
     const { data } = await gateway.get("/farm/marketplace/listings/my", {
       params: { page: 1, limit: 50 }
     });
-    return (data?.items ?? []) as MarketplaceItem[];
+    const rows = Array.isArray(data?.items) ? (data.items as Record<string, unknown>[]) : [];
+    return rows.map(mapMarketplaceItem);
   } catch (error) {
     if (useFarmMockFallback()) {
       return mockMarketplace;
@@ -483,23 +498,27 @@ export type CreateListingPayload = {
   description?: string;
 };
 
-export const createMarketplace = async (payload: CreateListingPayload): Promise<void> => {
+export const createMarketplace = async (payload: CreateListingPayload): Promise<string | undefined> => {
   try {
-    await gateway.post("/farm/marketplace/listings", payload);
+    const { data } = await gateway.post<Record<string, unknown>>("/farm/marketplace/listings", payload);
+    return typeof data?.id === "string" ? data.id : undefined;
   } catch (error) {
     if (useFarmMockFallback()) {
+      const id = `mk-${Date.now()}`;
       mockMarketplace = [
         {
-          id: `mk-${Date.now()}`,
+          id,
           title: payload.title,
           description: payload.description,
           quantity: payload.quantity,
           unitPrice: payload.unitPrice,
-          isActive: true
+          isActive: true,
+          seasonId: payload.seasonId,
+          farmId: payload.farmId
         },
         ...mockMarketplace
       ];
-      return;
+      return id;
     }
     throw new Error(gatewayErrorMessage(error));
   }

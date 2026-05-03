@@ -395,6 +395,16 @@ function DashboardPage({ user }: { user: FarmMeUser | null }) {
   );
 }
 
+function seasonEligibleForListing(s: Season): boolean {
+  if (s.status === "EXPORTED" || s.status === "HARVESTED") {
+    return true;
+  }
+  if (s.status === "ACTIVE" && s.txHash) {
+    return true;
+  }
+  return false;
+}
+
 function SeasonsPage() {
   const [loading, setLoading] = useState(false);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -402,11 +412,23 @@ function SeasonsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Season | null>(null);
   const [form] = Form.useForm();
+  const [listingForm] = Form.useForm();
+  const [listingOpen, setListingOpen] = useState(false);
+  const [listingTarget, setListingTarget] = useState<Season | null>(null);
+  const [listingBySeasonId, setListingBySeasonId] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
-      setSeasons(await getSeasons());
+      const [seasonRows, listingItems] = await Promise.all([getSeasons(), getMarketplace()]);
+      setSeasons(seasonRows);
+      const map: Record<string, string> = {};
+      for (const li of listingItems) {
+        if (li.seasonId) {
+          map[li.seasonId] = li.id;
+        }
+      }
+      setListingBySeasonId(map);
     } finally {
       setLoading(false);
     }
@@ -455,6 +477,50 @@ function SeasonsPage() {
     }
   };
 
+  const openListingModal = (row: Season) => {
+    setListingTarget(row);
+    listingForm.setFieldsValue({
+      title: `${row.cropType} — ${row.id.slice(-6)}`,
+      quantity: 100,
+      unitPrice: 50_000,
+      description: ""
+    });
+    setListingOpen(true);
+  };
+
+  const submitListing = async () => {
+    if (!listingTarget) {
+      return;
+    }
+    const values = await listingForm.validateFields();
+    setLoading(true);
+    try {
+      await createMarketplace({
+        farmId: listingTarget.farmId,
+        seasonId: listingTarget.id,
+        title: String(values.title).trim(),
+        quantity: values.quantity,
+        unitPrice: values.unitPrice,
+        description:
+          typeof values.description === "string" && values.description.trim()
+            ? values.description.trim()
+            : `Sản phẩm từ vụ ${listingTarget.cropType}`
+      });
+      message.success("Đã đăng sản phẩm lên sàn giao dịch");
+      setListingOpen(false);
+      setListingTarget(null);
+      listingForm.resetFields();
+      await load();
+    } catch (e) {
+      if (e && typeof e === "object" && "errorFields" in e) {
+        return;
+      }
+      message.error(e instanceof Error ? e.message : "Đăng sản phẩm thất bại");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const cols: ColumnsType<Season> = [
     { title: "Crop", dataIndex: "cropType" },
     { title: "Status", dataIndex: "status", render: (value: string) => <Tag>{value}</Tag> },
@@ -467,7 +533,7 @@ function SeasonsPage() {
     {
       title: "Actions",
       render: (_, row) => (
-        <Space>
+        <Space wrap>
           <Button size="small" onClick={() => {
             setEditing(row);
             setModalOpen(true);
@@ -481,6 +547,14 @@ function SeasonsPage() {
           <Button size="small" onClick={() => exportSeasonPdf(row)}>
             Export PDF
           </Button>
+          {seasonEligibleForListing(row) &&
+            (listingBySeasonId[row.id] ? (
+              <Tag color="success">Đã đăng lên sàn</Tag>
+            ) : (
+              <Button size="small" type="primary" onClick={() => openListingModal(row)}>
+                Đăng lên sàn
+              </Button>
+            ))}
         </Space>
       )
     }
@@ -555,6 +629,32 @@ function SeasonsPage() {
               <Input placeholder="YYYY-MM-DD" />
             </Form.Item>
           ) : null}
+        </Form>
+      </Modal>
+      <Modal
+        title="Đăng lên sàn giao dịch"
+        open={listingOpen}
+        destroyOnClose
+        onCancel={() => {
+          setListingOpen(false);
+          setListingTarget(null);
+          listingForm.resetFields();
+        }}
+        onOk={() => void submitListing()}
+      >
+        <Form form={listingForm} layout="vertical">
+          <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, message: "Nhập tiêu đề" }]}>
+            <Input placeholder="VD: Lúa Jasmine chất lượng cao" />
+          </Form.Item>
+          <Form.Item name="description" label="Mô tả (tuỳ chọn)">
+            <Input.TextArea rows={2} placeholder="Mô tả ngắn cho nhà bán lẻ" />
+          </Form.Item>
+          <Form.Item name="quantity" label="Số lượng (kg)" rules={[{ required: true, message: "Nhập số lượng" }]}>
+            <InputNumber min={1} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="unitPrice" label="Giá mỗi đơn vị (VND)" rules={[{ required: true, message: "Nhập giá" }]}>
+            <InputNumber min={1000} style={{ width: "100%" }} step={1000} />
+          </Form.Item>
         </Form>
       </Modal>
     </Card>

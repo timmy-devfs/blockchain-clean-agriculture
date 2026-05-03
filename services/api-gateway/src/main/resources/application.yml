@@ -118,6 +118,8 @@ spring:
               predicates:
                 - Path=/api/notify/**
               filters:
+                # /api/notify/tokens → /tokens ; /api/notify/notifications/... → /notifications/...
+                - RewritePath=/api/notify/(?<segment>.*), /${segment}
                 - name: CircuitBreaker
                   args:
                     name: notification-cb

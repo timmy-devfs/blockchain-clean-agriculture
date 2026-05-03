@@ -51,6 +51,8 @@ export type MarketplaceItem = {
   unitPrice: number;
   imageUrl?: string;
   isActive: boolean;
+  seasonId?: string;
+  farmId?: string;
 };
 
 export type OrderStatus = "PENDING" | "CONFIRMED" | "REJECTED";

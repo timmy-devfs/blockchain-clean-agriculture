@@ -111,14 +111,28 @@ function normalizeProduct(raw: unknown): Product {
   const images = Array.isArray(row.imageUrls)
     ? row.imageUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
     : [];
+  const season =
+    row.season && typeof row.season === "object" ? (row.season as Record<string, unknown>) : null;
+  const farm = row.farm && typeof row.farm === "object" ? (row.farm as Record<string, unknown>) : null;
+  const seasonSummary =
+    row.seasonSummary && typeof row.seasonSummary === "object"
+      ? (row.seasonSummary as Record<string, unknown>)
+      : null;
+  const cropFromSeason = typeof season?.cropType === "string" ? season.cropType : undefined;
+  const category = String(row.category ?? cropFromSeason ?? "Unknown");
+  const province = String(
+    row.province ?? (typeof farm?.province === "string" ? farm.province : undefined) ?? "Unknown"
+  );
 
   return {
     id: String(row.id ?? ""),
     title: String(row.title ?? row.productName ?? "Unknown product"),
-    province: String(row.province ?? "Unknown"),
-    category: String(row.category ?? "Unknown"),
+    province,
+    category,
     price: Number(row.price ?? row.unitPrice ?? 0),
-    certified: Boolean(row.certified ?? false),
+    certified: Boolean(
+      row.certified ?? (typeof seasonSummary?.txHash === "string" && String(seasonSummary.txHash).length > 0)
+    ),
     imageUrls: images.length > 0 ? images : [PLACEHOLDER_IMAGE],
     farmId: String(row.farmId ?? ""),
     seasonId: String(row.seasonId ?? ""),

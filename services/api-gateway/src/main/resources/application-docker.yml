@@ -95,6 +95,7 @@ spring:
               predicates:
                 - Path=/api/notify/**
               filters:
+                - RewritePath=/api/notify/(?<segment>.*), /${segment}
                 - name: CircuitBreaker
                   args:
                     name: notification-cb

@@ -281,7 +281,11 @@ export const orderService = {
     const { retailers, orders, orderStatusHistory } = await getCollections();
     const data = createOrderSchema.parse(payload);
 
-    const retailer = await retailers.findOne({ _id: data.retailerId });
+    let retailer = await retailers.findOne({ _id: data.retailerId });
+    if (!retailer) {
+      await retailers.insertOne({ _id: data.retailerId } as RetailerDoc);
+      retailer = await retailers.findOne({ _id: data.retailerId });
+    }
     if (!retailer) {
       throw new AppError("RETAILER_NOT_FOUND");
     }
@@ -322,13 +326,13 @@ export const orderService = {
         paymentUrl: "",
         paymentId: "skip-payment",
         transactionId: "skip-payment",
-        status: OrderStatus.PLACED,
+        status: OrderStatus.CONFIRMED,
         createdAt: now,
         updatedAt: now
       };
 
       await orders.insertOne(orderDoc);
-      await appendHistory(orderStatusHistory, orderId, OrderStatus.PLACED, undefined, "system", "SKIP_ORDER_PAYMENT: auto placed");
+      await appendHistory(orderStatusHistory, orderId, OrderStatus.CONFIRMED, undefined, "system", "SKIP_ORDER_PAYMENT: demo auto-confirmed");
 
       const mapped = mapOrder(orderDoc);
       await publishOrderPlaced(mapped);
@@ -409,6 +413,10 @@ export const orderService = {
       return mapOrder(order);
     }
 
+    if (order.status === OrderStatus.CONFIRMED) {
+      return mapOrder(order);
+    }
+
     if (order.status !== OrderStatus.PENDING_PAYMENT) {
       throw new AppError("INVALID_ORDER_STATUS_FLOW", `${order.status} -> ${OrderStatus.PLACED}`);
     }
@@ -431,10 +439,14 @@ export const orderService = {
     return placed;
   },
 
-  async listOrders(queryPayload: unknown): Promise<RetailOrder[]> {
+  async listOrders(queryPayload: unknown, retailerId?: string): Promise<RetailOrder[]> {
     const { orders } = await getCollections();
     const query = listOrdersQuerySchema.parse(queryPayload);
     const filter: Filter<RetailOrderDoc> = {};
+
+    if (retailerId) {
+      filter.retailerId = retailerId;
+    }
 
     if (query.status) {
       filter.status = query.status;
