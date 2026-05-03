@@ -33,6 +33,7 @@ export default function ShipmentsPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-shipments", activeStatus, page],
     queryFn: () => getAdminShipments({ status: activeStatus || undefined, page, size: PAGE_SIZE }),
+    refetchInterval: 15_000,
   });
 
   const rows = data?.data ?? [];
@@ -92,6 +93,7 @@ export default function ShipmentsPage() {
                 <th className="px-4 py-3 text-left">Mã chuyến</th>
                 <th className="px-4 py-3 text-left">Mã đơn</th>
                 <th className="px-4 py-3 text-left">Tài xế</th>
+                <th className="px-4 py-3 text-left">Xe</th>
                 <th className="px-4 py-3 text-left">Trạng thái</th>
                 <th className="px-4 py-3 text-left">Ngày giao dự kiến</th>
                 <th className="px-4 py-3 text-left">Thời gian tạo</th>
@@ -107,6 +109,7 @@ export default function ShipmentsPage() {
                   <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.id || "—"}</td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700">{row.orderId || "—"}</td>
                   <td className="px-4 py-3 text-gray-700">{row.driverName || row.driverId || "—"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.vehicleId || "—"}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={row.status as string} />
                   </td>

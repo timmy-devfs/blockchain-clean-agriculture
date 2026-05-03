@@ -8,13 +8,13 @@ import { UserRole } from "@bicap/types";
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/accounts", label: "Tai khoan", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/farms", label: "Phe duyet Farm", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/seasons", label: "Duyệt Vụ mùa", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/orders", label: "Don hang", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/shipments", label: "Lo van chuyen", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/contracts", label: "Smart Contract", allowedRoles: [UserRole.ADMIN] },
-  { href: "/admin/reports", label: "Bao cao", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/accounts", label: "Tài khoản", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/farms", label: "Phê duyệt farm", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/seasons", label: "Duyệt vụ mùa", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/orders", label: "Đơn hàng", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/shipments", label: "Vận chuyển", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/contracts", label: "Smart contract", allowedRoles: [UserRole.ADMIN] },
+  { href: "/admin/reports", label: "Báo cáo", allowedRoles: [UserRole.ADMIN] },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

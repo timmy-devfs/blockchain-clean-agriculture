@@ -20,23 +20,55 @@ const STATUS_TABS = [
 const PAGE_SIZE = 20;
 
 const COLS: Column<Order>[] = [
-  { key: "id",         header: "Mã đơn",
-    render: (v) => <span className="font-mono text-xs text-gray-500 select-all">{String(v).slice(0, 8)}…</span> },
-  { key: "farmId",     header: "Farm",
-    render: (v) => <span className="text-xs text-gray-600">{String(v).slice(0, 8)}…</span> },
-  { key: "quantity",   header: "Số lượng",
-    render: (v) => <span className="font-medium">{v as number}</span> },
-  { key: "totalPrice", header: "Tổng tiền",
+  {
+    key: "id",
+    header: "Mã đơn",
     render: (v) => (
-      <span className="font-semibold text-gray-800">
-        {Number(v).toLocaleString("vi-VN")} ₫
+      <span className="font-mono text-xs text-gray-500 select-all">{String(v).slice(0, 8)}…</span>
+    ),
+  },
+  {
+    key: "retailerId",
+    header: "Retailer",
+    render: (v) => (
+      <span className="font-mono text-xs text-gray-600">{String(v).slice(0, 10)}…</span>
+    ),
+  },
+  {
+    key: "productName",
+    header: "Sản phẩm",
+    render: (_v, row) => (
+      <span className="max-w-[180px] truncate text-sm text-gray-800">
+        {row.productName ?? "—"}
       </span>
     ),
   },
-  { key: "status",     header: "Trạng thái",
-    render: (v) => <StatusBadge status={v as string} /> },
-  { key: "createdAt",  header: "Ngày tạo",
-    render: (v) => <span className="text-xs text-gray-500">{new Date(v as string).toLocaleDateString("vi-VN")}</span> },
+  {
+    key: "quantity",
+    header: "Số lượng",
+    render: (v) => <span className="font-medium">{v as number}</span>,
+  },
+  {
+    key: "totalPrice",
+    header: "Tổng tiền",
+    render: (v) => (
+      <span className="font-semibold text-gray-800">{Number(v).toLocaleString("vi-VN")} ₫</span>
+    ),
+  },
+  {
+    key: "status",
+    header: "Trạng thái",
+    render: (v) => <StatusBadge status={v as string} />,
+  },
+  {
+    key: "createdAt",
+    header: "Ngày tạo",
+    render: (v) => (
+      <span className="text-xs text-gray-500">
+        {new Date(v as string).toLocaleString("vi-VN")}
+      </span>
+    ),
+  },
 ];
 
 export default function OrdersPage() {
@@ -46,6 +78,7 @@ export default function OrdersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin-orders", activeStatus, page],
     queryFn: () => getAdminOrders({ status: activeStatus || undefined, page, size: PAGE_SIZE }),
+    refetchInterval: 15_000,
   });
 
   return (
@@ -103,17 +136,6 @@ export default function OrdersPage() {
               Sau →
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Empty state khi API chưa sẵn sàng */}
-      {!isLoading && !data && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-16 text-center">
-          <p className="text-3xl mb-3">📦</p>
-          <p className="font-medium text-gray-700">Endpoint chưa sẵn sàng</p>
-          <p className="mt-1 text-sm text-gray-400">
-            API <code className="font-mono text-xs bg-gray-100 px-1 rounded">/api/order/admin/orders</code> chưa được cài đặt
-          </p>
         </div>
       )}
     </div>

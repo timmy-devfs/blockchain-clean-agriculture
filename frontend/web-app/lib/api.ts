@@ -106,6 +106,7 @@ function mapAdminOrderRow(row: Record<string, unknown>): Order {
     listingId: String(row.listingId ?? ""),
     retailerId: String(row.retailerId ?? ""),
     farmId: String(row.farmId ?? ""),
+    productName: typeof row.productName === "string" ? row.productName : undefined,
     quantity: Number(row.quantity ?? 0),
     totalPrice,
     depositAmount: Number(row.depositAmount ?? 0),
@@ -547,8 +548,105 @@ export const approveSeasonForBlockchain = (id: string) =>
     return mapAdminSeasonRow(row);
   });
 
-// ─── Orders ───────────────────────────────────────────────────────────────
+// ─── Orders (retailer-service qua gateway: /api/retail/… hoặc alias /api/order/…) ──
 
+/** Body POST /api/retail/orders — khớp `createOrderSchema` retailer-service. */
+export type CreateRetailOrderBody = {
+  retailerId: string;
+  farmId: string;
+  listingId: string;
+  productName: string;
+  quantity: number;
+  unit?: string;
+  totalAmount: number;
+  depositAmount: number;
+  deliveryAddress?: string;
+  note?: string;
+  gateway?: "VNPAY" | "MOMO";
+};
+
+export type MarketplaceListingProduct = {
+  id: string;
+  farmId: string;
+  seasonId: string;
+  title: string;
+  description: string | null;
+  quantity: number;
+  unitPrice: number;
+  farm: { id: string; name: string; ownerId: string };
+  season: { id: string; cropType: string; status: string };
+};
+
+function mapMarketplaceProduct(row: Record<string, unknown>): MarketplaceListingProduct {
+  const farm = row.farm as Record<string, unknown> | undefined;
+  const season = row.season as Record<string, unknown> | undefined;
+  return {
+    id: String(row.id ?? ""),
+    farmId: String(row.farmId ?? ""),
+    seasonId: String(row.seasonId ?? ""),
+    title: String(row.title ?? ""),
+    description: row.description == null ? null : String(row.description),
+    quantity: Number(row.quantity ?? 0),
+    unitPrice: Number(row.unitPrice ?? 0),
+    farm: {
+      id: farm != null ? String(farm.id ?? "") : "",
+      name: farm != null ? String(farm.name ?? "") : "",
+      ownerId: farm != null ? String(farm.ownerId ?? "") : "",
+    },
+    season: {
+      id: season != null ? String(season.id ?? "") : "",
+      cropType: season != null ? String(season.cropType ?? "") : "",
+      status: season != null ? String(season.status ?? "") : "",
+    },
+  };
+}
+
+/**
+ * GET /api/farm/marketplace/products — catalog công khai (không hardcode).
+ * `cropType` được truyền như `keyword` (API farm không lọc province riêng).
+ */
+export const getListings = (params?: {
+  province?: string;
+  cropType?: string;
+  page?: number;
+  size?: number;
+}) =>
+  axiosInstance
+    .get<unknown>("/api/farm/marketplace/products", {
+      params: {
+        page: params?.page ?? 0,
+        size: params?.size ?? 48,
+        keyword: params?.cropType,
+      },
+    })
+    .then((r) => {
+      const inner = unwrapBody<{ items?: unknown[] }>(r.data);
+      const items = Array.isArray(inner?.items) ? inner.items : [];
+      return (items as Record<string, unknown>[]).map(mapMarketplaceProduct);
+    });
+
+export const createRetailerOrder = (body: CreateRetailOrderBody) =>
+  axiosInstance.post<unknown>("/api/retail/orders", body).then((r) => {
+    const raw = unwrapBody<{ order?: Record<string, unknown>; paymentUrl?: string }>(r.data);
+    if (raw && typeof raw === "object" && raw.order != null) {
+      return {
+        order: raw.order as Record<string, unknown>,
+        paymentUrl: String(raw.paymentUrl ?? ""),
+      };
+    }
+    throw new Error("Phản hồi tạo đơn không hợp lệ");
+  });
+
+/** GET /api/retail/orders — đơn của retailer đăng nhập (gateway gửi X-User-Id). */
+export const getMyOrders = () =>
+  axiosInstance.get<unknown>("/api/retail/orders").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    return Array.isArray(inner) ? inner : [];
+  });
+
+/**
+ * Admin: GET /api/order/admin/orders → gateway rewrite → /api/retail/admin/orders
+ */
 export const getAdminOrders = (params?: {
   status?: string;
   page?: number;
@@ -564,6 +662,72 @@ export const getAdminOrders = (params?: {
       const mapped = arr.map(mapAdminOrderRow);
       return slicePage(mapped, params?.page ?? 0, params?.size ?? 20);
     });
+
+/** Best-effort thanh toán (khi không dùng SKIP_ORDER_PAYMENT): callback nội bộ retailer. */
+export const tryRetailPaymentCallback = (orderId: string) =>
+  axiosInstance
+    .post<unknown>("/api/retail/orders/payment-callback", { orderId })
+    .then((r) => unwrapBody<unknown>(r.data));
+
+// ─── Shipping (Java shipping-service) ─────────────────────────────────────
+
+/** Khớp PendingConfirmedOrderResponse — orderId số hash để gán shipment. */
+export type PendingConfirmedOrderRow = {
+  id: string;
+  orderId: number;
+  deliveryAddress: string | null;
+  shipmentId: number | null;
+  farmId: number | null;
+  retailerId: number | null;
+};
+
+export const getConfirmedOrdersForShipping = () =>
+  axiosInstance.get<unknown>("/api/shipping/orders/confirmed").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    return Array.isArray(inner) ? (inner as PendingConfirmedOrderRow[]) : [];
+  });
+
+export type ShippingDriverRow = {
+  id: number;
+  fullName: string;
+  phone: string | null;
+  licenseNo: string | null;
+};
+
+export type ShippingVehicleRow = {
+  id: number;
+  licensePlate: string;
+  type: string;
+  capacity?: number | null;
+};
+
+export const getShippingDrivers = () =>
+  axiosInstance.get<unknown>("/api/shipping/drivers").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    const arr = Array.isArray(inner) ? inner : [];
+    return arr as ShippingDriverRow[];
+  });
+
+export const getShippingVehicles = () =>
+  axiosInstance.get<unknown>("/api/shipping/vehicles").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    const arr = Array.isArray(inner) ? inner : [];
+    return arr as ShippingVehicleRow[];
+  });
+
+export type CreateShipmentBody = {
+  orderId: number;
+  driverId: number;
+  vehicleId: number;
+  farmId?: number | null;
+  retailerId?: number | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  scheduledDate?: string | null;
+};
+
+export const createShipment = (body: CreateShipmentBody) =>
+  axiosInstance.post<unknown>("/api/shipping/shipments", body).then((r) => unwrapBody<unknown>(r.data));
 
 // ─── Shipments ────────────────────────────────────────────────────────────
 

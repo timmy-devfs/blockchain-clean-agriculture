@@ -160,6 +160,8 @@ export interface Order {
   listingId: string;
   retailerId: string;
   farmId: string;
+  /** Tên sản phẩm (retailer-service / Mongo) — optional cho UI admin. */
+  productName?: string;
   quantity: number;
   totalPrice: number;
   depositAmount: number;
