@@ -2,7 +2,7 @@ import "../global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as SecureStore from "expo-secure-store";
 import { TOKEN_KEY, isMockMode } from "@/lib/api";
 import { View, ActivityIndicator } from "react-native";
@@ -10,12 +10,23 @@ import { useFirebaseMessaging } from '@/lib/useFirebaseMessaging';
 
 import messaging from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
+import * as Notifications from 'expo-notifications';
 
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   console.log('[Background] Nhận được thông báo:', remoteMessage);
 });
 
 const queryClient = new QueryClient();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 function fcmDataStrings(data: Record<string, unknown> | undefined): Record<string, string> {
   if (!data) return {};
@@ -31,6 +42,7 @@ export default function RootLayout() {
   const segments = useSegments();
   const [isReady, setIsReady] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const handledExpoColdStart = useRef(false);
 
   useFirebaseMessaging();
 
@@ -76,6 +88,29 @@ export default function RootLayout() {
       unsubOpened();
       unsubNotifee();
     };
+  }, [router]);
+
+  // Expo Notifications: tap / cold start (bổ sung cho luồng Expo push nếu có)
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { shipmentId?: string };
+      if (data?.shipmentId) {
+        router.push(`/shipments/${data.shipmentId}`);
+      }
+    });
+    return () => sub.remove();
+  }, [router]);
+
+  useEffect(() => {
+    if (handledExpoColdStart.current) return;
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response || handledExpoColdStart.current) return;
+      const data = response.notification.request.content.data as { shipmentId?: string };
+      if (data?.shipmentId) {
+        handledExpoColdStart.current = true;
+        router.push(`/shipments/${data.shipmentId}`);
+      }
+    });
   }, [router]);
 
   // TÍCH HỢP NOTIFEE CHO FOREGROUND

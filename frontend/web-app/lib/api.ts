@@ -692,6 +692,9 @@ export type ShippingDriverRow = {
   fullName: string;
   phone: string | null;
   licenseNo: string | null;
+  /** UUID identity-service (JWT sub) — FCM / app Driver */
+  identityUserId?: string | null;
+  identity_user_id?: string | null;
 };
 
 export type ShippingVehicleRow = {
@@ -705,7 +708,21 @@ export const getShippingDrivers = () =>
   axiosInstance.get<unknown>("/api/shipping/drivers").then((r) => {
     const inner = unwrapBody<unknown>(r.data);
     const arr = Array.isArray(inner) ? inner : [];
-    return arr as ShippingDriverRow[];
+    return (arr as Record<string, unknown>[]).map((row): ShippingDriverRow => {
+      const idNum = row.id;
+      return {
+        id: typeof idNum === "number" ? idNum : Number(idNum ?? 0),
+        fullName: String(row.fullName ?? ""),
+        phone: row.phone == null ? null : String(row.phone),
+        licenseNo: row.licenseNo == null ? null : String(row.licenseNo),
+        identityUserId:
+          row.identityUserId != null
+            ? String(row.identityUserId)
+            : row.identity_user_id != null
+              ? String(row.identity_user_id)
+              : null,
+      };
+    });
   });
 
 export const getShippingVehicles = () =>

@@ -13,6 +13,7 @@ import {
   type ShippingDriverRow,
   type ShippingVehicleRow,
 } from "@/lib/api";
+import { sendDriverNotification } from "@/lib/sendDriverNotification";
 
 function tomorrowIsoDate(): string {
   const d = new Date();
@@ -103,7 +104,7 @@ function AssignShipmentModal({
 export default function ShippingDashboardPage() {
   const queryClient = useQueryClient();
   const [modalOrder, setModalOrder] = useState<PendingConfirmedOrderRow | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" | "warning" } | null>(null);
 
   const pendingQuery = useQuery({
     queryKey: ["confirmed-orders"],
@@ -131,7 +132,7 @@ export default function ShippingDashboardPage() {
       driverId: number;
       vehicleId: number;
     }) => {
-      await createShipment({
+      const createdRaw = await createShipment({
         orderId: order.orderId,
         driverId,
         vehicleId,
@@ -140,9 +141,37 @@ export default function ShippingDashboardPage() {
         deliveryAddress: order.deliveryAddress,
         scheduledDate: tomorrowIsoDate(),
       });
+      const created = createdRaw as Record<string, unknown>;
+      const newShipmentId =
+        created.id != null ? String(created.id) : created.shipmentId != null ? String(created.shipmentId) : "";
+
+      const drivers = queryClient.getQueryData<ShippingDriverRow[]>(["shipping-drivers"]) ?? [];
+      const selectedDriver = drivers.find((d) => d.id === driverId);
+      const driverIdentityId =
+        selectedDriver?.identityUserId ?? selectedDriver?.identity_user_id ?? null;
+
+      if (driverIdentityId && newShipmentId) {
+        await sendDriverNotification({
+          driverIdentityUserId: driverIdentityId,
+          shipmentId: newShipmentId,
+          shipmentStatus: "ASSIGNED",
+        });
+        console.log("[FCM] Notification triggered for driver:", driverIdentityId);
+      } else if (!driverIdentityId) {
+        console.warn("[FCM] Driver không có identityUserId:", selectedDriver);
+      }
+
+      return { newShipmentId, driverLinked: Boolean(driverIdentityId) };
     },
-    onSuccess: () => {
-      setToast({ msg: "Đã tạo chuyến hàng.", type: "success" });
+    onSuccess: ({ driverLinked }) => {
+      setToast(
+        driverLinked
+          ? { msg: "Đã tạo chuyến hàng.", type: "success" }
+          : {
+              msg: "Đã tạo chuyến hàng. ⚠️ Driver chưa liên kết tài khoản app — không gửi được thông báo.",
+              type: "warning",
+            }
+      );
       setModalOrder(null);
       void queryClient.invalidateQueries({ queryKey: ["confirmed-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["admin-shipments"] });
