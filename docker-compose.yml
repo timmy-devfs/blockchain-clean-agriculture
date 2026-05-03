@@ -267,6 +267,7 @@ services:
       SPRING_DATASOURCE_USERNAME: bicap_user
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      RETAILER_SERVICE_BASE_URL: http://retailer-service:8083
     deploy:
       resources:
         limits:

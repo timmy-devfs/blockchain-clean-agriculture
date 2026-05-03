@@ -118,7 +118,7 @@ function mapAdminOrderRow(row: Record<string, unknown>): Order {
 }
 
 /** Chuẩn hóa shipment từ shipping-service (Java record) → `Shipment` admin UI. */
-function mapShipmentRow(row: Record<string, unknown>): AdminShipmentView {
+export function mapShipmentRow(row: Record<string, unknown>): AdminShipmentView {
   const sched = row.scheduledDate ?? row.estimatedDelivery ?? row.date;
   const est =
     sched == null || sched === ""

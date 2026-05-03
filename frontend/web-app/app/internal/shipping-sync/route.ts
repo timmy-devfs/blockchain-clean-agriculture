@@ -25,13 +25,37 @@ export async function GET() {
       return NextResponse.json({ data: [], source: "fallback_empty", error: null });
     }
 
-    const rows = Array.isArray(parsed) ? (parsed as DashboardSyncedOrder[]) : [];
-    if (rows.length === 0) {
+    const fromOrders: Record<string, unknown>[] = [];
+    const fromShipments: Record<string, unknown>[] = [];
+
+    if (Array.isArray(parsed)) {
+      fromOrders.push(...mapDashboardOrdersToSyncPayload(parsed as DashboardSyncedOrder[]));
+    } else if (parsed && typeof parsed === "object") {
+      const o = parsed as { orders?: unknown; shipments?: unknown };
+      if (Array.isArray(o.orders) && o.orders.length > 0) {
+        fromOrders.push(
+          ...mapDashboardOrdersToSyncPayload(o.orders as DashboardSyncedOrder[]),
+        );
+      }
+      if (Array.isArray(o.shipments) && o.shipments.length > 0) {
+        for (const row of o.shipments) {
+          if (row && typeof row === "object") {
+            // Raw shipping-service payload — admin `getAdminShipments` gọi mapShipmentRow một lần
+            fromShipments.push(row as Record<string, unknown>);
+          }
+        }
+      }
+    }
+
+    const merged: Record<string, unknown>[] = [
+      ...(fromShipments as Record<string, unknown>[]),
+      ...(fromOrders as Record<string, unknown>[]),
+    ];
+    if (merged.length === 0) {
       return NextResponse.json({ data: [], source: "sync_empty", error: null });
     }
 
-    const mapped = mapDashboardOrdersToSyncPayload(rows);
-    return NextResponse.json({ data: mapped, source: "sync_ok", error: null });
+    return NextResponse.json({ data: merged, source: "sync_ok", error: null });
   } catch {
     return NextResponse.json({ data: [], source: "fallback_empty", error: null });
   }

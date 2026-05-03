@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, CSSProperties } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import jsQR from 'jsqr';
 import { useSyncOrders } from '../hooks/useSyncOrders';
-import { ShippingApi, type Shipment } from '../lib/shippingApi';
+import { ShippingApi, type Shipment, type PendingConfirmedOrder } from '../lib/shippingApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Order {
@@ -1105,13 +1105,13 @@ export default function ShippingDashboard() {
   const [navHover, setNavHover] = useState('');
   const [editDriver, setEditDriver] = useState<{ idx: number; data: Driver } | null>(null);
   const [toast, setToast]     = useState('');
+  const [apiShipmentsSnapshot, setApiShipmentsSnapshot] = useState<Shipment[]>([]);
+  const [pendingConfirmed, setPendingConfirmed] = useState<PendingConfirmedOrder[]>([]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2200);
   }, []);
-
-  useSyncOrders(orders, () => showToast('Đã đồng bộ dữ liệu'));
 
   const [traceQ, setTraceQ]           = useState('');
   const [traceResult, setTraceResult] = useState<Order | 'not-found' | null>(null);
@@ -1125,6 +1125,11 @@ export default function ShippingDashboard() {
   const [form, setForm]       = useState(emptyForm);
   const emptyDriverForm = { name: '', phone: '', plate: '', vehicle: '', cccd: '', image: '' };
   const [drvForm, setDrvForm] = useState(emptyDriverForm);
+
+  useSyncOrders(orders, {
+    shipments: apiShipmentsSnapshot,
+    onSynced: () => showToast('Đã đồng bộ dữ liệu'),
+  });
 
   useEffect(() => {
     const el = document.createElement('style');
@@ -1141,31 +1146,114 @@ export default function ShippingDashboard() {
     setDateStr(new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
 
-  /** Có JWT unified → tải danh sách shipment từ Gateway `/api/shipping/shipments` (ghi đè local nếu có dữ liệu). */
+  /** JWT → shipments + đơn CONFIRMED chờ xử lý (refresh 10s). */
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
+    const tick = async () => {
       const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
       if (!token) return;
       const sub = decodeJwtSub(token);
+      const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
       try {
-        const res = await ShippingApi.listShipments({
-          userId: sub ?? "shipping-user",
-          role: "SHIPPING_MANAGER",
-        });
-        const rows = res?.data;
-        if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
-        const next = rows.map(mapGatewayShipmentToOrder);
-        setOrders(next);
-        localStorage.setItem("agri_orders", JSON.stringify(next));
+        const [shipRes, pendRes] = await Promise.all([
+          ShippingApi.listShipments(auth),
+          ShippingApi.listConfirmedOrders(auth),
+        ]);
+        const rows = shipRes?.data;
+        if (!cancelled && Array.isArray(rows)) {
+          setApiShipmentsSnapshot(rows);
+          if (rows.length > 0) {
+            const next = rows.map(mapGatewayShipmentToOrder);
+            setOrders(next);
+            localStorage.setItem("agri_orders", JSON.stringify(next));
+          }
+        }
+        if (!cancelled && Array.isArray(pendRes?.data)) {
+          setPendingConfirmed(pendRes.data);
+        }
       } catch {
         /* giữ dữ liệu đã hydrate từ localStorage */
       }
-    })();
+    };
+    void tick();
+    const id = setInterval(tick, 10000);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
+
+  const handleCreateShipment = async (row: PendingConfirmedOrder) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (!token) {
+      showToast("⚠️ Cần đăng nhập BICAP.");
+      return;
+    }
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+    try {
+      const driversRes = await ShippingApi.listDrivers(auth);
+      const vehiclesRes = await ShippingApi.listVehicles(auth);
+      const drivers = driversRes?.data ?? [];
+      const vehicles = vehiclesRes?.data ?? [];
+      if (!drivers.length || !vehicles.length) {
+        showToast("Chưa có tài xế hoặc phương tiện. Bấm «Tạo tài xế & xe demo» hoặc thêm trong phần Tài xế.");
+        return;
+      }
+      const shipmentRes = await ShippingApi.createShipment(
+        {
+          orderId: row.orderId,
+          farmId: row.farmId ?? 0,
+          retailerId: row.retailerId ?? 0,
+          driverId: drivers[0]!.id,
+          vehicleId: vehicles[0]!.id,
+          deliveryAddress: row.deliveryAddress ?? undefined,
+        },
+        auth,
+      );
+      const shipmentId = shipmentRes?.data?.id;
+      console.log("[DEMO] SHIPMENT_ID =", shipmentId);
+      showToast(`Đã tạo chuyến hàng: ${shipmentId ?? "—"}`);
+      const [shipRes, pendRes] = await Promise.all([
+        ShippingApi.listShipments(auth),
+        ShippingApi.listConfirmedOrders(auth),
+      ]);
+      const rows = shipRes?.data;
+      if (Array.isArray(rows)) {
+        setApiShipmentsSnapshot(rows);
+        if (rows.length > 0) {
+          const next = rows.map(mapGatewayShipmentToOrder);
+          setOrders(next);
+          localStorage.setItem("agri_orders", JSON.stringify(next));
+        }
+      }
+      if (Array.isArray(pendRes?.data)) setPendingConfirmed(pendRes.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast("Tạo chuyến hàng thất bại: " + msg);
+    }
+  };
+
+  const seedFleetDemo = async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (!token) {
+      showToast("⚠️ Cần đăng nhập BICAP.");
+      return;
+    }
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+    try {
+      await ShippingApi.createDriver(
+        { fullName: "Demo Tài xế BICAP", phone: "0909123001", licenseNumber: "GPLX-DEMO-001" },
+        auth,
+      );
+      await ShippingApi.createVehicle({ licensePlate: "51H-90001", type: "VAN", capacity: 800 }, auth);
+      showToast("Đã tạo tài xế & xe demo.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast("Không tạo được: " + msg);
+    }
+  };
 
   useEffect(() => {
     if (page === 'trace') setTimeout(() => traceInputRef.current?.focus(), 200);
@@ -1521,6 +1609,59 @@ export default function ShippingDashboard() {
                     <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>{s.sub}</div>
                   </div>
                 ))}
+              </div>
+
+              {/* Đơn CONFIRMED chờ tạo / gán chuyến — API shipping-service */}
+              <div style={{ ...S.card, marginBottom: 14, padding: '18px 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>
+                    Đơn hàng chờ xử lý ({pendingConfirmed.length})
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-press"
+                    onClick={() => void seedFleetDemo()}
+                    style={{ ...S.btn, background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0', fontSize: 12 }}
+                  >
+                    + Tạo tài xế & xe demo
+                  </button>
+                </div>
+                {pendingConfirmed.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '12px 0' }}>
+                    Không có đơn hàng mới
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    {pendingConfirmed.map((row) => (
+                      <div
+                        key={row.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 0',
+                          borderBottom: '1px solid #f1f5f9',
+                          gap: 10,
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
+                            Order #{String(row.id).slice(-8)}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{row.deliveryAddress ?? "—"}</div>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-press"
+                          onClick={() => void handleCreateShipment(row)}
+                          style={{ ...S.btn, background: '#22c55e', color: '#fff', fontSize: 12, padding: '8px 14px', whiteSpace: 'nowrap' }}
+                        >
+                          Tạo chuyến hàng
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Map banner */}

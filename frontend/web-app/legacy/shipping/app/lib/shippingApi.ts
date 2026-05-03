@@ -27,13 +27,40 @@ export type ShipmentHistoryRow = {
 
 export type CreateShipmentRequest = {
   orderId: number;
-  farmId: number;
-  retailerId: number;
+  farmId?: number | null;
+  retailerId?: number | null;
   driverId?: number | null;
   vehicleId?: number | null;
   pickupAddress?: string | null;
   deliveryAddress?: string | null;
   scheduledDate?: string | null; // yyyy-mm-dd
+};
+
+/** Khớp shipping-service PendingConfirmedOrderResponse */
+export type PendingConfirmedOrder = {
+  id: string;
+  orderId: number;
+  deliveryAddress: string | null;
+  shipmentId: number | null;
+  farmId: number | null;
+  retailerId: number | null;
+};
+
+export type DriverApiRow = {
+  id: number;
+  fullName: string;
+  phone: string | null;
+  licenseNo: string | null;
+  licenseClass: string | null;
+  isActive: boolean | null;
+};
+
+export type VehicleApiRow = {
+  id: number;
+  licensePlate: string;
+  type: string;
+  capacity: number | null;
+  isActive: boolean | null;
 };
 
 export type UpdateShipmentStatusRequest = {
@@ -87,6 +114,30 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, auth?: { userId
 }
 
 export const ShippingApi = {
+  async health(auth?: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<{ status: string }>>(`/api/shipping/health`, {}, auth);
+  },
+  async listConfirmedOrders(auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<PendingConfirmedOrder[]>>(`/api/shipping/orders/confirmed`, {}, auth);
+  },
+  async listDrivers(auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<DriverApiRow[]>>(`/api/shipping/drivers`, {}, auth);
+  },
+  async createDriver(
+    body: { fullName: string; phone?: string; licenseNumber?: string },
+    auth: { userId: string; role: string },
+  ) {
+    return apiFetch<ApiResponse<DriverApiRow>>(`/api/shipping/drivers`, { method: "POST", body: JSON.stringify(body) }, auth);
+  },
+  async listVehicles(auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<VehicleApiRow[]>>(`/api/shipping/vehicles`, {}, auth);
+  },
+  async createVehicle(
+    body: { licensePlate: string; type: string; capacity?: number },
+    auth: { userId: string; role: string },
+  ) {
+    return apiFetch<ApiResponse<VehicleApiRow>>(`/api/shipping/vehicles`, { method: "POST", body: JSON.stringify(body) }, auth);
+  },
   async listShipments(auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<Shipment[]>>(`/api/shipping/shipments`, {}, auth);
   },

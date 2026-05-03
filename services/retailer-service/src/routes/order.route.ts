@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AppError } from "../errors/appError";
 import { jwtMiddleware } from "../middlewares/jwtMiddleware";
 import { orderService } from "../services/order.service";
+import { OrderStatus } from "../constants/orderStatus";
 
 const paymentCallbackSchema = z.object({
   orderId: z.string().min(1),
@@ -17,6 +18,20 @@ function hasAdminRole(roleHeader: unknown): boolean {
   if (typeof roleHeader !== "string") return false;
   const normalized = roleHeader.trim().toUpperCase();
   return normalized === "ADMIN" || normalized === "ROLE_ADMIN";
+}
+
+/** Cho Shipping Manager / Driver app demo đọc đơn CONFIRMED across retailers (không lọc x-user-id). */
+function hasShippingAccess(roleHeader: unknown): boolean {
+  if (typeof roleHeader !== "string") return false;
+  const r = roleHeader.trim().toUpperCase();
+  return (
+    r === "ADMIN" ||
+    r === "ROLE_ADMIN" ||
+    r === "SHIPPING_MANAGER" ||
+    r === "SHIPPER" ||
+    r === "ROLE_SHIPPER" ||
+    r === "SHIP_DRIVER"
+  );
 }
 
 orderRouter.post("/orders", jwtMiddleware, async (req, res, next) => {
@@ -58,6 +73,20 @@ orderRouter.get("/admin/orders", jwtMiddleware, async (req, res, next) => {
       return;
     }
     const orders = await orderService.listOrders(req.query);
+    res.json(orders);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Đơn hàng CONFIRMED — dùng từ shipping-service + web shipping dashboard. */
+orderRouter.get("/shipping/confirmed-orders", jwtMiddleware, async (req, res, next) => {
+  try {
+    if (!hasShippingAccess(req.headers["x-user-role"])) {
+      next(new AppError("FORBIDDEN"));
+      return;
+    }
+    const orders = await orderService.listOrders({ status: OrderStatus.CONFIRMED });
     res.json(orders);
   } catch (error) {
     next(error);

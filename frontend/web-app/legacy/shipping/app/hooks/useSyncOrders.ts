@@ -1,23 +1,35 @@
-// frontend/web-app/legacy/shipping/app/hooks/useSyncOrders.ts
-// Đồng bộ snapshot đơn/lô trên dashboard → route Next.js `POST /api/sync-orders`
-// (app/api/sync-orders) để admin có thể đọc fallback — **không** phải shipping-service `/api/shipping/*`.
-// Dùng trong dashboard: useSyncOrders(orders)
+// Đồng bộ snapshot đơn/lô + shipments API → route Next.js `POST /api/sync-orders`
 
 import { useEffect, useRef } from "react";
 
+export type SyncOrdersExtras = {
+  shipments?: unknown[];
+  onSynced?: () => void;
+};
+
 /** POST tương đối `/api/sync-orders` (Next.js), không qua gateway. */
-export function useSyncOrders(orders: unknown[], onSynced?: () => void) {
+export function useSyncOrders(orders: unknown[], extras?: SyncOrdersExtras) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onSyncedRef = useRef(onSynced);
-  onSyncedRef.current = onSynced;
+  const onSyncedRef = useRef(extras?.onSynced);
+  onSyncedRef.current = extras?.onSynced;
+
+  const ordersJson = JSON.stringify(orders);
+  const shipmentsJson = JSON.stringify(extras?.shipments ?? []);
 
   useEffect(() => {
+    const ordersPayload = JSON.parse(ordersJson) as unknown[];
+    const shipmentsPayload = JSON.parse(shipmentsJson) as unknown[];
+
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       fetch("/api/sync-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(orders),
+        body: JSON.stringify({
+          orders: ordersPayload,
+          shipments: shipmentsPayload,
+          lastUpdated: new Date().toISOString(),
+        }),
       })
         .then((res) => {
           if (res.ok) onSyncedRef.current?.();
@@ -30,5 +42,5 @@ export function useSyncOrders(orders: unknown[], onSynced?: () => void) {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [orders]);
+  }, [ordersJson, shipmentsJson]);
 }

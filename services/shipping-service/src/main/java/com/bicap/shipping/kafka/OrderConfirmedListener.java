@@ -6,6 +6,7 @@ import com.bicap.shipping.entity.ShipmentStatusHistory;
 import com.bicap.shipping.repository.ShipmentRepository;
 import com.bicap.shipping.repository.ShipmentStatusHistoryRepository;
 import com.bicap.shipping.service.ShipmentEventPublisher;
+import com.bicap.shipping.util.OrderIdUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -41,17 +42,20 @@ public class OrderConfirmedListener {
             JsonNode payload = root.get("payload");
             if (payload == null || payload.isNull()) return;
 
-            Long orderId = payload.hasNonNull("orderId") ? toNumericId(payload.get("orderId").asText()) : null;
-            Long farmId = payload.hasNonNull("farmId") ? toNumericId(payload.get("farmId").asText()) : null;
-            Long retailerId = payload.hasNonNull("retailerId") ? toNumericId(payload.get("retailerId").asText()) : null;
+            Long orderId = payload.hasNonNull("orderId") ? OrderIdUtil.toNumericId(payload.get("orderId").asText()) : null;
+            Long farmId = payload.hasNonNull("farmId") ? OrderIdUtil.toNumericId(payload.get("farmId").asText()) : null;
+            Long retailerId = payload.hasNonNull("retailerId") ? OrderIdUtil.toNumericId(payload.get("retailerId").asText()) : null;
             String deliveryAddress = payload.hasNonNull("deliveryAddress") ? payload.get("deliveryAddress").asText() : null;
 
             if (orderId == null) return;
 
+            long farm = farmId != null ? farmId : 0L;
+            long retail = retailerId != null ? retailerId : 0L;
+
             Shipment created = shipmentRepository.save(Shipment.builder()
                     .orderId(orderId)
-                    .farmId(farmId)
-                    .retailerId(retailerId)
+                    .farmId(farm)
+                    .retailerId(retail)
                     .driverId(null)
                     .vehicleId(null)
                     .status(ShipmentStatus.CREATED)
@@ -80,20 +84,5 @@ public class OrderConfirmedListener {
         }
     }
 
-    /**
-     * Backward-compatible ID conversion:
-     * - Numeric IDs: keep original value
-     * - UUID/string IDs from new services: map to deterministic positive long
-     */
-    private static Long toNumericId(String raw) {
-        try {
-            return Long.parseLong(raw);
-        } catch (Exception e) {
-            if (raw == null || raw.isBlank()) {
-                return null;
-            }
-            return (long) Integer.toUnsignedLong(raw.hashCode());
-        }
-    }
 }
 

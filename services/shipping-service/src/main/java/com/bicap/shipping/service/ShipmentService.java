@@ -75,8 +75,54 @@ public class ShipmentService {
 
     @Transactional
     public ShipmentResponse createShipment(CreateShipmentRequest req) {
-        if (req.driverId() != null) driverRepository.findById(req.driverId()).orElseThrow();
-        if (req.vehicleId() != null) vehicleRepository.findById(req.vehicleId()).orElseThrow();
+        if (req.driverId() != null) {
+            driverRepository.findById(req.driverId()).orElseThrow();
+        }
+        if (req.vehicleId() != null) {
+            vehicleRepository.findById(req.vehicleId()).orElseThrow();
+        }
+
+        Optional<Shipment> existingOpt = shipmentRepository.findFirstByOrderIdOrderByIdDesc(req.orderId());
+        if (existingOpt.isPresent()) {
+            Shipment s = existingOpt.get();
+            s.setDriverId(req.driverId());
+            s.setVehicleId(req.vehicleId());
+            if (req.farmId() != null) {
+                s.setFarmId(req.farmId());
+            }
+            if (req.retailerId() != null) {
+                s.setRetailerId(req.retailerId());
+            }
+            if (req.pickupAddress() != null) {
+                s.setPickupAddress(req.pickupAddress());
+            }
+            if (req.deliveryAddress() != null) {
+                s.setDeliveryAddress(req.deliveryAddress());
+            }
+            if (req.scheduledDate() != null) {
+                s.setScheduledDate(req.scheduledDate());
+            }
+
+            ShipmentStatus newStatus = (req.driverId() != null && req.vehicleId() != null)
+                    ? ShipmentStatus.ASSIGNED
+                    : s.getStatus();
+            s.setStatus(newStatus);
+            Shipment saved = shipmentRepository.save(s);
+
+            historyRepository.save(ShipmentStatusHistory.builder()
+                    .shipmentId(saved.getId())
+                    .status(newStatus)
+                    .changedAt(LocalDateTime.now())
+                    .changedBy(Optional.ofNullable(authContextService.currentUserIdOrNull()).orElse("system"))
+                    .note("Driver/vehicle assigned")
+                    .imageUrls(null)
+                    .build());
+
+            return toResponse(saved);
+        }
+
+        Long farmId = req.farmId() != null ? req.farmId() : 0L;
+        Long retailerId = req.retailerId() != null ? req.retailerId() : 0L;
 
         ShipmentStatus initialStatus = (req.driverId() != null && req.vehicleId() != null)
                 ? ShipmentStatus.ASSIGNED
@@ -84,8 +130,8 @@ public class ShipmentService {
 
         Shipment created = shipmentRepository.save(Shipment.builder()
                 .orderId(req.orderId())
-                .farmId(req.farmId())
-                .retailerId(req.retailerId())
+                .farmId(farmId)
+                .retailerId(retailerId)
                 .driverId(req.driverId())
                 .vehicleId(req.vehicleId())
                 .status(initialStatus)
