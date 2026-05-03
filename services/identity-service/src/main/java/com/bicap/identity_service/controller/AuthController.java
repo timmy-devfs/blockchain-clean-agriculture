@@ -77,4 +77,11 @@ public class AuthController {
 
         return ApiResponse.success(authService.introspect(request));
     }
+
+    // ── BOOTSTRAP (public — cho trang /setup seed demo) ───────
+    @GetMapping("/bootstrap-status")
+    @Operation(summary = "Kiểm tra DB chưa có user — chỉ khi systemEmpty=true nên hiển thị seed demo")
+    public ApiResponse<BootstrapStatusResponse> bootstrapStatus() {
+        return ApiResponse.success(authService.getBootstrapStatus());
+    }
 }

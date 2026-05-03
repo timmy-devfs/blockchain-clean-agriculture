@@ -61,6 +61,13 @@ public class AuthServiceImpl implements AuthService {
         return toUserResponse(saved);
     }
 
+    @Override
+    public BootstrapStatusResponse getBootstrapStatus() {
+        return BootstrapStatusResponse.builder()
+                .systemEmpty(userRepository.count() == 0)
+                .build();
+    }
+
     // ── LOGIN ─────────────────────────────────────────────────
     @Override
     @Transactional

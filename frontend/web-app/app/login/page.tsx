@@ -100,6 +100,13 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <p className="mt-4 text-center text-sm text-gray-500">
+          Chưa có tài khoản?{" "}
+          <a href="/register" className="font-medium text-green-600 hover:underline">
+            Đăng ký ngay
+          </a>
+        </p>
+
         <div className="mt-6 grid grid-cols-2 gap-2 text-center text-[11px] text-gray-400">
           <span>admin@bicap.io / 123456</span>
           <span>farm1@bicap.io / 123456</span>

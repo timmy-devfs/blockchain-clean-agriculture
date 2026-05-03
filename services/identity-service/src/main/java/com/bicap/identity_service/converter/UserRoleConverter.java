@@ -19,6 +19,7 @@ public class UserRoleConverter implements AttributeConverter<User.Role, Integer>
             case FARM_MANAGER -> 2;
             case RETAILER -> 3;
             case SHIPPER -> 4;
+            case GUEST -> 5;
         };
     }
 
@@ -33,6 +34,7 @@ public class UserRoleConverter implements AttributeConverter<User.Role, Integer>
             case 2 -> User.Role.FARM_MANAGER;
             case 3 -> User.Role.RETAILER;
             case 4 -> User.Role.SHIPPER;
+            case 5 -> User.Role.GUEST;
             default -> throw new IllegalArgumentException("Unknown role_id: " + dbData);
         };
     }

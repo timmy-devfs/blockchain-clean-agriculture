@@ -28,6 +28,7 @@ public class SecurityConfig {
     private static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/login",
             "/api/auth/register",
+            "/api/auth/bootstrap-status",
             "/api/auth/refresh-token",
             "/api/auth/introspect",         // API Gateway gọi
             "/actuator/**",

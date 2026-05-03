@@ -26,7 +26,7 @@ public class User {
     @Column(name = "phone", length = 20)
     private String phone;
 
-    @io.swagger.v3.oas.annotations.media.Schema(type = "string", allowableValues = {"ADMIN", "FARM_MANAGER", "RETAILER", "SHIPPER"})
+    @io.swagger.v3.oas.annotations.media.Schema(type = "string", allowableValues = {"ADMIN", "FARM_MANAGER", "RETAILER", "SHIPPER", "GUEST"})
     @jakarta.persistence.Convert(converter = com.bicap.identity_service.converter.UserRoleConverter.class)
     @Column(name = "role_id", columnDefinition = "INT", nullable = false)
     private Role role;
@@ -59,6 +59,6 @@ public class User {
     }
 
     public enum Role {
-        ADMIN, FARM_MANAGER, RETAILER, SHIPPER
+        ADMIN, FARM_MANAGER, RETAILER, SHIPPER, GUEST
     }
 }
