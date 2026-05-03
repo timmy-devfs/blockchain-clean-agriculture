@@ -1,4 +1,5 @@
 import { axiosInstance } from "@bicap/api-client";
+import { isAxiosError } from "axios";
 import type {
   ApiResponse,
   PageResponse,
@@ -294,6 +295,194 @@ export const rejectFarm = (id: string, rejectReason: string) =>
       return mapFarmRow(raw);
     });
 
+export function getAxiosErrorMessage(error: unknown, fallback: string): string {
+  if (isAxiosError(error)) {
+    const d = error.response?.data;
+    if (typeof d === "string" && d.trim()) return d;
+    if (d != null && typeof d === "object") {
+      const o = d as Record<string, unknown>;
+      if (typeof o.message === "string" && o.message.trim()) return o.message;
+    }
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+/** GET /api/farm/farms — trang trại do FARM_MANAGER sở hữu (gateway). */
+export const getOwnerFarms = () =>
+  axiosInstance.get<unknown>("/api/farm/farms").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    const arr = Array.isArray(inner) ? inner : [];
+    return arr.map((row) => mapFarmRow(row as Record<string, unknown>));
+  });
+
+export type CreateFarmPayload = {
+  name: string;
+  address: string;
+  province: string;
+  area: number;
+};
+
+export const createOwnerFarm = (body: CreateFarmPayload) =>
+  axiosInstance
+    .post<unknown>("/api/farm/farms", body)
+    .then((r) => mapFarmRow(unwrapBody<Record<string, unknown>>(r.data)));
+
+export type FarmerSeasonRow = {
+  id: string;
+  farmId: string;
+  cropType: string;
+  status: string;
+  startDate: string;
+  estimatedEndDate: string | null;
+  totalYield: number | null;
+  txHash: string | null;
+  createdAt: string;
+};
+
+function mapFarmerSeasonRow(row: Record<string, unknown>): FarmerSeasonRow {
+  const ty = row.totalYield;
+  return {
+    id: String(row.id ?? ""),
+    farmId: String(row.farmId ?? ""),
+    cropType: String(row.cropType ?? ""),
+    status: String(row.status ?? ""),
+    startDate: toIsoString(row.startDate),
+    estimatedEndDate:
+      row.estimatedEndDate == null ? null : toIsoString(row.estimatedEndDate),
+    totalYield:
+      ty == null || ty === ""
+        ? null
+        : typeof ty === "number"
+          ? ty
+          : Number(ty),
+    txHash: row.txHash == null ? null : String(row.txHash),
+    createdAt: toIsoString(row.createdAt),
+  };
+}
+
+export const getOwnerSeasons = (params?: { page?: number; limit?: number }) =>
+  axiosInstance
+    .get<unknown>("/api/farm/seasons", {
+      params: {
+        page: params?.page ?? 1,
+        limit: params?.limit ?? 100,
+      },
+    })
+    .then((r) => {
+      const inner = unwrapBody<unknown>(r.data);
+      if (inner != null && typeof inner === "object") {
+        const o = inner as Record<string, unknown>;
+        const items = Array.isArray(o.items) ? o.items : [];
+        return {
+          items: (items as Record<string, unknown>[]).map(mapFarmerSeasonRow),
+          total: typeof o.total === "number" ? o.total : items.length,
+        };
+      }
+      return { items: [] as FarmerSeasonRow[], total: 0 };
+    });
+
+export type CreateSeasonPayload = {
+  farmId: string;
+  cropType: string;
+  startDate: string;
+  estimatedEndDate?: string;
+};
+
+export const createOwnerSeason = async (
+  body: CreateSeasonPayload,
+  opts?: { estimatedYield?: number }
+): Promise<FarmerSeasonRow> => {
+  const created = await axiosInstance
+    .post<unknown>("/api/farm/seasons", {
+      farmId: body.farmId,
+      cropType: body.cropType,
+      startDate: body.startDate,
+      estimatedEndDate: body.estimatedEndDate,
+    })
+    .then((r) =>
+      mapFarmerSeasonRow(unwrapBody<Record<string, unknown>>(r.data))
+    );
+
+  if (
+    opts?.estimatedYield != null &&
+    Number.isFinite(opts.estimatedYield) &&
+    opts.estimatedYield > 0
+  ) {
+    return axiosInstance
+      .put<unknown>(`/api/farm/seasons/${created.id}`, {
+        totalYield: opts.estimatedYield,
+      })
+      .then((r) =>
+        mapFarmerSeasonRow(unwrapBody<Record<string, unknown>>(r.data))
+      );
+  }
+
+  return created;
+};
+
+export type MarketplaceListingRow = {
+  id: string;
+  farmId: string;
+  seasonId: string;
+  title: string;
+  description: string | null;
+  quantity: number;
+  unitPrice: number;
+};
+
+export const getOwnerMarketplaceListings = () =>
+  axiosInstance.get<unknown>("/api/farm/marketplace/listings").then((r) => {
+    const inner = unwrapBody<unknown>(r.data);
+    let arr: unknown[] = [];
+    if (Array.isArray(inner)) arr = inner;
+    else if (inner != null && typeof inner === "object" && "items" in inner) {
+      const it = (inner as { items?: unknown }).items;
+      if (Array.isArray(it)) arr = it;
+    }
+    return arr.map((row): MarketplaceListingRow => {
+      const x = row as Record<string, unknown>;
+      return {
+        id: String(x.id ?? ""),
+        farmId: String(x.farmId ?? ""),
+        seasonId: String(x.seasonId ?? ""),
+        title: String(x.title ?? ""),
+        description: x.description == null ? null : String(x.description),
+        quantity: Number(x.quantity ?? 0),
+        unitPrice: Number(x.unitPrice ?? 0),
+      };
+    });
+  });
+
+export const createMarketplaceListing = (body: {
+  farmId: string;
+  seasonId: string;
+  title: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+}) =>
+  axiosInstance
+    .post<unknown>("/api/farm/marketplace/listings", body)
+    .then((r) => {
+      const raw = unwrapBody<Record<string, unknown>>(r.data);
+      const x = raw as Record<string, unknown>;
+      return {
+        id: String(x.id ?? ""),
+        farmId: String(x.farmId ?? ""),
+        seasonId: String(x.seasonId ?? ""),
+        title: String(x.title ?? ""),
+        description: x.description == null ? null : String(x.description),
+        quantity: Number(x.quantity ?? 0),
+        unitPrice: Number(x.unitPrice ?? 0),
+      } satisfies MarketplaceListingRow;
+    });
+
+export const postSeasonUpdate = (
+  seasonId: string,
+  body: { status: string; note?: string }
+) => axiosInstance.post<unknown>(`/api/farm/seasons/${seasonId}/updates`, body);
+
 export type AdminSeason = {
   id: string;
   farmId: string;
@@ -303,9 +492,13 @@ export type AdminSeason = {
   estimatedEndDate: string | null;
   txHash: string | null;
   createdAt: string;
+  farmName?: string;
+  province?: string;
+  totalYield: number | null;
 };
 
 function mapAdminSeasonRow(row: Record<string, unknown>): AdminSeason {
+  const ty = row.totalYield;
   return {
     id: String(row.id ?? ""),
     farmId: String(row.farmId ?? ""),
@@ -318,6 +511,14 @@ function mapAdminSeasonRow(row: Record<string, unknown>): AdminSeason {
         : toIsoString(row.estimatedEndDate),
     txHash: row.txHash == null ? null : String(row.txHash),
     createdAt: toIsoString(row.createdAt),
+    farmName: typeof row.farmName === "string" ? row.farmName : undefined,
+    province: typeof row.province === "string" ? row.province : undefined,
+    totalYield:
+      ty == null || ty === ""
+        ? null
+        : typeof ty === "number"
+          ? ty
+          : Number(ty),
   };
 }
 
@@ -331,10 +532,20 @@ export const getAdminSeasons = (onChain: "all" | "pending" | "confirmed" = "pend
     });
 
 export const approveSeasonForBlockchain = (id: string) =>
-  axiosInstance
-    .put<unknown>(`/api/farm/admin/seasons/${id}/approve`)
-    .then((r) => unwrapBody<Record<string, unknown>>(r.data))
-    .then((raw) => mapAdminSeasonRow(raw.data as Record<string, unknown>));
+  axiosInstance.put<unknown>(`/api/farm/admin/seasons/${id}/approve`).then((r) => {
+    const raw = unwrapBody<Record<string, unknown>>(r.data);
+    const row =
+      raw != null &&
+      typeof raw === "object" &&
+      "id" in raw &&
+      String((raw as Record<string, unknown>).id).length > 0
+        ? (raw as Record<string, unknown>)
+        : (raw as { data?: Record<string, unknown> })?.data;
+    if (!row || typeof row !== "object") {
+      throw new Error("Phản hồi duyệt mùa vụ không hợp lệ");
+    }
+    return mapAdminSeasonRow(row);
+  });
 
 // ─── Orders ───────────────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { StatCard, DataTable } from "@bicap/ui";
 import type { Column } from "@bicap/ui";
-import { getDashboardStats, getAdminFarms } from "@/lib/api";
+import { getDashboardStats, getAdminFarms, getAdminSeasons } from "@/lib/api";
 import type { Farm } from "@bicap/types";
 import Link from "next/link";
 
@@ -40,6 +40,11 @@ export default function DashboardPage() {
   const { data: pendingFarms, isLoading: farmsLoading } = useQuery({
     queryKey: ["admin-farms", "PENDING"],
     queryFn: () => getAdminFarms("PENDING"),
+  });
+
+  const { data: pendingSeasons, isLoading: seasonsPendingLoading } = useQuery({
+    queryKey: ["admin-seasons", "pending"],
+    queryFn: () => getAdminSeasons("pending"),
   });
 
   const L = statsLoading;
@@ -162,6 +167,27 @@ export default function DashboardPage() {
           emptyMessage="Không có farm nào chờ duyệt ✓"
         />
       </div>
+
+      {(pendingFarms?.total ?? 0) > 0 || (pendingSeasons?.length ?? 0) > 0 ? (
+        <div className="flex flex-wrap gap-3">
+          {(pendingFarms?.total ?? 0) > 0 && (
+            <Link
+              href="/admin/farms"
+              className="inline-flex items-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800 shadow-sm transition hover:bg-rose-100"
+            >
+              {pendingFarms?.total} farms chờ duyệt →
+            </Link>
+          )}
+          {(pendingSeasons?.length ?? 0) > 0 && (
+            <Link
+              href="/admin/seasons"
+              className="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 shadow-sm transition hover:bg-amber-100"
+            >
+              {seasonsPendingLoading ? "…" : pendingSeasons?.length} seasons chờ ghi chain →
+            </Link>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

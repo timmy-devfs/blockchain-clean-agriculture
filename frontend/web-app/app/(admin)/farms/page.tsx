@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DataTable,
@@ -79,51 +79,89 @@ export default function FarmsPage() {
     setToast({ msg: message, type: "error" });
   }, [isError, error]);
 
-  const COLS: Column<Farm>[] = [
-    { key: "farmName",  header: "Tên trang trại" },
-    { key: "province",  header: "Tỉnh/Thành" },
-    { key: "totalArea", header: "Diện tích (ha)",
-      render: (v) => <span className="font-medium">{v as number} ha</span> },
-    { key: "status",    header: "Trạng thái",
-      render: (v) => <StatusBadge status={v as string} /> },
-    { key: "createdAt", header: "Ngày đăng ký",
-      render: (v) => <span className="text-xs text-gray-500">{new Date(v as string).toLocaleDateString("vi-VN")}</span> },
-    { key: "id", header: "Chi tiết",
-      render: (_, row) => (
-        <Link
-          href={`/admin/farms/${row.id}`}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 transition"
-        >
-          Xem →
-        </Link>
-      ),
-    },
-    ...(activeTab === "PENDING"
-      ? [{
-          key: "id" as keyof Farm,
-          header: "Hành động",
-          render: (_: unknown, row: Farm) => (
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setApproveTarget(row)}
-                size="sm"
-                className="h-8 bg-emerald-600 text-xs hover:bg-emerald-700"
-              >
-                ✓ Duyệt
-              </Button>
-              <Button
-                onClick={() => setRejectTarget(row)}
-                variant="destructive"
-                size="sm"
-                className="h-8 text-xs"
-              >
-                ✕ Từ chối
-              </Button>
-            </div>
-          ),
-        }]
-      : []),
-  ];
+  const COLS: Column<Farm>[] = useMemo(() => {
+    const base: Column<Farm>[] = [
+      { key: "farmName", header: "Tên trang trại" },
+      { key: "province", header: "Tỉnh/Thành" },
+      {
+        key: "totalArea",
+        header: "Diện tích (ha)",
+        render: (v) => <span className="font-medium">{v as number} ha</span>,
+      },
+      {
+        key: "createdAt",
+        header: "Ngày đăng ký",
+        render: (v) => (
+          <span className="text-xs text-gray-500">
+            {new Date(v as string).toLocaleDateString("vi-VN")}
+          </span>
+        ),
+      },
+    ];
+
+    if (activeTab !== "PENDING") {
+      base.push({
+        key: "status",
+        header: "Trạng thái",
+        render: (v) => <StatusBadge status={v as string} />,
+      });
+    }
+
+    if (activeTab === "REJECTED") {
+      base.push({
+        key: "rejectReason",
+        header: "Lý do từ chối",
+        render: (v) => (
+          <span className="max-w-xs text-xs text-rose-700">
+            {String(v ?? "—")}
+          </span>
+        ),
+      });
+    }
+
+    if (activeTab === "APPROVED") {
+      base.push({
+        key: "id",
+        header: "Chi tiết",
+        render: (_, row) => (
+          <Link
+            href={`/admin/farms/${row.id}`}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-200"
+          >
+            Xem →
+          </Link>
+        ),
+      });
+    }
+
+    if (activeTab === "PENDING") {
+      base.push({
+        key: "id",
+        header: "Hành động",
+        render: (_: unknown, row: Farm) => (
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setApproveTarget(row)}
+              size="sm"
+              className="h-8 bg-emerald-600 text-xs hover:bg-emerald-700"
+            >
+              ✓ Duyệt
+            </Button>
+            <Button
+              onClick={() => setRejectTarget(row)}
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs"
+            >
+              ✕ Từ chối
+            </Button>
+          </div>
+        ),
+      });
+    }
+
+    return base;
+  }, [activeTab]);
 
   return (
     <div className="space-y-5">
@@ -183,7 +221,7 @@ export default function FarmsPage() {
       <ConfirmDialog
         isOpen={!!approveTarget}
         title="Phê duyệt trang trại"
-        message={`Xác nhận phê duyệt "${approveTarget?.farmName}"? Farm sẽ có thể hoạt động trên hệ thống.`}
+        message={`Duyệt farm này? "${approveTarget?.farmName}" sẽ được phép tạo vụ mùa và hoạt động trên hệ thống.`}
         confirmLabel="Phê duyệt"
         variant="primary"
         onConfirm={() => approveTarget && approveMut.mutate(approveTarget.id)}
