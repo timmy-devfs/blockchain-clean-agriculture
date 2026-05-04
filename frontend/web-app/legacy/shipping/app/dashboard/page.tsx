@@ -7,6 +7,7 @@ import { useSyncOrders } from '../hooks/useSyncOrders';
 import {
   ShippingApi,
   type Shipment,
+  type ShipmentStatus,
   type PendingConfirmedOrder,
   type DriverApiRow,
   type VehicleApiRow,
@@ -15,6 +16,8 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Order {
   id: string; cargo: string; weight: string; qty: string; farm: string;
+  /** Tên nhà bán lẻ (từ API) — khác với `to` (địa chỉ đầy đủ). */
+  retailer?: string;
   from: string; to: string; date: string; time: string; driver: string;
   driverPhone?: string; driverPlate?: string; driverVehicle?: string;
   status: string; note: string; createdAt: string;
@@ -36,6 +39,13 @@ type Page = 'dashboard' | 'orders' | 'drivers' | 'new-order' | 'trace' | 'map';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function genId(orders: Order[]) {
   return 'LH' + String(orders.length + 1).padStart(4, '0') + '-' + Date.now().toString(36).toUpperCase().slice(-4);
+}
+
+/** Đoạn đầu địa chỉ / chuỗi địa danh làm nhãn khi không có tên chính thức. */
+function firstLineOfPlace(addr: string | null | undefined): string | undefined {
+  if (!addr?.trim()) return undefined;
+  const line = addr.split(/[,;\n]/)[0]?.trim();
+  return line || undefined;
 }
 
 // ─── Status config ────────────────────────────────────────────────────────────
@@ -1081,13 +1091,18 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
     DELIVERED: "Đã giao",
     CANCELLED: "Hủy",
   };
+  const farmLabel =
+    s.farmName?.trim() || firstLineOfPlace(s.pickupAddress) || "—";
+  const retailerLabel =
+    s.retailerName?.trim() || firstLineOfPlace(s.deliveryAddress) || "—";
   return {
     id: `LH${String(s.id).padStart(4, "0")}-${s.orderId}`,
     shipmentId: s.id,
     cargo: `Đơn #${s.orderId}`,
     weight: "—",
     qty: "1",
-    farm: String(s.farmId),
+    farm: farmLabel,
+    retailer: retailerLabel,
     from: s.pickupAddress ?? "—",
     to: s.deliveryAddress ?? "—",
     date: s.scheduledDate ?? "",
@@ -1098,6 +1113,24 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
     createdAt: new Date().toISOString(),
     timeline: []
   };
+}
+
+/** Nhãn tiếng Việt trên UI → enum shipping-service (JWT / DB). */
+function viLabelToShipmentStatus(label: string, current: Shipment | undefined): ShipmentStatus {
+  switch (label) {
+    case "Chờ xử lý":
+      return current?.driverId != null ? "ASSIGNED" : "CREATED";
+    case "Đã lấy hàng":
+      return "PICKED_UP";
+    case "Đang vận chuyển":
+      return "IN_TRANSIT";
+    case "Đã giao":
+      return "DELIVERED";
+    case "Hủy":
+      return "CANCELLED";
+    default:
+      return "CREATED";
+  }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -1249,6 +1282,8 @@ export default function ShippingDashboard() {
     const chosenDriver = fleetDriversApi.find((d) => d.id === selectedFleetDriverId);
 
     try {
+      const deliveryLabel = firstLineOfPlace(row.deliveryAddress);
+      const hasRetailMongo = Boolean(row.retailerExternalId?.trim());
       const shipmentResult = await ShippingApi.createShipment(
         {
           orderId: row.orderId,
@@ -1257,6 +1292,9 @@ export default function ShippingDashboard() {
           driverId: selectedFleetDriverId,
           vehicleId: selectedFleetVehicleId,
           deliveryAddress: row.deliveryAddress ?? undefined,
+          farmExternalId: row.farmExternalId ?? undefined,
+          retailerExternalId: row.retailerExternalId ?? undefined,
+          ...(!hasRetailMongo && deliveryLabel ? { retailerDisplayName: deliveryLabel } : {}),
         },
         auth,
       );
@@ -1442,7 +1480,7 @@ export default function ShippingDashboard() {
     return (o.id + o.cargo + o.driver + o.from + o.to).toLowerCase().includes(q) && (!filterS || o.status === filterS);
   }).slice().reverse();
 
-  function changeStatus(id: string, val: string) {
+  async function changeStatus(id: string, val: string) {
     const statusDesc: Record<string, string> = {
       'Chờ xử lý': 'Đang chờ tài xế nhận đơn',
       'Đã lấy hàng': 'Tài xế đã nhận hàng từ điểm xuất phát',
@@ -1450,11 +1488,81 @@ export default function ShippingDashboard() {
       'Đã giao': 'Hàng đã giao thành công',
       'Hủy': 'Đơn giao hàng đã hủy',
     };
-    const next = orders.map(o => o.id === id
-      ? { ...o, status: val, timeline: [...(o.timeline || []), { time: new Date().toLocaleString('vi-VN'), label: val, desc: statusDesc[val] ?? 'Cập nhật trạng thái' }] }
-      : o);
-    saveO(next);
-    if (detail?.id === id) setDetail(next.find(o => o.id === id) ?? null);
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (!token) {
+      showToast("⚠️ Cần đăng nhập để đồng bộ trạng thái.");
+      return;
+    }
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+
+    // Lô chỉ có trên mock/local — không gọi API.
+    if (order.shipmentId == null) {
+      const next = orders.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              status: val,
+              timeline: [
+                ...(o.timeline || []),
+                {
+                  time: new Date().toLocaleString("vi-VN"),
+                  label: val,
+                  desc: statusDesc[val] ?? "Cập nhật trạng thái",
+                },
+              ],
+            }
+          : o,
+      );
+      saveO(next);
+      if (detail?.id === id) setDetail(next.find((o) => o.id === id) ?? null);
+      return;
+    }
+
+    const snap = apiShipmentsSnapshot.find((s) => s.id === order.shipmentId);
+    const apiStatus = viLabelToShipmentStatus(val, snap);
+    try {
+      const res = await ShippingApi.updateShipmentStatus(order.shipmentId, { status: apiStatus }, auth);
+      const data = res?.data;
+      if (!data) {
+        showToast("⚠️ Phản hồi rỗng từ server.");
+        return;
+      }
+      setApiShipmentsSnapshot((prev) => {
+        const i = prev.findIndex((s) => s.id === data.id);
+        if (i < 0) return [...prev, data];
+        const nextSnap = [...prev];
+        nextSnap[i] = data;
+        return nextSnap;
+      });
+      const mapped = mapGatewayShipmentToOrder(data);
+      const next = orders.map((o) =>
+        o.id === id
+          ? {
+              ...mapped,
+              note: o.note || mapped.note,
+              createdAt: o.createdAt,
+              timeline: [
+                ...(o.timeline || []),
+                {
+                  time: new Date().toLocaleString("vi-VN"),
+                  label: val,
+                  desc: statusDesc[val] ?? "Cập nhật trạng thái",
+                },
+              ],
+            }
+          : o,
+      );
+      saveO(next);
+      if (detail?.id === id) setDetail(next.find((o) => o.id === id) ?? null);
+      showToast("✅ Đã cập nhật trạng thái");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(`❌ ${msg}`);
+    }
   }
 
   async function submitOrder() {
@@ -1487,6 +1595,8 @@ export default function ShippingDashboard() {
           pickupAddress: form.from,
           deliveryAddress: form.to,
           scheduledDate: form.date || null,
+          farmDisplayName: form.farm.trim() || firstLineOfPlace(form.from),
+          retailerDisplayName: firstLineOfPlace(form.to),
         },
         auth,
       );
@@ -1960,7 +2070,7 @@ export default function ShippingDashboard() {
                             <td style={S.td} onClick={e => e.stopPropagation()}>
                               <div style={{ display: 'flex', gap: 5 }}>
                                 <select style={{ fontSize: 12, padding: '4px 8px', border: '1px solid #dbe2ea', borderRadius: 8, background: '#fff', cursor: 'pointer', outline: 'none' }}
-                                  defaultValue="" onChange={e => { changeStatus(o.id, e.target.value); (e.target as HTMLSelectElement).value = ''; }}>
+                                  defaultValue="" onChange={e => { void changeStatus(o.id, e.target.value); (e.target as HTMLSelectElement).value = ''; }}>
                                   <option value="" disabled>Cập nhật</option>
                                   {['Chờ xử lý', 'Đã lấy hàng', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
                                 </select>
@@ -2262,6 +2372,7 @@ export default function ShippingDashboard() {
                         { icon: '📦', label: 'Hàng hóa', v: o.cargo || '—' },
                         { icon: '⚖️', label: 'Trọng lượng', v: o.weight ? o.weight + ' kg' : '—' },
                         { icon: '🌿', label: 'Nông trại', v: o.farm || '—' },
+                        { icon: '🏪', label: 'Nhà bán lẻ', v: o.retailer || '—' },
                         { icon: '🚚', label: 'Tài xế', v: o.driver || 'Chưa phân công' },
                         { icon: '📅', label: 'Ngày dự kiến', v: o.date || '—' },
                         { icon: '🗓', label: 'Ngày tạo', v: o.createdAt },
@@ -2334,7 +2445,10 @@ export default function ShippingDashboard() {
             {([
               ['Mã lô hàng', detail.id], ['Hàng hóa', detail.cargo],
               ['Trọng lượng', detail.weight ? detail.weight + ' kg' : '—'], ['Số kiện', detail.qty || '—'],
-              ['Nông trại', detail.farm || '—'], ['Điểm xuất phát', detail.from], ['Điểm đến', detail.to],
+              ['Nông trại', detail.farm || '—'],
+              ['Nhà bán lẻ', detail.retailer || '—'],
+              ['Điểm xuất phát', detail.from],
+              ['Điểm đến', detail.to],
               ['Tài xế', detail.driver || '—'], ['Ngày giao', (detail.date || '—') + ' ' + (detail.time || '')],
               ['Ghi chú', detail.note || '—'],
             ] as [string, string][]).map(([k, v]) => (
@@ -2350,7 +2464,7 @@ export default function ShippingDashboard() {
             <div style={{ margin: '14px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>Cập nhật trạng thái:</span>
               <select style={{ ...S.inp, flex: 1, fontSize: 13 } as CSSProperties} value={detail.status}
-                onChange={e => changeStatus(detail.id, e.target.value)}>
+                onChange={e => { void changeStatus(detail.id, e.target.value); }}>
                 {['Chờ xử lý', 'Đã lấy hàng', 'Đang vận chuyển', 'Đã giao', 'Hủy'].map(s => <option key={s}>{s}</option>)}
               </select>
             </div>

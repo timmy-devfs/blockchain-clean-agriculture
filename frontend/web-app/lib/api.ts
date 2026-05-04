@@ -679,6 +679,8 @@ export type PendingConfirmedOrderRow = {
   shipmentId: number | null;
   farmId: number | null;
   retailerId: number | null;
+  farmExternalId?: string | null;
+  retailerExternalId?: string | null;
 };
 
 export const getConfirmedOrdersForShipping = () =>

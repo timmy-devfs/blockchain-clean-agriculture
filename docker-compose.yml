@@ -269,6 +269,7 @@ services:
       SPRING_DATASOURCE_USERNAME: bicap_user
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FARM_SERVICE_BASE_URL: http://farm-service:8082
       RETAILER_SERVICE_BASE_URL: http://retailer-service:8083
       IDENTITY_SERVICE_URL: http://identity-service:8081
       BICAP_INTERNAL_PROVISION_TOKEN: bicap-dev-internal

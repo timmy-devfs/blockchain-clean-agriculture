@@ -15,6 +15,10 @@ public record PendingConfirmedOrderResponse(
         @Schema(description = "farmId số (hash)", nullable = true)
         Long farmId,
         @Schema(description = "retailerId số (hash)", nullable = true)
-        Long retailerId
+        Long retailerId,
+        @Schema(description = "Mongo farm ObjectId (hex) — tra tên nông trại", nullable = true)
+        String farmExternalId,
+        @Schema(description = "Mongo retailer ObjectId (hex) — tra tên nhà bán lẻ", nullable = true)
+        String retailerExternalId
 ) {
 }

@@ -145,6 +145,10 @@ type ShippingApiShipment = {
   pickupAddress: string | null;
   deliveryAddress: string | null;
   scheduledDate: string | null;
+  /** shipping-service: tra từ farm-service */
+  farmName?: string | null;
+  /** shipping-service: tra từ retailer-service */
+  retailerName?: string | null;
 };
 
 type ShippingHistory = {
@@ -169,19 +173,47 @@ function normalizeStatus(value: string | undefined): string {
   return statusMap[value] ?? value;
 }
 
+/**
+ * Shipping-service chỉ trả farmId/retailerId (demo hay = 0) — không có tên.
+ * Dùng đoạn đầu địa chỉ làm tiêu đề hiển thị cho tài xế thay vì "Farm #0".
+ */
+function placeTitleFromAddress(address: string | null | undefined, emptyLabel: string): string {
+  const s = address?.trim();
+  if (!s) return emptyLabel;
+  const first = s.split(/[,;\n]/)[0]?.trim() ?? s;
+  if (first.length <= 80) return first;
+  return `${first.slice(0, 77)}…`;
+}
+
+/** Bỏ qua nhãn tạm dạng "Farm #0" / "Retailer #12" — ưu tiên tên thật hoặc địa chỉ. */
+function isIdPlaceholderPartyLabel(name: string | null | undefined): boolean {
+  const t = name?.trim();
+  if (!t) return true;
+  return /^(farm|retailer)\s*#\d+$/i.test(t);
+}
+
 function mapShipmentRow(row: ShippingApiShipment): ShipmentListItem {
   const scheduled = row.scheduledDate
     ? new Date(`${row.scheduledDate}T08:00:00.000Z`).toISOString()
     : new Date().toISOString();
 
+  const pickup = row.pickupAddress ?? "";
+  const delivery = row.deliveryAddress ?? "";
+
+  const farmFromApi = row.farmName?.trim();
+  const retailFromApi = row.retailerName?.trim();
   return {
     id: String(row.id),
     orderId: String(row.orderId ?? ""),
-    farmName: `Farm #${row.farmId ?? "N/A"}`,
-    farmAddress: row.pickupAddress ?? "Chưa có địa chỉ lấy hàng",
+    farmName: !isIdPlaceholderPartyLabel(farmFromApi) && farmFromApi
+      ? farmFromApi
+      : placeTitleFromAddress(row.pickupAddress, "Điểm lấy hàng"),
+    farmAddress: pickup || "Chưa có địa chỉ lấy hàng",
     farmPhone: "N/A",
-    retailerName: `Retailer #${row.retailerId ?? "N/A"}`,
-    retailerAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
+    retailerName: !isIdPlaceholderPartyLabel(retailFromApi) && retailFromApi
+      ? retailFromApi
+      : placeTitleFromAddress(row.deliveryAddress, "Điểm giao hàng"),
+    retailerAddress: delivery || "Chưa có địa chỉ giao",
     retailerPhone: "N/A",
     deliveryAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
     status: normalizeStatus(row.status),

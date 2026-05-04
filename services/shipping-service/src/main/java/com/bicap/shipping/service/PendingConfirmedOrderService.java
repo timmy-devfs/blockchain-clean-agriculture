@@ -82,13 +82,17 @@ public class PendingConfirmedOrderService {
                 }
                 Long farmNum = OrderIdUtil.toNumericId(o.farmId());
                 Long retailNum = OrderIdUtil.toNumericId(o.retailerId());
+                String farmExt = PartyLookupService.isMongoObjectId(o.farmId()) ? o.farmId().trim() : null;
+                String retailExt = PartyLookupService.isMongoObjectId(o.retailerId()) ? o.retailerId().trim() : null;
                 out.add(new PendingConfirmedOrderResponse(
                         o.id(),
                         oid,
                         o.deliveryAddress(),
                         sh.map(Shipment::getId).orElse(null),
                         farmNum,
-                        retailNum
+                        retailNum,
+                        farmExt,
+                        retailExt
                 ));
             }
             return out;
@@ -106,7 +110,9 @@ public class PendingConfirmedOrderService {
                         s.getDeliveryAddress(),
                         s.getId(),
                         s.getFarmId(),
-                        s.getRetailerId()
+                        s.getRetailerId(),
+                        s.getFarmExternalId(),
+                        s.getRetailerExternalId()
                 ))
                 .toList();
     }

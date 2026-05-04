@@ -56,6 +56,8 @@ public class OrderConfirmedListener {
 
             long farm = farmId != null ? farmId : 0L;
             long retail = retailerId != null ? retailerId : 0L;
+            String farmExt = mongoObjectIdText(payload, "farmId");
+            String retailExt = mongoObjectIdText(payload, "retailerId");
 
             Shipment created = shipmentRepository.save(Shipment.builder()
                     .orderId(orderId)
@@ -67,6 +69,8 @@ public class OrderConfirmedListener {
                     .pickupAddress(null)
                     .deliveryAddress(deliveryAddress)
                     .scheduledDate(LocalDate.now().plusDays(1))
+                    .farmExternalId(farmExt)
+                    .retailerExternalId(retailExt)
                     .build());
 
             historyRepository.save(ShipmentStatusHistory.builder()
@@ -87,6 +91,22 @@ public class OrderConfirmedListener {
         } catch (Exception e) {
             System.err.println("[shipping-service] Failed to handle order-confirmed: " + e.getMessage());
         }
+    }
+
+    /** Chỉ lấy chuỗi ObjectId hex 24 ký tự; số hoặc UUID để null (xử lý riêng sau). */
+    private static String mongoObjectIdText(JsonNode payload, String field) {
+        if (payload == null || !payload.hasNonNull(field)) {
+            return null;
+        }
+        JsonNode n = payload.get(field);
+        if (n == null || !n.isTextual()) {
+            return null;
+        }
+        String t = n.asText().trim();
+        if (t.length() == 24 && t.matches("[a-fA-F0-9]{24}")) {
+            return t;
+        }
+        return null;
     }
 
 }

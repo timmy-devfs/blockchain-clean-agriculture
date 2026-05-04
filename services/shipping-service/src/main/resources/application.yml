@@ -42,8 +42,10 @@ management:
       exposure:
         include: health
 
-# Gọi retailer-service (đồng mạng Docker: http://retailer-service:8083)
+# Gọi farm / retailer (Docker DNS)
 bicap:
+  farm:
+    base-url: ${FARM_SERVICE_BASE_URL:http://localhost:8082}
   identity:
     base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
     default-driver-password: ${BICAP_DEFAULT_DRIVER_PASSWORD:123456}

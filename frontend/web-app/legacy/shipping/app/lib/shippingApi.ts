@@ -13,6 +13,9 @@ export type Shipment = {
   pickupAddress: string | null;
   deliveryAddress: string | null;
   scheduledDate: string | null; // yyyy-mm-dd
+  /** Tên hiển thị — shipping-service tra farm-service */
+  farmName?: string | null;
+  retailerName?: string | null;
 };
 
 export type ShipmentHistoryRow = {
@@ -34,6 +37,10 @@ export type CreateShipmentRequest = {
   pickupAddress?: string | null;
   deliveryAddress?: string | null;
   scheduledDate?: string | null; // yyyy-mm-dd
+  farmExternalId?: string | null;
+  retailerExternalId?: string | null;
+  farmDisplayName?: string | null;
+  retailerDisplayName?: string | null;
 };
 
 /** Khớp shipping-service PendingConfirmedOrderResponse */
@@ -44,6 +51,8 @@ export type PendingConfirmedOrder = {
   shipmentId: number | null;
   farmId: number | null;
   retailerId: number | null;
+  farmExternalId?: string | null;
+  retailerExternalId?: string | null;
 };
 
 export type DriverApiRow = {
@@ -205,6 +214,10 @@ export const ShippingApi = {
   },
   async deleteShipment(id: number, auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<null>>(`/api/shipping/shipments/${id}`, { method: 'DELETE' }, auth);
+  },
+  /** POST /api/shipping/shipments/{id}/status — quản lý cập nhật trạng thái (không cần role tài xế). */
+  async updateShipmentStatus(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
   },
   async updateStatusAsDriver(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<Shipment>>(`/api/shipping/driver/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
