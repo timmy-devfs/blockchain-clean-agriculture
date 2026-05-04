@@ -7,8 +7,8 @@ import os from "os";
  */
 export function getSharedOrdersFilePath(): string {
   if (process.env.SHARED_ORDERS_PATH) return process.env.SHARED_ORDERS_PATH;
-  // Container chạy bằng user non-root có thể không ghi được dưới app cwd.
-  return path.join(os.tmpdir(), "bicap-sync-orders.json");
+  // Docker runtime user cannot write under app source dir; use OS temp dir by default.
+  return path.join("/tmp", "sync-orders.json");
 }
 
 export type DashboardSyncedOrder = {

@@ -24,6 +24,8 @@ interface Order {
   shipmentId?: number;
   status: string; note: string; createdAt: string;
   productImage?: string;
+  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
+  shipmentId?: number;
   timeline: { time: string; label: string; desc: string }[];
 }
 interface Driver {
@@ -1123,9 +1125,10 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
     cargo: `Đơn #${s.orderId}`,
     weight: "—",
     qty: "1",
-    farm: String(s.farmId),
-    from: normalizeAddressForMap(s.pickupAddress, "Đà Nẵng"),
-    to: normalizeAddressForMap(s.deliveryAddress, "TP. Hồ Chí Minh"),
+    farm: farmLabel,
+    retailer: retailerLabel,
+    from: s.pickupAddress ?? "—",
+    to: s.deliveryAddress ?? "—",
     date: s.scheduledDate ?? "",
     time: "",
     driver: s.driverId != null ? `Driver #${s.driverId}` : "—",
@@ -1136,8 +1139,11 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
   };
 }
 
-function toApiShipmentStatus(statusVi: string): Shipment["status"] {
-  switch (statusVi) {
+/** Nhãn tiếng Việt trên UI → enum shipping-service (JWT / DB). */
+function viLabelToShipmentStatus(label: string, current: Shipment | undefined): ShipmentStatus {
+  switch (label) {
+    case "Chờ xử lý":
+      return current?.driverId != null ? "ASSIGNED" : "CREATED";
     case "Đã lấy hàng":
       return "PICKED_UP";
     case "Đang vận chuyển":
@@ -1146,7 +1152,6 @@ function toApiShipmentStatus(statusVi: string): Shipment["status"] {
       return "DELIVERED";
     case "Hủy":
       return "CANCELLED";
-    case "Chờ xử lý":
     default:
       return "CREATED";
   }
@@ -1507,39 +1512,80 @@ export default function ShippingDashboard() {
       'Đã giao': 'Hàng đã giao thành công',
       'Hủy': 'Đơn giao hàng đã hủy',
     };
-    const target = orders.find((o) => o.id === id);
-    if (!target) return;
-
-    const optimistic = orders.map(o => o.id === id
-      ? { ...o, status: val, timeline: [...(o.timeline || []), { time: new Date().toLocaleString('vi-VN'), label: val, desc: statusDesc[val] ?? 'Cập nhật trạng thái' }] }
-      : o);
-    saveO(optimistic);
-    if (detail?.id === id) setDetail(optimistic.find(o => o.id === id) ?? null);
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
 
     const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
-    const shipmentId = target.shipmentId;
-    if (!token || !shipmentId) {
-      showToast("⚠️ Chỉ cập nhật local do chưa xác định được shipment backend.");
+    if (!token) {
+      showToast("⚠️ Cần đăng nhập để đồng bộ trạng thái.");
+      return;
+    }
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+
+    // Lô chỉ có trên mock/local — không gọi API.
+    if (order.shipmentId == null) {
+      const next = orders.map((o) =>
+        o.id === id
+          ? {
+              ...o,
+              status: val,
+              timeline: [
+                ...(o.timeline || []),
+                {
+                  time: new Date().toLocaleString("vi-VN"),
+                  label: val,
+                  desc: statusDesc[val] ?? "Cập nhật trạng thái",
+                },
+              ],
+            }
+          : o,
+      );
+      saveO(next);
+      if (detail?.id === id) setDetail(next.find((o) => o.id === id) ?? null);
       return;
     }
 
+    const snap = apiShipmentsSnapshot.find((s) => s.id === order.shipmentId);
+    const apiStatus = viLabelToShipmentStatus(val, snap);
     try {
-      const sub = decodeJwtSub(token);
-      const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
-      await ShippingApi.updateStatusByManager(
-        shipmentId,
-        {
-          status: toApiShipmentStatus(val),
-          note: statusDesc[val] ?? "Cập nhật trạng thái",
-        },
-        auth,
+      const res = await ShippingApi.updateShipmentStatus(order.shipmentId, { status: apiStatus }, auth);
+      const data = res?.data;
+      if (!data) {
+        showToast("⚠️ Phản hồi rỗng từ server.");
+        return;
+      }
+      setApiShipmentsSnapshot((prev) => {
+        const i = prev.findIndex((s) => s.id === data.id);
+        if (i < 0) return [...prev, data];
+        const nextSnap = [...prev];
+        nextSnap[i] = data;
+        return nextSnap;
+      });
+      const mapped = mapGatewayShipmentToOrder(data);
+      const next = orders.map((o) =>
+        o.id === id
+          ? {
+              ...mapped,
+              note: o.note || mapped.note,
+              createdAt: o.createdAt,
+              timeline: [
+                ...(o.timeline || []),
+                {
+                  time: new Date().toLocaleString("vi-VN"),
+                  label: val,
+                  desc: statusDesc[val] ?? "Cập nhật trạng thái",
+                },
+              ],
+            }
+          : o,
       );
-      await loadShippingDashboardData();
-      showToast("✅ Đã cập nhật trạng thái lên hệ thống.");
-    } catch (err) {
-      console.warn("[SHIPMENT] update status failed:", err);
-      showToast("⚠️ Không cập nhật được backend, dữ liệu sẽ đồng bộ lại.");
-      await loadShippingDashboardData();
+      saveO(next);
+      if (detail?.id === id) setDetail(next.find((o) => o.id === id) ?? null);
+      showToast("✅ Đã cập nhật trạng thái");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast(`❌ ${msg}`);
     }
   }
 

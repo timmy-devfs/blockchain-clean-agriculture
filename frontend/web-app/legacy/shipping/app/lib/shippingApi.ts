@@ -243,12 +243,9 @@ export const ShippingApi = {
   async deleteShipment(id: number, auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<null>>(`/api/shipping/shipments/${id}`, { method: 'DELETE' }, auth);
   },
-  async updateStatusByManager(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
-    void auth;
-    return apiFetchShippingProxy<ApiResponse<Shipment>>(`/shipments/${id}/status`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+  /** POST /api/shipping/shipments/{id}/status — quản lý cập nhật trạng thái (không cần role tài xế). */
+  async updateShipmentStatus(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
   },
   async updateStatusAsDriver(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
     void auth;

@@ -56,3 +56,6 @@ bicap:
       enabled: ${SHIPPING_AUTO_CREATE_ENABLED:true}
       fixed-delay-ms: ${SHIPPING_AUTO_CREATE_DELAY_MS:10000}
       scheduled-days-ahead: ${SHIPPING_AUTO_CREATE_DAYS_AHEAD:1}
+  internal:
+    # identity-service gửi kèm header X-Bicap-Internal-Token khi đăng ký SHIPPER
+    provision-token: ${BICAP_INTERNAL_PROVISION_TOKEN:bicap-dev-internal}
