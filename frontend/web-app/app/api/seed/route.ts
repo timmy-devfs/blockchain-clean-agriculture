@@ -1,8 +1,16 @@
 import axios, { isAxiosError } from "axios";
 import { NextResponse } from "next/server";
 
-/** Match packages/api-client: env often ends with `/api`; requests use `/api/...` paths. */
+/**
+ * Gọi gateway từ process Next.js (server).
+ * Trong Docker: ưu tiên GATEWAY_INTERNAL_URL (khuyến nghị `http://nginx` — cùng network, /api → gateway).
+ * Tránh gọi thẳng `http://api-gateway:8080` từ web-app nếu môi trường báo ECONNREFUSED (thường gặp Docker Desktop).
+ */
 function gatewayOrigin(): string {
+  const internal = process.env.GATEWAY_INTERNAL_URL?.trim() || process.env.INTERNAL_API_GATEWAY_URL?.trim();
+  if (internal) {
+    return internal.replace(/\/+$/, "");
+  }
   const raw = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost/api";
   const normalized = raw.replace(/\/+$/, "");
   return normalized.endsWith("/api") ? normalized.slice(0, -4) : normalized;
@@ -10,10 +18,32 @@ function gatewayOrigin(): string {
 
 function extractMessage(err: unknown): string {
   if (isAxiosError(err)) {
-    const d = err.response?.data as { message?: string; error?: string };
-    return d?.message ?? d?.error ?? err.message;
+    const d = err.response?.data as { message?: string; error?: string; detail?: string };
+    const fromBody = [d?.message, d?.error, d?.detail].find((x) => typeof x === "string" && x.trim());
+    if (fromBody) return fromBody.trim();
+    if (err.message?.trim()) return err.message.trim();
+    return `HTTP ${err.response?.status ?? "?"} (no message)`;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+function httpFailureSummary(status: number, body: unknown): string {
+  if (body == null || body === "") return `HTTP ${status} (empty body)`;
+  if (typeof body === "string") {
+    const t = body.trim();
+    return t ? `HTTP ${status}: ${t.slice(0, 280)}` : `HTTP ${status} (blank text body)`;
+  }
+  if (typeof body !== "object") return `HTTP ${status}: ${String(body).slice(0, 280)}`;
+  const o = body as Record<string, unknown>;
+  for (const k of ["message", "error", "detail", "title"]) {
+    const v = o[k];
+    if (typeof v === "string" && v.trim()) return `HTTP ${status}: ${v.trim()}`;
+  }
+  try {
+    return `HTTP ${status}: ${JSON.stringify(body).slice(0, 360)}`;
+  } catch {
+    return `HTTP ${status}`;
+  }
 }
 
 async function apiCall(
@@ -33,6 +63,7 @@ async function apiCall(
         method,
         url,
         data: body,
+        timeout: 30_000,
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -46,8 +77,7 @@ async function apiCall(
         return { ok: true, data };
       }
 
-      const d = res.data as { message?: string; error?: string };
-      lastErr = d?.message ?? d?.error ?? `HTTP ${res.status}`;
+      lastErr = httpFailureSummary(res.status, res.data);
     } catch (err) {
       lastErr = extractMessage(err);
     }
@@ -57,6 +87,7 @@ async function apiCall(
     }
   }
 
+  if (!lastErr.trim()) lastErr = "Unknown error (empty detail)";
   return { ok: false, error: lastErr };
 }
 
@@ -97,7 +128,13 @@ export async function POST() {
       ok: false,
       log,
       error: "Login thất bại (admin hoặc farm)",
-      message: "Kiểm tra identity-service và tài khoản demo.",
+      message:
+        "Kiểm tra identity-service, Redis, và biến GATEWAY_INTERNAL_URL (Docker) hoặc NEXT_PUBLIC_API_URL (.env.local khi pnpm dev).",
+      details: {
+        gatewayBase: gatewayOrigin(),
+        adminLogin: adminLogin.ok ? "ok" : adminLogin.error,
+        farmLogin: farmLogin.ok ? "ok" : farmLogin.error,
+      },
     });
   }
 

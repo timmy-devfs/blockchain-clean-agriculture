@@ -15,7 +15,12 @@ import {
   Toast,
 } from "@bicap/ui";
 import type { Column } from "@bicap/ui";
-import { approveSeasonForBlockchain, getAdminSeasons, type AdminSeason } from "@/lib/api";
+import {
+  approveSeasonForBlockchain,
+  getAdminSeasons,
+  getAxiosErrorMessage,
+  type AdminSeason,
+} from "@/lib/api";
 
 const EXPLORER_TX = "https://explore.vechain.org/transactions";
 
@@ -43,7 +48,7 @@ export default function AdminSeasonsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-seasons"] });
       setToast({
-        msg: "Đã gửi lên blockchain! txHash sẽ cập nhật sau 5–30 giây.",
+        msg: "Đang xử lý blockchain — txHash sẽ cập nhật sau 5–30 giây. Trang tự làm mới trong 45 giây.",
         type: "success",
       });
       setApproveTarget(null);
@@ -51,8 +56,10 @@ export default function AdminSeasonsPage() {
       window.setTimeout(() => setPollChain(false), 45_000);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Duyệt mùa vụ thất bại";
-      setToast({ msg: message, type: "error" });
+      setToast({
+        msg: getAxiosErrorMessage(error, "Duyệt mùa vụ thất bại"),
+        type: "error",
+      });
     },
   });
 

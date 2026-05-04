@@ -303,7 +303,20 @@ export function getAxiosErrorMessage(error: unknown, fallback: string): string {
     if (d != null && typeof d === "object") {
       const o = d as Record<string, unknown>;
       if (typeof o.message === "string" && o.message.trim()) return o.message;
+      const errs = o.errors;
+      if (errs != null && typeof errs === "object") {
+        const flat = (errs as { fieldErrors?: Record<string, string[]> }).fieldErrors;
+        if (flat && typeof flat === "object") {
+          const parts = Object.entries(flat)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+            .filter(Boolean);
+          if (parts.length) return parts.join(" · ");
+        }
+      }
     }
+    const st = error.response?.status;
+    if (st === 503) return "Dịch vụ farm tạm không phản hồi (503). Kiểm tra Docker: bicap-farm, bicap-gateway.";
+    if (st === 502) return "Gateway không kết nối được farm-service (502).";
   }
   if (error instanceof Error && error.message) return error.message;
   return fallback;
@@ -325,9 +338,13 @@ export type CreateFarmPayload = {
 };
 
 export const createOwnerFarm = (body: CreateFarmPayload) =>
-  axiosInstance
-    .post<unknown>("/api/farm/farms", body)
-    .then((r) => mapFarmRow(unwrapBody<Record<string, unknown>>(r.data)));
+  axiosInstance.post<unknown>("/api/farm/farms", body).then((r) => {
+    const raw = unwrapBody<Record<string, unknown>>(r.data);
+    if (raw == null || typeof raw !== "object" || !String(raw.id ?? "").trim()) {
+      throw new Error("Phản hồi tạo farm không hợp lệ (thiếu id). Kiểm tra gateway và farm-service.");
+    }
+    return mapFarmRow(raw);
+  });
 
 export type FarmerSeasonRow = {
   id: string;
@@ -362,14 +379,13 @@ function mapFarmerSeasonRow(row: Record<string, unknown>): FarmerSeasonRow {
   };
 }
 
-export const getOwnerSeasons = (params?: { page?: number; limit?: number }) =>
-  axiosInstance
-    .get<unknown>("/api/farm/seasons", {
-      params: {
-        page: params?.page ?? 1,
-        limit: params?.limit ?? 100,
-      },
-    })
+export const getOwnerSeasons = (params?: { page?: number; limit?: number }) => {
+  const page = params?.page ?? 1;
+  const rawLimit = params?.limit ?? 100;
+  const limit = Math.min(Math.max(rawLimit, 1), 500);
+
+  return axiosInstance
+    .get<unknown>("/api/farm/seasons", { params: { page, limit } })
     .then((r) => {
       const inner = unwrapBody<unknown>(r.data);
       if (inner != null && typeof inner === "object") {
@@ -382,6 +398,7 @@ export const getOwnerSeasons = (params?: { page?: number; limit?: number }) =>
       }
       return { items: [] as FarmerSeasonRow[], total: 0 };
     });
+};
 
 export type CreateSeasonPayload = {
   farmId: string;

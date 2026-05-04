@@ -27,7 +27,7 @@ export function CreateListingModal({
   const farmsQ = useQuery({ queryKey: ["owner-farms"], queryFn: getOwnerFarms });
   const seasonsQ = useQuery({
     queryKey: ["owner-seasons"],
-    queryFn: () => getOwnerSeasons({ page: 1, limit: 200 }),
+    queryFn: () => getOwnerSeasons({ page: 1, limit: 100 }),
   });
 
   const seasonOptions = useMemo(() => {
@@ -103,8 +103,6 @@ export function CreateListingModal({
       }),
   });
 
-  if (!isOpen) return null;
-
   const priceNum = Number(unitPrice.replace(/[^\d.]/g, ""));
   const qtyNum = Number(quantity.replace(",", "."));
   const maxYield = selectedSeason?.totalYield ?? undefined;
@@ -126,6 +124,7 @@ export function CreateListingModal({
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
+      {isOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-gray-900">Đăng lên sàn</h2>
@@ -233,6 +232,7 @@ export function CreateListingModal({
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

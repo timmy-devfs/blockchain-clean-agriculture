@@ -42,8 +42,6 @@ export function CreateFarmModal({ isOpen, onClose }: Props) {
       }),
   });
 
-  if (!isOpen) return null;
-
   const areaNum = Number(area.replace(",", "."));
   const valid =
     farmName.trim() &&
@@ -67,6 +65,7 @@ export function CreateFarmModal({ isOpen, onClose }: Props) {
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
+      {isOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-gray-900">Tạo trang trại mới</h2>
@@ -136,6 +135,7 @@ export function CreateFarmModal({ isOpen, onClose }: Props) {
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

@@ -52,13 +52,12 @@ export function SeasonUpdateModal({
       }),
   });
 
-  if (!isOpen) return null;
-
   return (
     <>
       {toast && (
         <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />
       )}
+      {isOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-gray-900">Cập nhật tiến trình</h2>
@@ -103,6 +102,7 @@ export function SeasonUpdateModal({
           </div>
         </div>
       </div>
+      )}
     </>
   );
 }

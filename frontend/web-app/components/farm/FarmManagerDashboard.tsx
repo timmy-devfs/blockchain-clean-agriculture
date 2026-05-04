@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@bicap/ui";
-import { getOwnerFarms, getOwnerSeasons } from "@/lib/api";
+import { getAxiosErrorMessage, getOwnerFarms, getOwnerSeasons } from "@/lib/api";
 import { CreateFarmModal } from "./CreateFarmModal";
 import { CreateSeasonModal } from "./CreateSeasonModal";
 import { CreateListingModal } from "./CreateListingModal";
@@ -13,7 +13,7 @@ export function FarmManagerDashboard() {
   const farmsQ = useQuery({ queryKey: ["owner-farms"], queryFn: getOwnerFarms });
   const seasonsQ = useQuery({
     queryKey: ["owner-seasons"],
-    queryFn: () => getOwnerSeasons({ page: 1, limit: 200 }),
+    queryFn: () => getOwnerSeasons({ page: 1, limit: 100 }),
   });
 
   const approvedFarms = useMemo(
@@ -56,6 +56,28 @@ export function FarmManagerDashboard() {
             Mở Farm Console đầy đủ (IoT, đơn hàng…) →
           </Link>
         </div>
+
+        {(farmsQ.isError || seasonsQ.isError) && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <p className="font-medium">Không tải được dữ liệu farm / vụ mùa.</p>
+            <p className="mt-1 text-xs opacity-90">
+              {farmsQ.isError ? getAxiosErrorMessage(farmsQ.error, "Lỗi farms") : ""}
+              {farmsQ.isError && seasonsQ.isError ? " · " : ""}
+              {seasonsQ.isError ? getAxiosErrorMessage(seasonsQ.error, "Lỗi seasons") : ""}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => void farmsQ.refetch()}>
+                Thử lại (farm)
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => void seasonsQ.refetch()}>
+                Thử lại (vụ mùa)
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-rose-700">
+              Dùng URL <strong>http://localhost:3000</strong> (không dùng 127.0.0.1) để cookie đăng nhập khớp SameSite.
+            </p>
+          </div>
+        )}
 
         <Card className="border-emerald-100 shadow-md">
           <CardHeader>

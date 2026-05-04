@@ -33,7 +33,7 @@ export function FarmSeasonsView() {
   const farmsQ = useQuery({ queryKey: ["owner-farms"], queryFn: getOwnerFarms });
   const seasonsQ = useQuery({
     queryKey: ["owner-seasons"],
-    queryFn: () => getOwnerSeasons({ page: 1, limit: 200 }),
+    queryFn: () => getOwnerSeasons({ page: 1, limit: 100 }),
   });
   const listingsQ = useQuery({
     queryKey: ["owner-marketplace-listings"],
