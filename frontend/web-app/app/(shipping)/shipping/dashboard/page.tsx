@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Toast } from "@bicap/ui";
+import Link from "next/link";
 import {
   createShipment,
   getAxiosErrorMessage,
@@ -115,11 +116,13 @@ export default function ShippingDashboardPage() {
   const driversQuery = useQuery({
     queryKey: ["shipping-drivers"],
     queryFn: getShippingDrivers,
+    refetchInterval: 10_000,
   });
 
   const vehiclesQuery = useQuery({
     queryKey: ["shipping-vehicles"],
     queryFn: getShippingVehicles,
+    refetchInterval: 10_000,
   });
 
   const createMu = useMutation({
@@ -190,6 +193,37 @@ export default function ShippingDashboardPage() {
       <header className="border-b border-gray-200 bg-white px-6 py-5">
         <h1 className="text-2xl font-bold text-gray-900">Điều phối vận chuyển</h1>
         <p className="text-sm text-gray-500">Đơn đã xác nhận — tạo chuyến và gán tài xế</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/shipping/drivers"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Quản lý tài xế
+          </Link>
+          <Link
+            href="/shipping/vehicles"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Quản lý phương tiện
+          </Link>
+          <Link
+            href="/shipping/shipments"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Danh sách chuyến hàng
+          </Link>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void pendingQuery.refetch();
+              void driversQuery.refetch();
+              void vehiclesQuery.refetch();
+            }}
+          >
+            Làm mới dữ liệu
+          </Button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-8">
@@ -218,6 +252,9 @@ export default function ShippingDashboardPage() {
                   <div>
                     <p className="font-mono text-xs text-gray-400">Order ID (Mongo)</p>
                     <p className="font-mono text-sm text-gray-800">{row.id}</p>
+                    <p className="mt-1 font-mono text-xs text-gray-500">
+                      Link shipping `orderId`: {row.orderId}
+                    </p>
                     <p className="mt-2 text-sm text-gray-600">{row.deliveryAddress ?? "—"}</p>
                   </div>
                   <Button type="button" onClick={() => setModalOrder(row)}>

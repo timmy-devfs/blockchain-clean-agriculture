@@ -59,6 +59,10 @@ public class PendingConfirmedOrderService {
             if (authorizationHeader != null && !authorizationHeader.isBlank()) {
                 headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
             }
+            // retailer-service jwtMiddleware ưu tiên X-User-Id do gateway inject.
+            // Call nội bộ từ shipping không đi qua gateway nên tự set context tối thiểu.
+            headers.set("X-User-Id", "shipping-internal");
+            headers.set("X-User-Role", "SHIPPER");
             HttpEntity<Void> entity = new HttpEntity<>(headers);
             String url = retailerBaseUrl.replaceAll("/+$", "") + "/api/retail/shipping/confirmed-orders";
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);

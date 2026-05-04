@@ -46,3 +46,8 @@ management:
 bicap:
   retailer:
     base-url: ${RETAILER_SERVICE_BASE_URL:http://localhost:8083}
+  shipping:
+    auto-create:
+      enabled: ${SHIPPING_AUTO_CREATE_ENABLED:true}
+      fixed-delay-ms: ${SHIPPING_AUTO_CREATE_DELAY_MS:10000}
+      scheduled-days-ahead: ${SHIPPING_AUTO_CREATE_DAYS_AHEAD:1}

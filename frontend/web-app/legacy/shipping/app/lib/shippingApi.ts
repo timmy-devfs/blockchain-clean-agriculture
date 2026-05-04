@@ -163,6 +163,9 @@ export const ShippingApi = {
   async deleteShipment(id: number, auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<null>>(`/api/shipping/shipments/${id}`, { method: 'DELETE' }, auth);
   },
+  async updateStatusByManager(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
+    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
+  },
   async updateStatusAsDriver(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
     return apiFetch<ApiResponse<Shipment>>(`/api/shipping/driver/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
   },

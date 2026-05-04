@@ -1,4 +1,5 @@
 import path from "path";
+import os from "os";
 
 /**
  * File JSON dùng chung: POST /api/sync-orders ghi, GET /internal/shipping-sync đọc.
@@ -6,7 +7,8 @@ import path from "path";
  */
 export function getSharedOrdersFilePath(): string {
   if (process.env.SHARED_ORDERS_PATH) return process.env.SHARED_ORDERS_PATH;
-  return path.join(process.cwd(), "tmp", "sync-orders.json");
+  // Container chạy bằng user non-root có thể không ghi được dưới app cwd.
+  return path.join(os.tmpdir(), "bicap-sync-orders.json");
 }
 
 export type DashboardSyncedOrder = {
