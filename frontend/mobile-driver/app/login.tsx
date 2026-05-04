@@ -12,8 +12,11 @@ import { EMAIL_KEY, TOKEN_KEY } from "@/lib/api";
 export default function LoginScreen() {
   const router = useRouter();
   const { login, isLoading, error } = useAuth();
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
+  
+  // Đã thêm dữ liệu thẳng vào khởi tạo State
+  const [email,    setEmail]    = useState("shipper1@bicap.io");
+  const [password, setPassword] = useState("123456");
+  
   const [remember, setRemember] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [hasSavedToken, setHasSavedToken] = useState(false);
@@ -84,7 +87,6 @@ export default function LoginScreen() {
               <TextInput
                 value={password}
                 onChangeText={setPassword}
-                //placeholder="••••••••"
                 placeholder="pass test: 123123"
                 secureTextEntry
                 className="border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900"

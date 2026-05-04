@@ -10,6 +10,7 @@ import com.bicap.identity_service.repository.RefreshTokenRepository;
 import com.bicap.identity_service.repository.UserRepository;
 import com.bicap.identity_service.security.JwtTokenProvider;
 import com.bicap.identity_service.service.AuthService;
+import com.bicap.identity_service.service.ShippingProvisionClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +29,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider       jwtTokenProvider;
     private final PasswordEncoder        passwordEncoder;
+    private final ShippingProvisionClient shippingProvisionClient;
 
     // Đọc TTL từ application.yml (ms → giây)
     @Value("${jwt.access-token-expiry:900000}")
@@ -57,8 +59,18 @@ public class AuthServiceImpl implements AuthService {
 
         User saved = userRepository.save(user);
         log.info("New user registered: {} [{}]", saved.getEmail(), saved.getRole());
+        if (saved.getRole() == User.Role.SHIPPER) {
+            shippingProvisionClient.ensureDriverMapped(saved);
+        }
 
         return toUserResponse(saved);
+    }
+
+    @Override
+    public BootstrapStatusResponse getBootstrapStatus() {
+        return BootstrapStatusResponse.builder()
+                .systemEmpty(userRepository.count() == 0)
+                .build();
     }
 
     // ── LOGIN ─────────────────────────────────────────────────

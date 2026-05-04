@@ -8,6 +8,8 @@ export enum UserRole {
   RETAILER = "RETAILER",
   SHIP_DRIVER = "SHIP_DRIVER",
   SHIPPING_MANAGER = "SHIPPING_MANAGER",
+  /** Alias do identity-service trả về cho tài khoản tài xế/shipper. */
+  SHIPPER = "SHIPPER",
   GUEST = "GUEST",
 }
 
@@ -109,6 +111,8 @@ export interface Farm {
     expiresAt: string | null;
     createdAt: string;
     updatedAt: string;
+    /** URL tệp PDF trên blob/storage — khi backend trả về */
+    fileUrl?: string;
   } | null;
 }
 
@@ -156,6 +160,8 @@ export interface Order {
   listingId: string;
   retailerId: string;
   farmId: string;
+  /** Tên sản phẩm (retailer-service / Mongo) — optional cho UI admin. */
+  productName?: string;
   quantity: number;
   totalPrice: number;
   depositAmount: number;

@@ -1,0 +1,51 @@
+/* @import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+} */
+@import "tailwindcss";
+
+/* Smooth scrollbar */
+* { scrollbar-width: thin; scrollbar-color: #d1d5db transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+/* Animations */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-in { animation: slide-in 0.2s ease-out; }
+
+:root {
+  --bg-0: #0a0f0d; --bg-1: #0d1510; --bg-2: #111c14;
+  --bicap-green: #22c55e; --bicap-green-dim: #16a34a;
+  --bicap-green-glow: rgba(34,197,94,0.15);
+  --bicap-green-subtle: rgba(34,197,94,0.08);
+  --border-green: rgba(34,197,94,0.12);
+  --border-green-2: rgba(34,197,94,0.22);
+  --font-display: "Sora", sans-serif;
+  --font-data: "DM Mono", monospace;
+}

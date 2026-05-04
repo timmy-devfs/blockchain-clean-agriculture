@@ -38,4 +38,17 @@ public class Shipment {
     private String deliveryAddress; // Địa chỉ giao hàng
 
     private LocalDate scheduledDate; // Ngày dự kiến giao
+
+    /** Mongo farm ObjectId (hex), khi có thì gọi farm-service lấy tên. */
+    @Column(name = "farm_external_id")
+    private String farmExternalId;
+
+    @Column(name = "retailer_external_id")
+    private String retailerExternalId;
+
+    @Column(name = "farm_display_name")
+    private String farmDisplayName;
+
+    @Column(name = "retailer_display_name")
+    private String retailerDisplayName;
 }

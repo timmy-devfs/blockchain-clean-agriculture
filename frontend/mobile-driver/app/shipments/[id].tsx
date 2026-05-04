@@ -4,13 +4,14 @@ import {
   Linking, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useShipmentDetail } from "@/hooks/useShipments";
 import { StatusTimeline } from "@/components/StatusTimeline";
 
 const STATUS_ACTION: Record<string, { label: string; actionType: string } | null> = {
-  ASSIGNED: { label: "🔍 Bắt đầu nhận hàng", actionType: "pickup" },
-  PICKED_UP: { label: "🚚 Bắt đầu vận chuyển", actionType: "scan_only" }, // Tạm thời
-  IN_TRANSIT: { label: "✅ Xác nhận giao hàng", actionType: "deliver" },
+  ASSIGNED: { label: "Bắt đầu nhận hàng", actionType: "pickup" },
+  PICKED_UP: { label: "Đang vận chuyển", actionType: "scan_only" },
+  IN_TRANSIT: { label: "Xác nhận giao hàng", actionType: "deliver" },
   DELIVERED: null,
   CANCELLED: null,
 };
@@ -18,6 +19,13 @@ const STATUS_ACTION: Record<string, { label: string; actionType: string } | null
 export default function ShipmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace("/(tabs)/shipments");
+  };
 
   const { data: shipment, isLoading } = useShipmentDetail(id);
 
@@ -41,8 +49,19 @@ export default function ShipmentDetailScreen() {
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(shipment.deliveryAddress)}`;
 
   return (
-    <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
-      <View className="px-4 pt-4 pb-10 space-y-4">
+    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+      <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
+        <View className="px-4 pt-2 pb-10 space-y-4">
+        <View className="flex-row items-center justify-between mb-1">
+          <TouchableOpacity
+            onPress={handleGoBack}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2"
+            activeOpacity={0.8}
+          >
+            <Text className="text-gray-700 font-medium">{"< "}Quay lại</Text>
+          </TouchableOpacity>
+          <Text className="text-gray-800 font-semibold">Chi tiết chuyến hàng</Text>
+        </View>
 
         {/* Farm Info */}
         <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
@@ -86,6 +105,14 @@ export default function ShipmentDetailScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Địa chỉ giao hàng */}
+        <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <Text className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
+            📍 Địa chỉ giao hàng
+          </Text>
+          <Text className="text-sm text-gray-800 leading-6">{shipment.deliveryAddress}</Text>
+        </View>
+
         {/* Status Timeline */}
         <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
           <Text className="text-sm font-semibold text-gray-800 mb-4">📋 Lịch sử trạng thái</Text>
@@ -117,6 +144,7 @@ export default function ShipmentDetailScreen() {
           </Text>
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

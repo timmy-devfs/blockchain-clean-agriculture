@@ -8,4 +8,5 @@ public interface AuthService {
     TokenResponse   login(LoginRequest request);
     TokenResponse   refreshToken(RefreshTokenRequest request);
     IntrospectResponse introspect(IntrospectRequest request);
+    BootstrapStatusResponse getBootstrapStatus();
 }

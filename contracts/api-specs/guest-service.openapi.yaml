@@ -4,7 +4,7 @@ info:
   version: "1.0.0"
   description: |
     Public APIs — KHÔNG cần Authorization header.
-    Phục vụ web-public (SSR) và người tiêu dùng scan QR.
+    Phục vụ public routes trong web-app (SSR) và người tiêu dùng scan QR.
     Cache Redis TTL 10 phút cho tất cả GET endpoints.
 
 servers:

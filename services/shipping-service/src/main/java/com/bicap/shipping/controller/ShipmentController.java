@@ -24,12 +24,14 @@ public class ShipmentController {
     private final ShipmentService shipmentService;
     private final AuthContextService authContextService;
 
-    public ShipmentController(ShipmentService shipmentService, AuthContextService authContextService) {
+    public ShipmentController(
+            ShipmentService shipmentService,
+            AuthContextService authContextService) {
         this.shipmentService = shipmentService;
         this.authContextService = authContextService;
     }
 
-    // Manager API (CRUD shipment) — used by web-shipping
+    // Manager API (CRUD shipment) — used by shipping routes in web-app
     @PostMapping("/shipments")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Tạo shipment mới")
@@ -73,6 +75,22 @@ public class ShipmentController {
         return ApiResponse.success(shipmentService.history(id));
     }
 
+    /**
+     * Cập nhật trạng thái từ dashboard quản lý (không yêu cầu role SHIPPER — cùng logic với driver
+     * {@link #updateStatus} nhưng cho tài khoản quản lý vận chuyển).
+     */
+    @PostMapping("/shipments/{id}/status")
+    @Operation(summary = "Cập nhật trạng thái shipment (quản lý / nội bộ)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Shipment không tồn tại")
+    })
+    public ApiResponse<ShipmentResponse> updateShipmentStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateShipmentStatusRequest req) {
+        return ApiResponse.success(shipmentService.updateStatus(id, req));
+    }
+
     @DeleteMapping("/shipments/{id}")
     @Operation(summary = "Xóa shipment")
     @ApiResponses({
@@ -104,6 +122,40 @@ public class ShipmentController {
             return ApiResponse.success(List.of());
         }
         return ApiResponse.success(shipmentService.listForDriver(driverId));
+    }
+
+    @GetMapping("/driver/shipments/{id}")
+    @Operation(summary = "Driver lấy chi tiết một shipment của mình")
+    public ApiResponse<ShipmentResponse> getDriverShipment(@PathVariable Long id) {
+        if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        return ApiResponse.success(shipmentService.getById(id));
+    }
+
+    @GetMapping("/driver/shipments/{id}/history")
+    @Operation(summary = "Driver lấy lịch sử trạng thái shipment của mình")
+    public ApiResponse<List<ShipmentStatusHistoryResponse>> getDriverShipmentHistory(@PathVariable Long id) {
+        if (!authContextService.hasRole("SHIPPER")) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        String userId = authContextService.currentUserIdOrNull();
+        if (userId == null) {
+            return ApiResponse.error(ErrorCode.UNAUTHORIZED);
+        }
+        Long driverId = shipmentService.resolveDriverNumericId(userId);
+        if (driverId == null || !shipmentService.driverOwnsShipment(id, driverId)) {
+            return ApiResponse.error(ErrorCode.FORBIDDEN);
+        }
+        return ApiResponse.success(shipmentService.history(id));
     }
 
     @PostMapping("/driver/shipments/{id}/pickup")

@@ -41,3 +41,21 @@ management:
     web:
       exposure:
         include: health
+
+# Gọi farm / retailer (Docker DNS)
+bicap:
+  farm:
+    base-url: ${FARM_SERVICE_BASE_URL:http://localhost:8082}
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    default-driver-password: ${BICAP_DEFAULT_DRIVER_PASSWORD:123456}
+  retailer:
+    base-url: ${RETAILER_SERVICE_BASE_URL:http://localhost:8083}
+  shipping:
+    auto-create:
+      enabled: ${SHIPPING_AUTO_CREATE_ENABLED:true}
+      fixed-delay-ms: ${SHIPPING_AUTO_CREATE_DELAY_MS:10000}
+      scheduled-days-ahead: ${SHIPPING_AUTO_CREATE_DAYS_AHEAD:1}
+  internal:
+    # identity-service gửi kèm header X-Bicap-Internal-Token khi đăng ký SHIPPER
+    provision-token: ${BICAP_INTERNAL_PROVISION_TOKEN:bicap-dev-internal}

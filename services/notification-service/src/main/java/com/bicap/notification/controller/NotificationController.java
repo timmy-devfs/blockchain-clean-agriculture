@@ -1,6 +1,8 @@
 package com.bicap.notification.controller;
 
+import com.bicap.notification.dto.SendPushRequest;
 import com.bicap.notification.model.Notification;
+import com.bicap.notification.service.NotificationDispatcher;
 import com.bicap.notification.service.NotificationService;
 import com.bicap.notification.service.TokenCacheService;
 import com.bicap.notification.client.FCMPushClient;
@@ -13,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,11 +32,17 @@ public class NotificationController {
     private final NotificationService service;
     private final TokenCacheService tokenCache;
     private final FCMPushClient fcmClient;
+    private final NotificationDispatcher notificationDispatcher;
 
-    public NotificationController(NotificationService service, TokenCacheService tokenCache, FCMPushClient fcmClient) {
+    public NotificationController(
+            NotificationService service,
+            TokenCacheService tokenCache,
+            FCMPushClient fcmClient,
+            NotificationDispatcher notificationDispatcher) {
         this.service = service;
         this.tokenCache = tokenCache;
         this.fcmClient = fcmClient;
+        this.notificationDispatcher = notificationDispatcher;
     }
 
     // Lấy ID người dùng từ Security hoặc Header để test
@@ -128,6 +137,22 @@ public class NotificationController {
         
         service.deleteNotification(userId, id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/send")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SHIPPING_MANAGER', 'SHIPPER')")
+    @Operation(summary = "Gửi FCM tới user (theo device tokens)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Đã gửi / hàng đợi gửi FCM"),
+            @ApiResponse(responseCode = "403", description = "Không đủ quyền")
+    })
+    public ResponseEntity<Void> sendPush(@Valid @RequestBody SendPushRequest req) {
+        notificationDispatcher.notifyUser(
+                req.userId(),
+                req.title(),
+                req.body(),
+                req.data() != null ? req.data() : Map.of());
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/broadcast")

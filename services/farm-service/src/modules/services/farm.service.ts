@@ -23,6 +23,9 @@ const farmInclude = {
   businessLicense: true
 } satisfies Prisma.FarmInclude;
 
+const DEMO_PACKAGE_NAME = "Demo Auto Package";
+const DEMO_PACKAGE_DURATION_DAYS = 365;
+
 const buildAdminStatusWhere = (status?: AdminFarmStatusQuery["status"]): Prisma.FarmWhereInput => {
   if (!status) {
     return {};
@@ -190,14 +193,41 @@ export const adminApproveFarm = async (farmId: string): Promise<FarmWithLicense 
     return null;
   }
 
-  return prisma.farm.update({
-    where: { id: farmId },
-    data: {
-      isApproved: true,
-      rejectReason: null
-    },
-    include: farmInclude
-  }) as Promise<FarmWithLicense>;
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + DEMO_PACKAGE_DURATION_DAYS * 24 * 60 * 60 * 1000);
+
+  return prisma.$transaction(async (tx) => {
+    const approved = await tx.farm.update({
+      where: { id: farmId },
+      data: {
+        isApproved: true,
+        rejectReason: null
+      },
+      include: farmInclude
+    });
+
+    const activePackage = await tx.servicePackageSubscription.findFirst({
+      where: {
+        farmId,
+        isActive: true,
+        OR: [{ endsAt: null }, { endsAt: { gt: now } }]
+      }
+    });
+
+    if (!activePackage) {
+      await tx.servicePackageSubscription.create({
+        data: {
+          farmId,
+          packageName: DEMO_PACKAGE_NAME,
+          startsAt: now,
+          endsAt,
+          isActive: true
+        }
+      });
+    }
+
+    return approved as FarmWithLicense;
+  });
 };
 
 export const adminRejectFarm = async (farmId: string, rejectReason: string): Promise<FarmWithLicense | null> => {

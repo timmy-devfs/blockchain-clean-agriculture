@@ -1,7 +1,7 @@
 # 📦 BICAP — Shared Packages
 
 > **Monorepo Shared Packages** cho hệ thống **BICAP** (Blockchain-Integrated Clean Agriculture Platform).
-> Được sử dụng chung bởi **5 web apps** (Next.js 14) và **2 mobile apps** (React Native) trong kiến trúc pnpm workspace.
+> Được sử dụng chung bởi **web-app** (Next.js 14, role-based routes) và **2 mobile apps** (React Native) trong kiến trúc pnpm workspace.
 
 ---
 
@@ -242,7 +242,7 @@ cd packages/ui && tsc --noEmit
 Mỗi Next.js app cần bọc `AuthProvider` và `QueryClientProvider` ở root layout:
 
 ```tsx
-// apps/web-admin/app/layout.tsx
+// frontend/web-app/app/layout.tsx
 import { AuthProvider } from '@bicap/auth';
 import { queryClient } from '@bicap/api-client';
 import { QueryClientProvider } from '@tanstack/react-query';

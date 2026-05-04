@@ -6,6 +6,7 @@ import { AppError } from "../errors/appError";
 
 const CACHE_TTL_SECONDS = 120;
 const CACHE_KEY_PREFIX = "retailer:marketplace:products:v1";
+const DETAIL_ENRICH_TIMEOUT_MS = 1200;
 
 const searchProductsQuerySchema = z.object({
   keyword: z.string().trim().min(1).optional(),
@@ -76,6 +77,36 @@ function buildSeasonSummary(trace: TracePayload | null): Record<string, unknown>
   };
 }
 
+function unwrapTracePayload(input: unknown): TracePayload | null {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+
+  const maybeWrapped = input as { data?: unknown };
+  const payload = maybeWrapped.data && typeof maybeWrapped.data === "object" ? maybeWrapped.data : input;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  return payload as TracePayload;
+}
+
+async function withSoftTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race<T | null>([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 async function getJsonCache<T>(key: string): Promise<T | null> {
   try {
     const raw = await redisClient.get(key);
@@ -142,17 +173,27 @@ export const marketplaceService = {
     const seasonId = typeof product.seasonId === "string" ? product.seasonId : undefined;
 
     const farmPromise = farmId
-      ? farmAxios
-          .get(`/api/farm/marketplace/farms/${encodeURIComponent(farmId)}`)
-          .then((res) => res.data)
-          .catch(() => null)
+      ? withSoftTimeout(
+          farmAxios
+            .get(`/api/farm/marketplace/farms/${encodeURIComponent(farmId)}`, {
+              timeout: DETAIL_ENRICH_TIMEOUT_MS
+            })
+            .then((res) => res.data)
+            .catch(() => null),
+          DETAIL_ENRICH_TIMEOUT_MS
+        )
       : Promise.resolve(null);
 
     const seasonPromise = seasonId
-      ? chainAxios
-          .get(`/api/chain/trace/${encodeURIComponent(seasonId)}`)
-          .then((res) => res.data as TracePayload)
-          .catch(() => null)
+      ? withSoftTimeout(
+          chainAxios
+            .get(`/api/chain/trace/${encodeURIComponent(seasonId)}`, {
+              timeout: DETAIL_ENRICH_TIMEOUT_MS
+            })
+            .then((res) => unwrapTracePayload(res.data))
+            .catch(() => null),
+          DETAIL_ENRICH_TIMEOUT_MS
+        )
       : Promise.resolve(null);
 
     const [farm, trace] = await Promise.all([farmPromise, seasonPromise]);

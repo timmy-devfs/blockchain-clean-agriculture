@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Khởi tạo: kiểm tra token cũ trong localStorage
+  // Khởi tạo: kiểm tra token cũ trong localStorage / cookie
   useEffect(() => {
     const initAuth = () => {
       const token = tokenStorage.getAccessToken();
@@ -39,13 +39,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const payload = decodeJWT(token);
         if (payload) {
           setRole(payload.role as UserRole);
-          // Fetch user profile để lấy thông tin đầy đủ
+          // Tạm thời set user tối thiểu từ JWT payload để ProtectedRoute không
+          // false-negative khi /me chậm/lỗi tạm thời.
+          setUser({
+            id: (payload.sub as string) ?? "",
+            email: (payload.email as string) ?? "",
+            fullName: (payload.email as string) ?? "",
+            phone: undefined,
+            role: payload.role as UserRole,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+          } as User);
           axiosInstance
             .get<ApiResponse<User>>("/api/auth/me")
             .then(({ data }) => setUser(data.data))
             .catch(() => {
-              tokenStorage.clearTokens();
-              setUser(null);
+              // Giữ user tối thiểu đã set ở trên — chỉ khi token thực sự
+              // bị backend revoke (401), interceptor sẽ tự xoá token.
             });
         }
       }
@@ -65,10 +75,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const payload = decodeJWT(accessToken);
     if (payload) setRole(payload.role as UserRole);
 
-    const { data: userData } = await axiosInstance.get<ApiResponse<User>>(
-      "/api/auth/me"
-    );
-    setUser(userData.data);
+    // /api/auth/me là best-effort: nếu fail, vẫn coi là đăng nhập thành công
+    // và derive thông tin tối thiểu từ JWT payload để các ProtectedRoute hoạt động.
+    try {
+      const { data: userData } = await axiosInstance.get<ApiResponse<User>>(
+        "/api/auth/me"
+      );
+      setUser(userData.data);
+    } catch {
+      if (payload) {
+        setUser({
+          id: (payload.sub as string) ?? "",
+          email: (payload.email as string) ?? email,
+          fullName: (payload.email as string) ?? email,
+          phone: undefined,
+          role: payload.role as UserRole,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        } as User);
+      }
+    }
   }, []);
 
   const logout = useCallback(async () => {

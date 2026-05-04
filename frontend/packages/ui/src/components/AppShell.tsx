@@ -8,6 +8,16 @@ interface AppShellProps {
   children: React.ReactNode;
   navItems: NavItem[];
   logo?: React.ReactNode;
+  /**
+   * Bỏ qua sidebar bên trái (dùng cho legacy console farm/retailer/shipping
+   * vốn đã có sidebar riêng từ Ant Design, tránh double sidebar / tràn UI).
+   */
+  hideSidebar?: boolean;
+  /**
+   * Bỏ padding 24px ở main để legacy console có thể chiếm full viewport
+   * (legacy farm/retailer/shipping tự quản lý padding nội bộ).
+   */
+  noContentPadding?: boolean;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -26,7 +36,13 @@ const ROLE_COLORS: Record<string, string> = {
   SHIPPING_MANAGER: "bg-teal-500/10 text-teal-300 border-teal-500/30",
 };
 
-export function AppShell({ children, navItems, logo }: AppShellProps) {
+export function AppShell({
+  children,
+  navItems,
+  logo,
+  hideSidebar = false,
+  noContentPadding = false,
+}: AppShellProps) {
   const { user, role, logout } = useAuth();
 
   const roleStr = role as string | null;
@@ -35,7 +51,7 @@ export function AppShell({ children, navItems, logo }: AppShellProps) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <Sidebar navItems={navItems} logo={logo} />
+      {!hideSidebar && <Sidebar navItems={navItems} logo={logo} />}
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
@@ -74,7 +90,7 @@ export function AppShell({ children, navItems, logo }: AppShellProps) {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className={`flex-1 overflow-y-auto ${noContentPadding ? "" : "p-6"}`}>{children}</main>
       </div>
     </div>
   );

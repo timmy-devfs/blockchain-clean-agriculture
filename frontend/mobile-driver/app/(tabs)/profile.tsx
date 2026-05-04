@@ -78,7 +78,7 @@ export default function ProfileScreen() {
             className="flex-row items-center justify-between px-5 py-4 border-b border-gray-50"
           >
             <Text className="text-sm font-medium text-gray-800">🔑 Đổi mật khẩu</Text>
-            <Text className="text-gray-400">→</Text>
+            <Text className="text-gray-400">{">"}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => Alert.alert("Phiên bản", "BICAP Driver v1.0.0")}

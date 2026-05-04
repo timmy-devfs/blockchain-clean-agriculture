@@ -35,6 +35,9 @@ const packageCatalog = [
   { id: "ENTERPRISE", name: "Enterprise", durationDays: 365, price: 2599000 }
 ] as const;
 
+const DEMO_PACKAGE_NAME = "Demo Auto Package";
+const DEMO_PACKAGE_DURATION_DAYS = 365;
+
 const isLikelyObjectId = (value: string): boolean => /^[a-fA-F0-9]{24}$/.test(value);
 
 const getOwnedFarm = async (userId: string, farmId: string): Promise<Farm | null> =>
@@ -64,6 +67,25 @@ const getActiveFarmPackage = async (farmId: string): Promise<ServicePackageSubsc
   return subscription;
 };
 
+const ensureActiveFarmPackage = async (farmId: string): Promise<ServicePackageSubscription> => {
+  const current = await getActiveFarmPackage(farmId);
+  if (current) {
+    return current;
+  }
+
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + DEMO_PACKAGE_DURATION_DAYS * 24 * 60 * 60 * 1000);
+  return prisma.servicePackageSubscription.create({
+    data: {
+      farmId,
+      packageName: DEMO_PACKAGE_NAME,
+      startsAt: now,
+      endsAt,
+      isActive: true
+    }
+  });
+};
+
 type CreateListingValidationResult =
   | { type: "FARM_NOT_FOUND" }
   | { type: "FARM_NOT_APPROVED" }
@@ -84,7 +106,7 @@ const validateListingCreation = async (
     return { type: "FARM_NOT_APPROVED" };
   }
 
-  const activePackage = await getActiveFarmPackage(payload.farmId);
+  const activePackage = await ensureActiveFarmPackage(payload.farmId);
   if (!activePackage) {
     return { type: "PACKAGE_EXPIRED" };
   }

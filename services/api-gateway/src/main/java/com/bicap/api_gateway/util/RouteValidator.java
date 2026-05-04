@@ -15,6 +15,7 @@ public class RouteValidator {
     private static final List<String> WHITELIST = List.of(
             "/api/auth/login",
             "/api/auth/register",
+            "/api/auth/bootstrap-status",
             "/api/auth/refresh-token",
             "/api/auth/introspect",
             "/api/public/",          // guest-service — tất cả public APIs

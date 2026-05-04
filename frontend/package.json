@@ -3,14 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev:admin": "pnpm --filter web-admin dev",
-    "dev:farm": "pnpm --filter web-farm dev",
-    "dev:retailer": "pnpm --filter web-retailer dev",
-    "dev:shipping": "pnpm --filter web-shipping dev",
-    "dev:public": "pnpm --filter web-public dev",
-    "build:all": "pnpm --recursive build",
-    "typecheck": "pnpm --recursive exec tsc --noEmit",
-    "lint": "eslint . --ext .ts,.tsx"
+    "dev": "pnpm --filter web-app dev",
+    "build": "pnpm --filter web-app build",
+    "typecheck": "pnpm --filter web-app typecheck"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",

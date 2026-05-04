@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { Collection } from "mongodb";
+import { Collection, ObjectId } from "mongodb";
 import { z } from "zod";
 import { OrderStatus, canTransition } from "../constants/orderStatus";
 import { AppError } from "../errors/appError";
@@ -7,7 +7,7 @@ import { connectMongo } from "../config/mongodb";
 import { chainAxios, farmAxios } from "../config/axios.instances";
 
 type RetailerDoc = {
-  _id: string;
+  _id: string | ObjectId;
   name: string;
   email: string;
   phone?: string;
@@ -77,7 +77,7 @@ const createOrderSchema = z.object({
 
 function mapRetailer(doc: RetailerDoc): Retailer {
   return {
-    id: doc._id,
+    id: String(doc._id),
     name: doc.name,
     email: doc.email,
     phone: doc.phone,
@@ -120,6 +120,23 @@ async function getCollections(): Promise<{
 }
 
 export const retailOrderService = {
+  async findPublicRetailerById(rawId: string): Promise<Retailer | null> {
+    const id = rawId?.trim() ?? "";
+    if (!id) {
+      return null;
+    }
+    const { retailers } = await getCollections();
+    let doc = await retailers.findOne({ _id: id });
+    if (!doc && /^[a-fA-F0-9]{24}$/.test(id)) {
+      try {
+        doc = await retailers.findOne({ _id: new ObjectId(id) });
+      } catch {
+        doc = null;
+      }
+    }
+    return doc ? mapRetailer(doc as RetailerDoc) : null;
+  },
+
   async searchRetailers(keyword?: string): Promise<Retailer[]> {
     const { retailers } = await getCollections();
 

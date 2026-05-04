@@ -1,0 +1,26 @@
+[
+  {
+    "id": "demo-1",
+    "name": "Gạo ST25 Sóc Trăng",
+    "farmName": "HTX Nông nghiệp Sóc Trăng",
+    "province": "Sóc Trăng",
+    "certification": "VietGAP",
+    "imageUrl": "/images/rice.jpg"
+  },
+  {
+    "id": "demo-2",
+    "name": "Rau muống hữu cơ",
+    "farmName": "Trang trại Xanh Đà Lạt",
+    "province": "Lâm Đồng",
+    "certification": "Organic",
+    "imageUrl": "/images/vegetable.jpg"
+  },
+  {
+    "id": "demo-3",
+    "name": "Thanh long ruột đỏ",
+    "farmName": "Vườn Bình Thuận",
+    "province": "Bình Thuận",
+    "certification": "GlobalGAP",
+    "imageUrl": "/images/dragonfruit.jpg"
+  }
+]

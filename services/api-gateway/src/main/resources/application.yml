@@ -17,6 +17,9 @@ spring:
 
   cloud:
     gateway:
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 120s
       server:
         webflux:
           default-filters:
@@ -73,21 +76,11 @@ spring:
               uri: ${RETAILER_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/retail/**
-              filters:
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             - id: retailer-service-v1
               uri: ${RETAILER_SERVICE_URL:http://localhost:8083}
               predicates:
                 - Path=/api/v1/**
-              filters:
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             # retailer-service alias for admin UI order APIs
             - id: retailer-service-order-admin
@@ -96,10 +89,6 @@ spring:
                 - Path=/api/order/**
               filters:
                 - RewritePath=/api/order/(?<segment>.*), /api/retail/${segment}
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             # shipping-service :8084
             - id: shipping-service
@@ -118,6 +107,8 @@ spring:
               predicates:
                 - Path=/api/notify/**
               filters:
+                # /api/notify/tokens → /tokens ; /api/notify/notifications/... → /notifications/...
+                - RewritePath=/api/notify/(?<segment>.*), /${segment}
                 - name: CircuitBreaker
                   args:
                     name: notification-cb

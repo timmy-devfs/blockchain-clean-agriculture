@@ -66,6 +66,12 @@ logging:
     org.springframework.security: INFO
     org.flywaydb: INFO
 
+bicap:
+  shipping:
+    base-url: ${SHIPPING_SERVICE_URL:http://localhost:8084}
+  internal:
+    provision-token: ${BICAP_INTERNAL_PROVISION_TOKEN:bicap-dev-internal}
+
 # ── SpringDoc Swagger ────────────────────────────────────
 springdoc:
   api-docs:

@@ -11,6 +11,9 @@ networks:
   bicap-frontend:
     driver: bridge
     name: bicap-frontend
+  bicap-network:
+    driver: bridge
+    name: bicap-network
 
 volumes:
   kafka-data:
@@ -198,6 +201,8 @@ services:
       JWT_SECRET: bicap-super-secret-jwt-key-2025-demo
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 604800000
+      SHIPPING_SERVICE_URL: http://shipping-service:8084
+      BICAP_INTERNAL_PROVISION_TOKEN: bicap-dev-internal
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
       interval: 15s
@@ -217,7 +222,7 @@ services:
       dockerfile: Dockerfile
     container_name: bicap-gateway
     <<: *default-restart
-    networks: [bicap-backend, bicap-frontend]
+    networks: [bicap-backend, bicap-frontend, bicap-network]
     ports:
       - "8080:8080"
     depends_on:
@@ -264,6 +269,10 @@ services:
       SPRING_DATASOURCE_USERNAME: bicap_user
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FARM_SERVICE_BASE_URL: http://farm-service:8082
+      RETAILER_SERVICE_BASE_URL: http://retailer-service:8083
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      BICAP_INTERNAL_PROVISION_TOKEN: bicap-dev-internal
     deploy:
       resources:
         limits:
@@ -293,6 +302,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/service-account.json
+    volumes:
+      - ./services/notification-service/src/main/resources/service-account.json:/app/service-account.json:ro
     deploy:
       resources:
         limits:
@@ -519,99 +531,30 @@ services:
     logging: *default-logging
 
   # ════════════════════════════════════════════════════════════
-  # FRONTEND — NextJS Web Apps
+  # FRONTEND — Unified NextJS Web App
   # ════════════════════════════════════════════════════════════
 
-  web-admin:
+  web-app:
     build:
       context: ./frontend
-      dockerfile: web-admin/Dockerfile
-    container_name: bicap-web-admin
+      dockerfile: web-app/Dockerfile
+      args:
+        DOCKER_BUILD: "1"
+        # URL gọi từ TRÌNH DUYỆT — phải đi qua nginx (:80) để host resolve được.
+        NEXT_PUBLIC_API_URL: http://localhost/api
+    container_name: bicap-web-app
     <<: *default-restart
-    networks: [bicap-frontend]
+    networks: [bicap-network]
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
+      # Browser bundle: có thể trỏ gateway trực tiếp; server seed **không** dùng host.docker.internal.
+      NEXT_PUBLIC_API_URL: http://api-gateway:8080
+      # Seed gọi qua Nginx :80 (cùng bicap-network) — tránh ECONNREFUSED web-app → api-gateway:8080 trên Docker Desktop.
+      GATEWAY_INTERNAL_URL: http://nginx
       PORT: "3000"
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-          cpus: "0.25"
-    logging: *default-logging
-
-  web-farm:
-    build:
-      context: ./frontend/web-farm
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: http://localhost
-    container_name: bicap-web-farm
-    <<: *default-restart
-    networks: [bicap-frontend]
-    ports:
-      - "3001:3001"
-    environment:
-      PORT: "3001"
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-          cpus: "0.25"
-    logging: *default-logging
-
-  web-retailer:
-    build:
-      context: ./frontend/web-retailer
-      dockerfile: Dockerfile
-      args:
-        VITE_RETAIL_API_BASE_URL: http://localhost/api/retail
-    container_name: bicap-web-retailer
-    <<: *default-restart
-    networks: [bicap-frontend]
-    ports:
-      - "3002:3002"
-    environment:
-      PORT: "3002"
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-          cpus: "0.25"
-    logging: *default-logging
-
-  web-shipping:
-    build:
-      context: ./frontend/web-shipping
-      dockerfile: Dockerfile
-    container_name: bicap-web-shipping
-    <<: *default-restart
-    networks: [bicap-frontend]
-    ports:
-      - "3003:3003"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
-      PORT: "3003"
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-          cpus: "0.25"
-    logging: *default-logging
-
-  web-public:
-    build:
-      context: ./frontend/web-public
-      dockerfile: Dockerfile
-    container_name: bicap-web-public
-    <<: *default-restart
-    networks: [bicap-frontend]
-    ports:
-      - "3004:3004"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
-      PORT: "3004"
+    depends_on:
+      - api-gateway
     deploy:
       resources:
         limits:
@@ -627,14 +570,14 @@ services:
     image: nginx:1.25-alpine
     container_name: bicap-nginx
     <<: *default-restart
-    networks: [bicap-backend, bicap-frontend]
+    networks: [bicap-backend, bicap-frontend, bicap-network]
     ports:
       - "80:80"
     volumes:
       - ./infrastructure/nginx/nginx.demo.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - api-gateway
-      - web-public
+      - web-app
     deploy:
       resources:
         limits:

@@ -6,6 +6,8 @@ import type { ApiResponse, PageResponse } from "@bicap/types";
 export const TOKEN_KEY = "bicap_access_token";
 export const REFRESH_KEY = "bicap_refresh_token";
 export const EMAIL_KEY = "bicap_remember_email";
+/** UUID người dùng — lưu sau login để đăng ký FCM kèm userId */
+export const USER_ID_KEY = "bicap_user_id";
 
 // ─── TÍCH HỢP MOCK DB CHO CHẾ ĐỘ TEST ─────────────────────────────────────
 export const isMockMode = process.env.EXPO_PUBLIC_USE_MOCK === "true";
@@ -82,6 +84,7 @@ api.interceptors.response.use(
     } catch {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_KEY);
+      await SecureStore.deleteItemAsync(USER_ID_KEY);
       return Promise.reject(error);
     } finally {
       isRefreshing = false;
@@ -98,13 +101,22 @@ function assertShippingOk<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
-/** Đăng ký FCM token với notification-service (cần JWT trên gateway). */
+/**
+ * POST /api/notify/tokens — Bearer bắt buộc (axios interceptor).
+ * Gọi sau khi login khi đã có TOKEN_KEY và USER_ID_KEY (useAuth set trước khi gọi).
+ */
 export async function syncFcmTokenToBackend(fcmToken: string): Promise<void> {
   if (isMockMode) return;
   const jwt = await SecureStore.getItemAsync(TOKEN_KEY);
-  if (!jwt?.trim()) return;
+  const userId = await SecureStore.getItemAsync(USER_ID_KEY);
+  if (!jwt?.trim() || !userId?.trim()) return;
   const platform = Platform.OS === "ios" ? "IOS" : "ANDROID";
-  await api.post("/api/notify/tokens", { token: fcmToken, platform });
+  await api.post("/api/notify/tokens", {
+    token: fcmToken,
+    deviceType: "MOBILE",
+    platform,
+    userId,
+  });
 }
 
 export interface DriverUser {
@@ -133,6 +145,10 @@ type ShippingApiShipment = {
   pickupAddress: string | null;
   deliveryAddress: string | null;
   scheduledDate: string | null;
+  /** shipping-service: tra từ farm-service */
+  farmName?: string | null;
+  /** shipping-service: tra từ retailer-service */
+  retailerName?: string | null;
 };
 
 type ShippingHistory = {
@@ -157,19 +173,47 @@ function normalizeStatus(value: string | undefined): string {
   return statusMap[value] ?? value;
 }
 
+/**
+ * Shipping-service chỉ trả farmId/retailerId (demo hay = 0) — không có tên.
+ * Dùng đoạn đầu địa chỉ làm tiêu đề hiển thị cho tài xế thay vì "Farm #0".
+ */
+function placeTitleFromAddress(address: string | null | undefined, emptyLabel: string): string {
+  const s = address?.trim();
+  if (!s) return emptyLabel;
+  const first = s.split(/[,;\n]/)[0]?.trim() ?? s;
+  if (first.length <= 80) return first;
+  return `${first.slice(0, 77)}…`;
+}
+
+/** Bỏ qua nhãn tạm dạng "Farm #0" / "Retailer #12" — ưu tiên tên thật hoặc địa chỉ. */
+function isIdPlaceholderPartyLabel(name: string | null | undefined): boolean {
+  const t = name?.trim();
+  if (!t) return true;
+  return /^(farm|retailer)\s*#\d+$/i.test(t);
+}
+
 function mapShipmentRow(row: ShippingApiShipment): ShipmentListItem {
   const scheduled = row.scheduledDate
     ? new Date(`${row.scheduledDate}T08:00:00.000Z`).toISOString()
     : new Date().toISOString();
 
+  const pickup = row.pickupAddress ?? "";
+  const delivery = row.deliveryAddress ?? "";
+
+  const farmFromApi = row.farmName?.trim();
+  const retailFromApi = row.retailerName?.trim();
   return {
     id: String(row.id),
     orderId: String(row.orderId ?? ""),
-    farmName: `Farm #${row.farmId ?? "N/A"}`,
-    farmAddress: row.pickupAddress ?? "Chưa có địa chỉ lấy hàng",
+    farmName: !isIdPlaceholderPartyLabel(farmFromApi) && farmFromApi
+      ? farmFromApi
+      : placeTitleFromAddress(row.pickupAddress, "Điểm lấy hàng"),
+    farmAddress: pickup || "Chưa có địa chỉ lấy hàng",
     farmPhone: "N/A",
-    retailerName: `Retailer #${row.retailerId ?? "N/A"}`,
-    retailerAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
+    retailerName: !isIdPlaceholderPartyLabel(retailFromApi) && retailFromApi
+      ? retailFromApi
+      : placeTitleFromAddress(row.deliveryAddress, "Điểm giao hàng"),
+    retailerAddress: delivery || "Chưa có địa chỉ giao",
     retailerPhone: "N/A",
     deliveryAddress: row.deliveryAddress ?? "Chưa có địa chỉ giao",
     status: normalizeStatus(row.status),
@@ -201,6 +245,9 @@ export const authApi = {
         };
       }
       throw new Error("Invalid credentials");
+    }
+    if (!API_URL?.trim()) {
+      throw new Error("EXPO_PUBLIC_API_URL chưa được cấu hình");
     }
     return api
       .post<ApiResponse<{ accessToken: string; refreshToken: string; user: DriverUser }>>("/api/auth/login", {
@@ -259,10 +306,18 @@ export const shipmentApi = {
     } as PageResponse<ShipmentListItem>;
   },
 
-  getDetail: (id: string) =>
-    Promise.all([
-      api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/shipments/${id}`),
-      api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/shipments/${id}/history`),
+  getDetail: (id: string) => {
+    if (isMockMode) {
+      const row = MOCK_SHIPPING_ROWS.find((r) => String(r.id) === id);
+      if (!row) return Promise.reject(new Error("Not found"));
+      return Promise.resolve({
+        ...mapShipmentRow(row),
+        statusHistory: [],
+      } as ShipmentDetail);
+    }
+    return Promise.all([
+      api.get<ApiResponse<ShippingApiShipment>>(`/api/shipping/driver/shipments/${id}`),
+      api.get<ApiResponse<ShippingHistory[]>>(`/api/shipping/driver/shipments/${id}/history`),
     ]).then(([shipmentRes, historyRes]) => {
       const shipmentBody = shipmentRes.data;
       if (shipmentBody.code !== 200) throw new Error(shipmentBody.message);
@@ -273,7 +328,8 @@ export const shipmentApi = {
         ...base,
         statusHistory: mapHistoryRows(hist),
       } as ShipmentDetail;
-    }),
+    });
+  },
 
   pickup: async (shipmentId: string, qrCode: string, photoUri: string) => {
     return api.post<ApiResponse<any>>(

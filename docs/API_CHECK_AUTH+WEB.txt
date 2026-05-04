@@ -1,0 +1,221 @@
+BICAP - API GATEWAY + UNIFIED WEB-APP TEST RUNBOOK
+===================================================
+
+Last update: 2026-05-01
+Scope: stack Docker + API Gateway + unified `frontend/web-app` after migration cleanup.
+
+
+I) QUICK PRE-CHECK
+==================
+
+1) Docker Desktop is running.
+2) Current directory is repo root:
+   D:\Projects\blockchain-clean-agriculture
+3) On Windows PowerShell, prefer `curl.exe` (not `curl`) to avoid alias issues.
+4) If port 3000 is occupied, stop local process first:
+   netstat -ano | findstr :3000
+   taskkill /PID <PID> /F
+
+
+II) START STACK (RECOMMENDED CLEAN START)
+=========================================
+
+1) Stop old stack and remove volumes:
+   docker compose down --volumes --remove-orphans
+
+2) Build and start all services:
+   docker compose up -d --build
+
+3) Create Kafka topics:
+   make make-topics
+
+4) Health check:
+   docker compose ps
+   curl.exe -s http://localhost/nginx-health
+   curl.exe -s http://localhost:8080/actuator/health
+
+Expected:
+- Nginx health returns {"status":"UP"}.
+- Gateway health is UP.
+- Services become healthy progressively (shipping/gateway can need extra warm-up time).
+
+
+III) MONGO REPLICA-SET FIX (ONLY IF NEEDED)
+============================================
+
+If farm/retailer/payment/iot reports transaction or Prisma Mongo replica errors:
+
+1) Check replica status:
+   docker exec bicap-mongo mongosh --quiet --eval "rs.status().ok"
+
+2) If not initiated:
+   docker exec bicap-mongo mongosh --quiet --eval "rs.initiate({_id:'rs0', members:[{_id:0, host:'mongo:27017'}]})"
+
+3) Restart related services:
+   docker compose up -d farm-service retailer-service payment-service iot-service blockchain-service
+
+
+IV) RESET DEMO DATA (IDEMPOTENT)
+================================
+
+1) Remove demo users:
+   docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io','retail1@bicap.io','shipper1@bicap.io','shipper@bicap.io');"
+
+2) Clear JWT cache:
+   docker exec bicap-redis redis-cli FLUSHALL
+
+   Gợi ý: sau bước 1–2, đợi 2–5 giây (hoặc kiểm tra
+   curl.exe -s http://localhost:8081/actuator/health) rồi mới register. Lần gọi /api/auth/register
+   đầu tiên đôi khi trả mã 9002; gọi lại cùng lệnh thường thành công — xem Note bên dưới.
+
+
+V) REGISTER DEMO USERS
+======================
+
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"retail1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Retail Demo\",\"role\":\"RETAILER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Shipping Demo\",\"role\":\"SHIPPER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyễn Trung Hậu\",\"role\":\"SHIPPER\"}"
+
+
+Note:
+- Identity DB base roles in this demo: ADMIN, FARM_MANAGER, RETAILER, SHIPPER.
+- Frontend may define extra display roles (SHIPPING_MANAGER/SHIP_DRIVER) for routing logic.
+- Mã 9002 "identity service is temporarily unavailable": do API Gateway (Resilience4j) kích hoạt
+  fallback khi tuyến tới identity-service lỗi/timeout tạm thời (JVM “nóng máy” sau restart, mạng Docker,
+  circuit breaker còn mở vài giây). Không phải lỗi logic register. Cách xử: đợi 2–10s, kiểm tra
+  http://localhost:8081/actuator/health, gọi lại register; thường lần 2 ổn định.
+
+
+VI) CORE API GATEWAY FLOWS
+==========================
+
+FLOW 1 - Login via Gateway
+--------------------------
+curl.exe -X POST http://localhost:8080/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\"}"
+
+Expected:
+- Returns accessToken + refreshToken.
+
+FLOW 2 - Login via Nginx Layer 1 (recommended browser path)
+-----------------------------------------------------------
+curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+
+Expected:
+- Success, same behavior as :8080.
+
+FLOW 3 - Protected route without token
+--------------------------------------
+curl.exe -i http://localhost:8080/api/farm/farms
+
+Expected:
+- 401 Unauthorized.
+
+FLOW 4 - Protected route with token
+-----------------------------------
+curl.exe -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer ACCESS_TOKEN"
+
+Expected:
+- Not 401 (response can vary by downstream state, but auth passes gateway).
+
+FLOW 5 - Redis JWT cache (MISS -> HIT)
+--------------------------------------
+curl.exe -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer ACCESS_TOKEN"
+curl.exe -i http://localhost:8080/api/farm/farms -H "Authorization: Bearer ACCESS_TOKEN"
+docker exec bicap-redis redis-cli keys "jwt:*"
+
+Expected:
+- `jwt:*` cache keys exist.
+
+FLOW 6 - Rate limiting
+----------------------
+Windows CMD:
+for /L %i in (1,1,110) do curl -s -o NUL -w "%{http_code} " http://localhost:8080/api/gateway/health
+
+Expected:
+- Initial 200 responses, then 429 when over threshold.
+
+
+VII) SWAGGER / OPENAPI AVAILABILITY
+===================================
+
+curl.exe -I http://localhost/docs/identity/swagger-ui/index.html
+curl.exe -I http://localhost/docs/farm/swagger-ui
+curl.exe -I http://localhost/docs/retailer/swagger-ui
+curl.exe -I http://localhost/docs/shipping/swagger-ui/index.html
+curl.exe -I http://localhost/docs/notification/swagger-ui/index.html
+
+Expected:
+- All endpoints return 200.
+
+
+VIII) UNIFIED WEB-APP URL CHECK
+===============================
+
+Public URLs:
+- http://localhost
+- http://localhost/login
+- http://localhost/public
+- http://localhost/articles
+- http://localhost/products
+- http://localhost/trace
+
+Role URLs:
+- http://localhost/admin/dashboard
+- http://localhost/farm/dashboard
+- http://localhost/retailer/dashboard
+- http://localhost/shipping/dashboard
+
+Demo accounts:
+- admin@bicap.io / 123456
+- farm1@bicap.io / 123456
+- retail1@bicap.io / 123456
+- shipper1@bicap.io / 123456
+
+Expected:
+- Login redirects by role.
+- Unauthorized role -> /unauthorized.
+- Public pages work without login.
+
+
+IX) QUICK TROUBLESHOOTING
+=========================
+
+1) docker compose up fails at port 3000
+---------------------------------------
+Reason: another process already listens on 3000.
+
+Fix:
+  netstat -ano | findstr :3000
+  taskkill /PID <PID> /F
+  docker compose up -d --build
+
+2) Browser login request hits wrong backend host/port
+-----------------------------------------------------
+Rebuild web-app image if NEXT_PUBLIC_API_URL changed:
+  docker compose build --no-cache web-app
+  docker compose up -d web-app
+
+Then hard refresh browser (Ctrl+Shift+R).
+
+3) Shipping/Admin pages fallback behavior
+-----------------------------------------
+- Shipping dashboard sync source: POST /api/sync-orders
+- Admin fallback reader: GET /internal/shipping-sync
+- If shipping-service is empty/unavailable, admin page should show fallback or empty state, not crash.
+
+4) Legacy web folders confusion
+-------------------------------
+- Old folders web-admin/web-farm/web-retailer/web-shipping/web-public are removed from git tracking.
+- Backup tag exists: backup/before-cleanup-5webs
+
+
+X) STOP DEMO
+============
+
+Stop while keeping data:
+docker compose down
+
+Stop and remove data:
+docker compose down --volumes --remove-orphans

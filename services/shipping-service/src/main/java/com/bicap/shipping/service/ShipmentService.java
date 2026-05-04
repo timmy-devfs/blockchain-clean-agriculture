@@ -11,6 +11,7 @@ import com.bicap.shipping.entity.ShipmentStatusHistory;
 import com.bicap.shipping.repository.DriverRepository;
 import com.bicap.shipping.repository.ShipmentRepository;
 import com.bicap.shipping.repository.ShipmentStatusHistoryRepository;
+import com.bicap.shipping.repository.ShippingReportRepository;
 import com.bicap.shipping.repository.VehicleRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -27,26 +28,41 @@ public class ShipmentService {
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final ShipmentStatusHistoryRepository historyRepository;
+    private final ShippingReportRepository shippingReportRepository;
     private final ShipmentEventPublisher eventPublisher;
     private final AuthContextService authContextService;
+    private final PartyLookupService partyLookup;
 
     public ShipmentService(
             ShipmentRepository shipmentRepository,
             DriverRepository driverRepository,
             VehicleRepository vehicleRepository,
             ShipmentStatusHistoryRepository historyRepository,
+            ShippingReportRepository shippingReportRepository,
             ShipmentEventPublisher eventPublisher,
-            AuthContextService authContextService
+            AuthContextService authContextService,
+            PartyLookupService partyLookup
     ) {
         this.shipmentRepository = shipmentRepository;
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
         this.historyRepository = historyRepository;
+        this.shippingReportRepository = shippingReportRepository;
         this.eventPublisher = eventPublisher;
         this.authContextService = authContextService;
+        this.partyLookup = partyLookup;
     }
 
-    public static ShipmentResponse toResponse(Shipment s) {
+    public ShipmentResponse mapToResponse(Shipment s) {
+        String farmName = blankToNull(s.getFarmDisplayName());
+        String retailerName = blankToNull(s.getRetailerDisplayName());
+        if (farmName == null && s.getFarmExternalId() != null
+                && PartyLookupService.isMongoObjectId(s.getFarmExternalId())) {
+            farmName = partyLookup.fetchFarmName(s.getFarmExternalId()).orElse(null);
+        }
+        if (retailerName == null && s.getRetailerExternalId() != null) {
+            retailerName = partyLookup.fetchRetailerName(s.getRetailerExternalId()).orElse(null);
+        }
         return new ShipmentResponse(
                 s.getId(),
                 s.getOrderId(),
@@ -57,8 +73,22 @@ public class ShipmentService {
                 s.getStatus(),
                 s.getPickupAddress(),
                 s.getDeliveryAddress(),
-                s.getScheduledDate()
+                s.getScheduledDate(),
+                farmName,
+                retailerName
         );
+    }
+
+    private static String blankToNull(String v) {
+        if (v == null) {
+            return null;
+        }
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String reqString(String v) {
+        return blankToNull(v);
     }
 
     public static ShipmentStatusHistoryResponse toHistoryResponse(ShipmentStatusHistory h) {
@@ -75,8 +105,67 @@ public class ShipmentService {
 
     @Transactional
     public ShipmentResponse createShipment(CreateShipmentRequest req) {
-        if (req.driverId() != null) driverRepository.findById(req.driverId()).orElseThrow();
-        if (req.vehicleId() != null) vehicleRepository.findById(req.vehicleId()).orElseThrow();
+        if (req.driverId() != null) {
+            driverRepository.findById(req.driverId()).orElseThrow();
+        }
+        if (req.vehicleId() != null) {
+            vehicleRepository.findById(req.vehicleId()).orElseThrow();
+        }
+
+        Optional<Shipment> existingOpt = shipmentRepository.findFirstByOrderIdOrderByIdDesc(req.orderId());
+        if (existingOpt.isPresent()) {
+            Shipment s = existingOpt.get();
+            s.setDriverId(req.driverId());
+            s.setVehicleId(req.vehicleId());
+            if (req.farmId() != null) {
+                s.setFarmId(req.farmId());
+            }
+            if (req.retailerId() != null) {
+                s.setRetailerId(req.retailerId());
+            }
+            if (req.pickupAddress() != null) {
+                s.setPickupAddress(req.pickupAddress());
+            }
+            if (req.deliveryAddress() != null) {
+                s.setDeliveryAddress(req.deliveryAddress());
+            }
+            if (req.scheduledDate() != null) {
+                s.setScheduledDate(req.scheduledDate());
+            }
+            if (req.farmExternalId() != null) {
+                s.setFarmExternalId(reqString(req.farmExternalId()));
+            }
+            if (req.retailerExternalId() != null) {
+                s.setRetailerExternalId(reqString(req.retailerExternalId()));
+            }
+            if (req.farmDisplayName() != null) {
+                s.setFarmDisplayName(reqString(req.farmDisplayName()));
+            }
+            if (req.retailerDisplayName() != null) {
+                s.setRetailerDisplayName(reqString(req.retailerDisplayName()));
+            }
+
+            ShipmentStatus newStatus = (req.driverId() != null && req.vehicleId() != null)
+                    ? ShipmentStatus.ASSIGNED
+                    : s.getStatus();
+            s.setStatus(newStatus);
+            Shipment saved = shipmentRepository.save(s);
+
+            historyRepository.save(ShipmentStatusHistory.builder()
+                    .shipmentId(saved.getId())
+                    .status(newStatus)
+                    .changedAt(LocalDateTime.now())
+                    .changedBy(Optional.ofNullable(authContextService.currentUserIdOrNull()).orElse("system"))
+                    .note("Driver/vehicle assigned")
+                    .imageUrls(null)
+                    .build());
+
+            eventPublisher.publishShipmentUpdated(saved, "Driver/vehicle assigned", null, null, true);
+            return mapToResponse(saved);
+        }
+
+        Long farmId = req.farmId() != null ? req.farmId() : 0L;
+        Long retailerId = req.retailerId() != null ? req.retailerId() : 0L;
 
         ShipmentStatus initialStatus = (req.driverId() != null && req.vehicleId() != null)
                 ? ShipmentStatus.ASSIGNED
@@ -84,14 +173,18 @@ public class ShipmentService {
 
         Shipment created = shipmentRepository.save(Shipment.builder()
                 .orderId(req.orderId())
-                .farmId(req.farmId())
-                .retailerId(req.retailerId())
+                .farmId(farmId)
+                .retailerId(retailerId)
                 .driverId(req.driverId())
                 .vehicleId(req.vehicleId())
                 .status(initialStatus)
                 .pickupAddress(req.pickupAddress())
                 .deliveryAddress(req.deliveryAddress())
                 .scheduledDate(req.scheduledDate())
+                .farmExternalId(reqString(req.farmExternalId()))
+                .retailerExternalId(reqString(req.retailerExternalId()))
+                .farmDisplayName(reqString(req.farmDisplayName()))
+                .retailerDisplayName(reqString(req.retailerDisplayName()))
                 .build());
 
         historyRepository.save(ShipmentStatusHistory.builder()
@@ -103,16 +196,23 @@ public class ShipmentService {
                 .imageUrls(null)
                 .build());
 
-        return toResponse(created);
+        eventPublisher.publishShipmentUpdated(
+                created,
+                "Shipment created",
+                null,
+                null,
+                created.getDriverId() != null
+        );
+        return mapToResponse(created);
     }
 
     public List<ShipmentResponse> listAll() {
-        return shipmentRepository.findAll().stream().map(ShipmentService::toResponse).toList();
+        return shipmentRepository.findAll().stream().map(this::mapToResponse).toList();
     }
 
     public ShipmentResponse getById(Long id) {
         Shipment s = shipmentRepository.findById(id).orElseThrow();
-        return toResponse(s);
+        return mapToResponse(s);
     }
 
     public List<ShipmentStatusHistoryResponse> history(Long shipmentId) {
@@ -123,7 +223,7 @@ public class ShipmentService {
 
     public List<ShipmentResponse> listForDriver(Long driverId) {
         return shipmentRepository.findByDriverIdOrderByScheduledDateDesc(driverId).stream()
-                .map(ShipmentService::toResponse)
+                .map(this::mapToResponse)
                 .toList();
     }
 
@@ -169,12 +269,13 @@ public class ShipmentService {
                 .build());
 
         eventPublisher.publishShipmentUpdated(saved, req.note(), req.location(), req.imageUrl());
-        return toResponse(saved);
+        return mapToResponse(saved);
     }
 
     @Transactional
     public void delete(Long shipmentId) {
-        // keep history for audit? for now delete shipment only; FK will block if history exists
+        shippingReportRepository.deleteByShipmentId(shipmentId);
+        historyRepository.deleteByShipmentId(shipmentId);
         shipmentRepository.deleteById(shipmentId);
     }
 }

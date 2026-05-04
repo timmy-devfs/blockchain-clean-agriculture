@@ -173,7 +173,13 @@ seasonRouter.get("/api/farm/admin/seasons", asyncHandler(async (req, res) => {
   }
 
   const seasons = await getAdminSeasons(parsed.data.onChain);
-  return res.json(seasons.map(mapSeasonToListItem));
+  return res.json(
+    seasons.map((s) => ({
+      ...mapSeasonToListItem(s),
+      farmName: s.farm.name,
+      province: s.farm.province ?? "",
+    }))
+  );
 }));
 
 seasonRouter.put("/api/farm/admin/seasons/:id/approve", asyncHandler(async (req, res) => {

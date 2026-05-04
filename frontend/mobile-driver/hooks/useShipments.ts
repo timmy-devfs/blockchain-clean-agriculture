@@ -41,14 +41,23 @@ export function useHomeStats() {
   return useQuery({
     queryKey: ["driver-home-stats"],
     queryFn: async () => {
-      const [delivered, active] = await Promise.all([
-        shipmentApi.getList({ status: "DELIVERED", size: 1 }),
-        shipmentApi.getList({ status: "IN_TRANSIT", size: 5 }),
-      ]);
+      const all = await shipmentApi.getList({ size: 200 });
+      const today = new Date().toISOString().split("T")[0];
+
+      const deliveredToday = all.data.filter(
+        (s) => s.status === "DELIVERED" && s.scheduledDate.slice(0, 10) === today
+      ).length;
+
+      const activeShipments = all.data
+        .filter((s) => ["ASSIGNED", "PICKED_UP", "IN_TRANSIT"].includes(s.status))
+        .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+
+      const activeCount = all.data.filter((s) => ["PICKED_UP", "IN_TRANSIT"].includes(s.status)).length;
+
       return {
-        deliveredToday: delivered.total,
-        activeCount: active.total,
-        activeShipments: active.data,
+        deliveredToday,
+        activeCount,
+        activeShipments,
       };
     },
   });

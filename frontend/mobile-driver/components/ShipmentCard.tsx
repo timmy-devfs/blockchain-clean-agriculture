@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_TEXT: Record<string, string> = {
-  ASSIGNED: "Đã phân công",
+  ASSIGNED: "Được phân công",
   PICKED_UP: "Đã nhận hàng",
   IN_TRANSIT: "Đang giao",
   DELAYED: "Bị trì hoãn",
@@ -41,7 +41,7 @@ export function ShipmentCard({ shipment }: Props) {
             🌾 {shipment.farmName}
           </Text>
         </View>
-        <Text className="text-gray-300 text-lg">→</Text>
+        <Text className="text-gray-400 text-base font-semibold px-0.5">{" > "}</Text>
         <View className="flex-1">
           <Text className="text-xs text-gray-400 mb-0.5">Giao đến</Text>
           <Text className="text-sm font-semibold text-gray-900" numberOfLines={1}>
