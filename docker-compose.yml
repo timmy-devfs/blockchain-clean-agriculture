@@ -548,8 +548,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Browser bundle: có thể trỏ gateway trực tiếp; server seed **không** dùng host.docker.internal.
-      NEXT_PUBLIC_API_URL: http://api-gateway:8080
+      # Prefix /api khớp Gateway; dùng cho mọi fetch SSR/route handler trong container (browser vẫn dùng giá trị bake build localhost/api).
+      NEXT_PUBLIC_API_URL: http://api-gateway:8080/api
       # Seed gọi qua Nginx :80 (cùng bicap-network) — tránh ECONNREFUSED web-app → api-gateway:8080 trên Docker Desktop.
       GATEWAY_INTERNAL_URL: http://nginx
       PORT: "3000"

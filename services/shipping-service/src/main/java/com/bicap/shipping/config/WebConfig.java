@@ -11,8 +11,19 @@ public class WebConfig implements WebMvcConfigurer {
     public void addCorsMappings(@NonNull CorsRegistry registry) {
         registry.addMapping("/**")
                 .allowedOrigins(
+                        // Nginx proxy (unified web-app qua port 80)
+                        "http://localhost",
+                        "http://127.0.0.1",
+                        // Unified web-app (Next.js port 3000)
+                        "http://localhost:3000",
+                        "http://127.0.0.1:3000",
+                        // Legacy shipping standalone (port 3003)
                         "http://localhost:3003",
-                        "http://127.0.0.1:3003"
+                        "http://127.0.0.1:3003",
+                        // Dev ports khác
+                        "http://localhost:3001",
+                        "http://localhost:3002",
+                        "http://localhost:3004"
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")

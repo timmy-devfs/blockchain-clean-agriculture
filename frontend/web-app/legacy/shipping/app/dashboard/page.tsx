@@ -20,10 +20,10 @@ interface Order {
   retailer?: string;
   from: string; to: string; date: string; time: string; driver: string;
   driverPhone?: string; driverPlate?: string; driverVehicle?: string;
-  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
-  shipmentId?: number;
   status: string; note: string; createdAt: string;
   productImage?: string;
+  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
+  shipmentId?: number;
   timeline: { time: string; label: string; desc: string }[];
 }
 interface Driver {

@@ -3,6 +3,7 @@ package com.bicap.shipping.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -24,6 +25,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+            // Bật CORS — delegate sang WebConfig.addCorsMappings() (Spring Security 6 yêu cầu explicit)
+            .cors(Customizer.withDefaults())
+
             // Tắt CSRF vì đây là REST API, không dùng form HTML
             .csrf(csrf -> csrf.disable())
 
