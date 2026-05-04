@@ -56,21 +56,11 @@ spring:
               uri: http://retailer-service:8083
               predicates:
                 - Path=/api/retail/**
-              filters:
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             - id: retailer-service-v1
               uri: http://retailer-service:8083
               predicates:
                 - Path=/api/v1/**
-              filters:
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             - id: retailer-service-order-admin
               uri: http://retailer-service:8083
@@ -78,10 +68,6 @@ spring:
                 - Path=/api/order/**
               filters:
                 - RewritePath=/api/order/(?<seg>.*), /api/retail/${seg}
-                - name: CircuitBreaker
-                  args:
-                    name: retailer-cb
-                    fallbackUri: forward:/fallback/retailer
 
             - id: shipping-service
               uri: http://shipping-service:8084

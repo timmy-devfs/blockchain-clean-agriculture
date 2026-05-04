@@ -316,9 +316,8 @@ export const confirmDelivery = async (orderId: string, recipientNote: string, fi
 
 /** Không có GET /retail/notifications trong retailer-service — backend cần implement. */
 export const getNotifications = async (): Promise<NotificationItem[]> => {
-  const path = "/notifications";
-  console.warn(`[RETAILER] Endpoint chưa có: GET ${path} — backend cần implement`);
-  throw new Error(`Endpoint chưa sẵn sàng: /retail${path}`);
+  // Graceful fallback để dashboard không lỗi khi backend chưa có module notifications.
+  return [];
 };
 
 export const getKeywordSuggestions = async (keyword: string): Promise<string[]> => {

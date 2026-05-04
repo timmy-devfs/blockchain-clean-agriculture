@@ -119,9 +119,37 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, auth?: { userId
     headers.set("X-User-Role", auth.role);
   }
 
-  const res = await fetch(`${GATEWAY_ORIGIN}${path}`, { ...init, headers, cache: "no-store" });
+  // Browser phải đi same-origin qua Nginx (/api/...) để tránh CORS preflight
+  // với shipping-service/gateway khi deploy local Docker.
+  const base = typeof window !== "undefined" ? "" : GATEWAY_ORIGIN;
+  const res = await fetch(`${base}${path}`, { ...init, headers, cache: "no-store" });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status} ${res.statusText} ${text}`.trim());
+  }
+  return (await res.json()) as T;
+}
+
+async function apiFetchShippingProxy<T>(
+  proxyPath: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("bicap_access_token")?.trim();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+  }
+
+  const res = await fetch(`/internal/shipping-proxy${proxyPath}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status} ${res.statusText} ${text}`.trim());
   }
   return (await res.json()) as T;
@@ -216,13 +244,25 @@ export const ShippingApi = {
     return apiFetch<ApiResponse<null>>(`/api/shipping/shipments/${id}`, { method: 'DELETE' }, auth);
   },
   async updateStatusByManager(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
-    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
+    void auth;
+    return apiFetchShippingProxy<ApiResponse<Shipment>>(`/shipments/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
   async updateStatusAsDriver(id: number, body: UpdateShipmentStatusRequest, auth: { userId: string; role: string }) {
-    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/driver/shipments/${id}/status`, { method: 'POST', body: JSON.stringify(body) }, auth);
+    void auth;
+    return apiFetchShippingProxy<ApiResponse<Shipment>>(`/driver/shipments/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
   async pickupAsDriver(id: number, body: Partial<UpdateShipmentStatusRequest> | undefined, auth: { userId: string; role: string }) {
-    return apiFetch<ApiResponse<Shipment>>(`/api/shipping/driver/shipments/${id}/pickup`, { method: 'POST', body: JSON.stringify(body ?? {}) }, auth);
+    void auth;
+    return apiFetchShippingProxy<ApiResponse<Shipment>>(`/driver/shipments/${id}/pickup`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    });
   },
 };
 

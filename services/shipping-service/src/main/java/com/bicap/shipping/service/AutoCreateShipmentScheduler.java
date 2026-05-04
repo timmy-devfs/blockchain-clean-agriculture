@@ -81,7 +81,11 @@ public class AutoCreateShipmentScheduler {
                         autoVehicleId,
                         null,
                         row.deliveryAddress(),
-                        scheduledDate
+                        scheduledDate,
+                        row.farmExternalId(),
+                        row.retailerExternalId(),
+                        null,
+                        null
                 ));
             }
         } catch (Exception e) {

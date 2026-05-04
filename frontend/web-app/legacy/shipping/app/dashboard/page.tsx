@@ -20,11 +20,10 @@ interface Order {
   retailer?: string;
   from: string; to: string; date: string; time: string; driver: string;
   driverPhone?: string; driverPlate?: string; driverVehicle?: string;
+  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
   shipmentId?: number;
   status: string; note: string; createdAt: string;
   productImage?: string;
-  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
-  shipmentId?: number;
   timeline: { time: string; label: string; desc: string }[];
 }
 interface Driver {
@@ -1130,7 +1129,6 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
     date: s.scheduledDate ?? "",
     time: "",
     driver: s.driverId != null ? `Driver #${s.driverId}` : "—",
-    shipmentId: s.id,
     status: statusVi[s.status] ?? "Chờ xử lý",
     note: "",
     createdAt: new Date().toISOString(),

@@ -102,16 +102,6 @@ public class ShipmentController {
         return ApiResponse.success(null);
     }
 
-    @PostMapping("/shipments/{id}/status")
-    @Operation(summary = "Manager cập nhật trạng thái shipment")
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật trạng thái thành công"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Shipment không tồn tại")
-    })
-    public ApiResponse<ShipmentResponse> updateStatusByManager(@PathVariable Long id, @RequestBody UpdateShipmentStatusRequest req) {
-        return ApiResponse.success(shipmentService.updateStatus(id, req));
-    }
-
     // Driver API — per OpenAPI contract (role SHIPPER)
     @GetMapping("/driver/shipments")
     @Operation(summary = "Driver lấy danh sách shipment của mình")
