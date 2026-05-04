@@ -18,10 +18,8 @@ const NAV_ITEMS: NavItem[] = [];
 
 export default function ShippingLayout({ children }: { children: ReactNode }) {
   return (
-    <ProtectedRoute allowedRoles={SHIPPING_ROLES}>
-      <AppShell navItems={NAV_ITEMS} hideSidebar noContentPadding>
-        {children}
-      </AppShell>
-    </ProtectedRoute>
+    <AppShell navItems={NAV_ITEMS} hideSidebar noContentPadding>
+      {children}
+    </AppShell>
   );
 }

@@ -48,7 +48,7 @@ export function ActiveShipmentCard({ shipment }: Props) {
             Duyệt lộ trình chi tiết
           </Text>
         </View>
-        <Text className="text-white text-xl font-bold ml-2">→</Text>
+        <Text className="text-white text-xl font-bold ml-2">{" > "}</Text>
       </View>
     </TouchableOpacity>
   );

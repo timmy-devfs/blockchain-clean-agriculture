@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as SecureStore from "expo-secure-store";
 import { TOKEN_KEY, isMockMode } from "@/lib/api";
 import { View, ActivityIndicator } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFirebaseMessaging } from '@/lib/useFirebaseMessaging';
 
 import messaging from '@react-native-firebase/messaging';
@@ -188,13 +189,15 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="shipments/[id]" options={{ headerShown: false }} />
-      </Stack>
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <StatusBar style="dark" />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="shipments/[id]" options={{ headerShown: false }} />
+        </Stack>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

@@ -59,7 +59,7 @@ IV) RESET DEMO DATA (IDEMPOTENT)
 ================================
 
 1) Remove demo users:
-   docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io','retail1@bicap.io','shipper1@bicap.io');"
+   docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io','retail1@bicap.io','shipper1@bicap.io','shipper@bicap.io');"
 
 2) Clear JWT cache:
    docker exec bicap-redis redis-cli FLUSHALL
@@ -72,10 +72,12 @@ IV) RESET DEMO DATA (IDEMPOTENT)
 V) REGISTER DEMO USERS
 ======================
 
-curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
-curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
-curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"retail1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Retail Demo\",\"role\":\"RETAILER\"}"
-curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Shipping Demo\",\"role\":\"SHIPPER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"retail1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Retail Demo\",\"role\":\"RETAILER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Shipping Demo\",\"role\":\"SHIPPER\"}"
+   curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyễn Trung Hậu\",\"role\":\"SHIPPER\"}"
+
 
 Note:
 - Identity DB base roles in this demo: ADMIN, FARM_MANAGER, RETAILER, SHIPPER.

@@ -53,6 +53,8 @@ export type DriverApiRow = {
   licenseNo: string | null;
   licenseClass: string | null;
   isActive: boolean | null;
+  email?: string | null;
+  isLinked?: boolean;
   /** UUID identity (JWT sub) — dùng cho FCM / gắn tài khoản tài xế */
   identityUserId?: string | null;
 };
@@ -124,7 +126,48 @@ export const ShippingApi = {
     return apiFetch<ApiResponse<PendingConfirmedOrder[]>>(`/api/shipping/orders/confirmed`, {}, auth);
   },
   async listDrivers(auth: { userId: string; role: string }) {
-    return apiFetch<ApiResponse<DriverApiRow[]>>(`/api/shipping/drivers`, {}, auth);
+    const [shippersRes, driversRes] = await Promise.allSettled([
+      apiFetch<ApiResponse<Array<{ id: string; email: string; fullName: string; phone?: string | null }>>>(
+        `/api/auth/shippers`,
+        {},
+        auth,
+      ),
+      apiFetch<ApiResponse<DriverApiRow[]>>(`/api/shipping/drivers`, {}, auth),
+    ]);
+
+    const shipperUsers =
+      shippersRes.status === "fulfilled" && Array.isArray(shippersRes.value?.data)
+        ? shippersRes.value.data
+        : [];
+    const shippingDrivers =
+      driversRes.status === "fulfilled" && Array.isArray(driversRes.value?.data)
+        ? driversRes.value.data
+        : [];
+
+    const byIdentity = new Map<string, DriverApiRow>();
+    for (const d of shippingDrivers) {
+      if (d.identityUserId) byIdentity.set(String(d.identityUserId), d);
+    }
+
+    if (shipperUsers.length === 0) {
+      return { code: 200, message: "OK", data: shippingDrivers } satisfies ApiResponse<DriverApiRow[]>;
+    }
+
+    const merged: DriverApiRow[] = shipperUsers.map((u) => {
+      const linked = byIdentity.get(String(u.id));
+      return {
+        id: linked?.id ?? 0,
+        fullName: u.fullName || linked?.fullName || "",
+        phone: linked?.phone ?? (u.phone ?? null),
+        licenseNo: linked?.licenseNo ?? null,
+        licenseClass: linked?.licenseClass ?? null,
+        isActive: linked?.isActive ?? true,
+        email: u.email,
+        identityUserId: String(u.id),
+        isLinked: Boolean(linked),
+      };
+    });
+    return { code: 200, message: "OK", data: merged } satisfies ApiResponse<DriverApiRow[]>;
   },
   async createDriver(
     body: { fullName: string; phone?: string; licenseNumber?: string; identityUserId?: string | null },

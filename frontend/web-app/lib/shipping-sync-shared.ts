@@ -6,7 +6,8 @@ import path from "path";
  */
 export function getSharedOrdersFilePath(): string {
   if (process.env.SHARED_ORDERS_PATH) return process.env.SHARED_ORDERS_PATH;
-  return path.join(process.cwd(), "tmp", "sync-orders.json");
+  // Docker runtime user cannot write under app source dir; use OS temp dir by default.
+  return path.join("/tmp", "sync-orders.json");
 }
 
 export type DashboardSyncedOrder = {

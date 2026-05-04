@@ -214,6 +214,9 @@ export const authApi = {
       }
       throw new Error("Invalid credentials");
     }
+    if (!API_URL?.trim()) {
+      throw new Error("EXPO_PUBLIC_API_URL chưa được cấu hình");
+    }
     return api
       .post<ApiResponse<{ accessToken: string; refreshToken: string; user: DriverUser }>>("/api/auth/login", {
         email,

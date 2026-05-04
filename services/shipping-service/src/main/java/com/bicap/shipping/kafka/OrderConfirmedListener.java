@@ -49,6 +49,11 @@ public class OrderConfirmedListener {
 
             if (orderId == null) return;
 
+            // Idempotency guard: avoid creating duplicate shipments when Kafka replays ORDER_CONFIRMED.
+            if (shipmentRepository.findFirstByOrderIdOrderByIdDesc(orderId).isPresent()) {
+                return;
+            }
+
             long farm = farmId != null ? farmId : 0L;
             long retail = retailerId != null ? retailerId : 0L;
 

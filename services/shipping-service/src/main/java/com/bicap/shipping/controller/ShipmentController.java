@@ -24,7 +24,9 @@ public class ShipmentController {
     private final ShipmentService shipmentService;
     private final AuthContextService authContextService;
 
-    public ShipmentController(ShipmentService shipmentService, AuthContextService authContextService) {
+    public ShipmentController(
+            ShipmentService shipmentService,
+            AuthContextService authContextService) {
         this.shipmentService = shipmentService;
         this.authContextService = authContextService;
     }

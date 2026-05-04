@@ -11,6 +11,7 @@ import com.bicap.shipping.entity.ShipmentStatusHistory;
 import com.bicap.shipping.repository.DriverRepository;
 import com.bicap.shipping.repository.ShipmentRepository;
 import com.bicap.shipping.repository.ShipmentStatusHistoryRepository;
+import com.bicap.shipping.repository.ShippingReportRepository;
 import com.bicap.shipping.repository.VehicleRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class ShipmentService {
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final ShipmentStatusHistoryRepository historyRepository;
+    private final ShippingReportRepository shippingReportRepository;
     private final ShipmentEventPublisher eventPublisher;
     private final AuthContextService authContextService;
 
@@ -35,6 +37,7 @@ public class ShipmentService {
             DriverRepository driverRepository,
             VehicleRepository vehicleRepository,
             ShipmentStatusHistoryRepository historyRepository,
+            ShippingReportRepository shippingReportRepository,
             ShipmentEventPublisher eventPublisher,
             AuthContextService authContextService
     ) {
@@ -42,6 +45,7 @@ public class ShipmentService {
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
         this.historyRepository = historyRepository;
+        this.shippingReportRepository = shippingReportRepository;
         this.eventPublisher = eventPublisher;
         this.authContextService = authContextService;
     }
@@ -118,7 +122,7 @@ public class ShipmentService {
                     .imageUrls(null)
                     .build());
 
-            eventPublisher.publishShipmentUpdated(saved, "Driver/vehicle assigned", null, null);
+            eventPublisher.publishShipmentUpdated(saved, "Driver/vehicle assigned", null, null, true);
             return toResponse(saved);
         }
 
@@ -150,7 +154,13 @@ public class ShipmentService {
                 .imageUrls(null)
                 .build());
 
-        eventPublisher.publishShipmentUpdated(created, "Shipment created", null, null);
+        eventPublisher.publishShipmentUpdated(
+                created,
+                "Shipment created",
+                null,
+                null,
+                created.getDriverId() != null
+        );
         return toResponse(created);
     }
 
@@ -222,7 +232,8 @@ public class ShipmentService {
 
     @Transactional
     public void delete(Long shipmentId) {
-        // keep history for audit? for now delete shipment only; FK will block if history exists
+        shippingReportRepository.deleteByShipmentId(shipmentId);
+        historyRepository.deleteByShipmentId(shipmentId);
         shipmentRepository.deleteById(shipmentId);
     }
 }

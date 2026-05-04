@@ -33,6 +33,15 @@ public class ShipmentEventPublisher {
     }
 
     public void publishShipmentUpdated(Shipment shipment, String note, String location, String imageUrl) {
+        publishShipmentUpdated(shipment, note, location, imageUrl, false);
+    }
+
+    public void publishShipmentUpdated(
+            Shipment shipment,
+            String note,
+            String location,
+            String imageUrl,
+            boolean notifyDriverNewOrder) {
         try {
             Map<String, Object> root = new HashMap<>();
             root.put("eventId", UUID.randomUUID().toString());
@@ -42,7 +51,9 @@ public class ShipmentEventPublisher {
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("shipmentId", String.valueOf(shipment.getId()));
-            payload.put("orderId", String.valueOf(shipment.getOrderId()));
+            if (shipment.getOrderId() != null) {
+                payload.put("orderId", String.valueOf(shipment.getOrderId()));
+            }
             if (shipment.getFarmId() != null) payload.put("farmId", String.valueOf(shipment.getFarmId()));
             if (shipment.getRetailerId() != null) payload.put("retailerId", String.valueOf(shipment.getRetailerId()));
             if (shipment.getDriverId() != null) {
@@ -57,6 +68,9 @@ public class ShipmentEventPublisher {
             if (location != null && !location.isBlank()) payload.put("location", location);
             if (note != null && !note.isBlank()) payload.put("note", note);
             if (imageUrl != null && !imageUrl.isBlank()) payload.put("imageUrl", imageUrl);
+            if (notifyDriverNewOrder) {
+                payload.put("notifyDriverNewOrder", "true");
+            }
 
             root.put("payload", payload);
             String json = objectMapper.writeValueAsString(root);

@@ -37,6 +37,8 @@ const roleRouteGuard: Array<{ prefix: string; allowedRoles: string[] | null }> =
   { prefix: "/farm", allowedRoles: ["FARM_MANAGER"] },
   { prefix: "/retailer", allowedRoles: ["RETAILER"] },
   { prefix: "/shipping", allowedRoles: ["SHIPPING_MANAGER", "SHIP_DRIVER", "SHIPPER"] },
+  // Next route dùng để shipping dashboard sync snapshot đơn/lô sang file dùng chung.
+  { prefix: "/sync-orders", allowedRoles: null },
   { prefix: "/public", allowedRoles: null },
 ];
 

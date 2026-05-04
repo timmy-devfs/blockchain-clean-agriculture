@@ -19,6 +19,8 @@ interface Order {
   driverPhone?: string; driverPlate?: string; driverVehicle?: string;
   status: string; note: string; createdAt: string;
   productImage?: string;
+  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
+  shipmentId?: number;
   timeline: { time: string; label: string; desc: string }[];
 }
 interface Driver {
@@ -1081,6 +1083,7 @@ function mapGatewayShipmentToOrder(s: Shipment): Order {
   };
   return {
     id: `LH${String(s.id).padStart(4, "0")}-${s.orderId}`,
+    shipmentId: s.id,
     cargo: `Đơn #${s.orderId}`,
     weight: "—",
     qty: "1",
@@ -1140,11 +1143,9 @@ export default function ShippingDashboard() {
       const rows = shipRes?.data;
       if (Array.isArray(rows)) {
         setApiShipmentsSnapshot(rows);
-        if (rows.length > 0) {
-          const next = rows.map(mapGatewayShipmentToOrder);
-          setOrders(next);
-          localStorage.setItem("agri_orders", JSON.stringify(next));
-        }
+        const next = rows.map(mapGatewayShipmentToOrder);
+        setOrders(next);
+        localStorage.setItem("agri_orders", JSON.stringify(next));
       }
       if (Array.isArray(pendRes?.data)) {
         setPendingConfirmed(pendRes.data);
@@ -1153,6 +1154,19 @@ export default function ShippingDashboard() {
       const vehList = Array.isArray(vehRes?.data) ? vehRes.data : [];
       setFleetDriversApi(drvList);
       setFleetVehiclesApi(vehList);
+      // Đồng bộ dropdown "Tạo Lô hàng mới" (legacy dùng state `drivers`) với dữ liệu shipping API.
+      if (drvList.length > 0) {
+        const normalizedDrivers: Driver[] = drvList.map((d) => ({
+          name: d.fullName || "Tai xe",
+          phone: d.phone || "",
+          plate: d.licenseNo || "",
+          vehicle: d.licenseClass || "",
+          cccd: "",
+          image: "",
+        }));
+        setDrivers(normalizedDrivers);
+        localStorage.setItem("agri_drivers", JSON.stringify(normalizedDrivers));
+      }
       setSelectedFleetDriverId((prev) => {
         if (drvList.length === 0) return null;
         if (prev != null && drvList.some((d) => d.id === prev)) return prev;
@@ -1253,28 +1267,16 @@ export default function ShippingDashboard() {
         "unknown";
       console.log("[SHIPMENT] Created:", shipmentId);
 
-      const targetUserId = chosenDriver?.identityUserId?.trim() || "";
-      if (targetUserId) {
-        try {
-          await ShippingApi.sendDriverPush(
-            {
-              userId: targetUserId,
-              title: "Đơn hàng mới",
-              body: "Bạn có 1 đơn hàng mới. Vui lòng kiểm tra ứng dụng.",
-              data: {
-                shipmentId: String(shipmentId),
-                type: "NEW_SHIPMENT",
-                screen: "shipment_detail",
-              },
-            },
-            auth,
-          );
-          console.log("[FCM] Push sent to driver userId:", targetUserId);
-        } catch (fcmErr) {
-          console.warn("[FCM] Push failed (non-blocking):", fcmErr);
-        }
-      } else {
-        console.warn("[FCM] Driver has no identityUserId — push skipped. Driver:", chosenDriver);
+      /**
+       * FCM tới tài xế: shipping-service publish Kafka `bicap.shipment.updated`
+       * (notifyDriverNewOrder + driverUserId) → notification-service ShipmentEventConsumer
+       * → notifyUser. Tránh gọi thêm POST /api/notify/.../send ở đây để không bị trùng thông báo.
+       */
+      if (!chosenDriver?.identityUserId?.trim()) {
+        console.warn(
+          "[FCM] Tài xế chưa có identityUserId — Kafka vẫn gửi theo driverId (số); token FCM phải map đúng userId (JWT sub).",
+          chosenDriver,
+        );
       }
 
       alert(`✅ Tạo chuyến hàng thành công!\nMã chuyến: ${shipmentId}`);
@@ -1455,20 +1457,54 @@ export default function ShippingDashboard() {
     if (detail?.id === id) setDetail(next.find(o => o.id === id) ?? null);
   }
 
-  function submitOrder() {
-    if (!form.cargo || !form.from || !form.to) { alert('Vui lòng điền: Hàng hóa, Điểm đi, Điểm đến.'); return; }
-    const selectedDriver = drivers.find((d) => d.name === form.driver);
-    const order: Order = {
-      ...form, id: genId(orders), createdAt: new Date().toLocaleDateString('vi-VN'),
-      driverPhone: selectedDriver?.phone || '',
-      driverPlate: selectedDriver?.plate || '',
-      driverVehicle: selectedDriver?.vehicle || '',
-      timeline: [{ time: new Date().toLocaleString('vi-VN'), label: 'Đã tạo lô hàng', desc: 'Lô hàng vừa được tạo' }],
-    };
-    saveO([...orders, order]);
-    setForm(emptyForm);
-    showToast('✅ Tạo thành công! Mã: ' + order.id);
-    navigate('orders');
+  async function submitOrder() {
+    if (!form.cargo || !form.from || !form.to) {
+      alert('Vui lòng điền: Hàng hóa, Điểm đi, Điểm đến.');
+      return;
+    }
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (!token) {
+      alert("⚠️ Cần đăng nhập BICAP.");
+      return;
+    }
+
+    const sub = decodeJwtSub(token);
+    const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+    const selectedDriverApi = fleetDriversApi.find((d) =>
+      String(d.id) === form.driver || d.fullName === form.driver
+    );
+
+    try {
+      const orderId = Number(`${Date.now()}`.slice(-9));
+      const shipmentResult = await ShippingApi.createShipment(
+        {
+          orderId,
+          farmId: 0,
+          retailerId: 0,
+          driverId: selectedDriverApi?.id ?? null,
+          vehicleId: null,
+          pickupAddress: form.from,
+          deliveryAddress: form.to,
+          scheduledDate: form.date || null,
+        },
+        auth,
+      );
+
+      const shipmentId = shipmentResult?.data?.id;
+      if (!shipmentId) {
+        throw new Error(shipmentResult?.message || "Không lấy được mã chuyến hàng.");
+      }
+
+      await loadShippingDashboardData();
+      setForm(emptyForm);
+      showToast(`✅ Tạo thành công! Mã chuyến: ${shipmentId}`);
+      navigate('orders');
+    } catch (err: unknown) {
+      const anyErr = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = anyErr?.response?.data?.message ?? (err instanceof Error ? err.message : String(err));
+      alert(`❌ Tạo lô hàng thất bại: ${msg ?? "Unknown error"}`);
+    }
   }
 
   async function handleProductImageUpload(file: File) {
@@ -1531,10 +1567,25 @@ export default function ShippingDashboard() {
     }
   }
 
-  function deleteOrder(id: string) {
+  async function deleteOrder(id: string) {
     if (!confirm('Xóa lô hàng này?')) return;
-    saveO(orders.filter(o => o.id !== id));
+    const row = orders.find((o) => o.id === id);
+    const token = typeof window !== "undefined" ? localStorage.getItem("bicap_access_token")?.trim() : "";
+    if (row?.shipmentId != null && token) {
+      const sub = decodeJwtSub(token);
+      const auth = { userId: sub ?? "shipping-user", role: "SHIPPING_MANAGER" as const };
+      try {
+        await ShippingApi.deleteShipment(row.shipmentId, auth);
+      } catch (err: unknown) {
+        const anyErr = err as { response?: { data?: { message?: string } }; message?: string };
+        const msg = anyErr?.response?.data?.message ?? (err instanceof Error ? err.message : String(err));
+        alert(`Không xóa được trên server: ${msg ?? "Unknown error"}`);
+        return;
+      }
+    }
+    saveO(orders.filter((o) => o.id !== id));
     setDetail(null);
+    if (token) await loadShippingDashboardData();
   }
 
   function saveDriver() {
@@ -1719,9 +1770,9 @@ export default function ShippingDashboard() {
                       >
                         <option value="">-- Chọn tài xế --</option>
                         {fleetDriversApi.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.fullName} {d.phone ? `(${d.phone})` : ''}
-                            {d.identityUserId ? ' ✓' : ' ⚠️'}
+                          <option key={`${d.identityUserId ?? 'legacy'}-${d.id}-${d.fullName}`} value={d.id} disabled={!d.isLinked}>
+                            {d.fullName} {d.email ? `(${d.email})` : d.phone ? `(${d.phone})` : ''}
+                            {d.isLinked ? ' ✓' : ' ⚠️ chưa liên kết'}
                           </option>
                         ))}
                       </select>
@@ -1750,7 +1801,7 @@ export default function ShippingDashboard() {
                   {selectedFleetDriverId
                     ? (() => {
                         const driver = fleetDriversApi.find((d) => d.id === selectedFleetDriverId);
-                        if (driver && !driver.identityUserId) {
+                        if (driver && !driver.isLinked) {
                           return (
                             <div
                               style={{
@@ -2035,7 +2086,11 @@ export default function ShippingDashboard() {
                       <label style={S.label}>Tài xế</label>
                       <select style={S.inp as CSSProperties} value={form.driver} onChange={e => setForm(f => ({ ...f, driver: e.target.value }))}>
                         <option value="">-- Chọn tài xế --</option>
-                        {drivers.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                        {fleetDriversApi.map((d) => (
+                          <option key={d.id} value={String(d.id)}>
+                            {d.fullName}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -2353,7 +2408,7 @@ export default function ShippingDashboard() {
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
               <button onClick={() => setDetail(null)} style={{ ...S.btn, background: '#fff', color: '#555', border: '1px solid #e0e0e0' }}>Đóng</button>
-              <button onClick={() => deleteOrder(detail.id)} style={{ ...S.btn, background: '#fee2e2', color: '#dc2626' }}>🗑 Xóa lô hàng</button>
+              <button onClick={() => void deleteOrder(detail.id)} style={{ ...S.btn, background: '#fee2e2', color: '#dc2626' }}>🗑 Xóa lô hàng</button>
             </div>
           </div>
         </div>
