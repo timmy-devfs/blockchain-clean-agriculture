@@ -201,6 +201,8 @@ services:
       JWT_SECRET: bicap-super-secret-jwt-key-2025-demo
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 604800000
+      SHIPPING_SERVICE_URL: http://shipping-service:8084
+      BICAP_INTERNAL_PROVISION_TOKEN: bicap-dev-internal
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
       interval: 15s
@@ -267,7 +269,10 @@ services:
       SPRING_DATASOURCE_USERNAME: bicap_user
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FARM_SERVICE_BASE_URL: http://farm-service:8082
       RETAILER_SERVICE_BASE_URL: http://retailer-service:8083
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      BICAP_INTERNAL_PROVISION_TOKEN: bicap-dev-internal
     deploy:
       resources:
         limits:
@@ -297,6 +302,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: 12123
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_DATA_REDIS_HOST: redis
+      FIREBASE_SERVICE_ACCOUNT_PATH: /app/service-account.json
+    volumes:
+      - ./services/notification-service/src/main/resources/service-account.json:/app/service-account.json:ro
     deploy:
       resources:
         limits:

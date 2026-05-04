@@ -24,7 +24,9 @@ public class ShipmentController {
     private final ShipmentService shipmentService;
     private final AuthContextService authContextService;
 
-    public ShipmentController(ShipmentService shipmentService, AuthContextService authContextService) {
+    public ShipmentController(
+            ShipmentService shipmentService,
+            AuthContextService authContextService) {
         this.shipmentService = shipmentService;
         this.authContextService = authContextService;
     }
@@ -71,6 +73,22 @@ public class ShipmentController {
     })
     public ApiResponse<List<ShipmentStatusHistoryResponse>> history(@PathVariable Long id) {
         return ApiResponse.success(shipmentService.history(id));
+    }
+
+    /**
+     * Cập nhật trạng thái từ dashboard quản lý (không yêu cầu role SHIPPER — cùng logic với driver
+     * {@link #updateStatus} nhưng cho tài khoản quản lý vận chuyển).
+     */
+    @PostMapping("/shipments/{id}/status")
+    @Operation(summary = "Cập nhật trạng thái shipment (quản lý / nội bộ)")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Cập nhật thành công"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Shipment không tồn tại")
+    })
+    public ApiResponse<ShipmentResponse> updateShipmentStatus(
+            @PathVariable Long id,
+            @RequestBody UpdateShipmentStatusRequest req) {
+        return ApiResponse.success(shipmentService.updateStatus(id, req));
     }
 
     @DeleteMapping("/shipments/{id}")

@@ -19,7 +19,15 @@ public record CreateShipmentRequest(
         @Schema(description = "Địa chỉ giao hàng", example = "Siêu thị Retail, TP.HCM")
         String deliveryAddress,
         @Schema(description = "Ngày giao dự kiến", example = "2026-05-01")
-        LocalDate scheduledDate
+        LocalDate scheduledDate,
+        @Schema(description = "Mongo farm id (24 ký tự hex), optional", nullable = true)
+        String farmExternalId,
+        @Schema(description = "Mongo retailer id, optional", nullable = true)
+        String retailerExternalId,
+        @Schema(description = "Tên nông trại (ghi đè / cache)", nullable = true)
+        String farmDisplayName,
+        @Schema(description = "Tên nhà bán lẻ (ghi đè / cache)", nullable = true)
+        String retailerDisplayName
 ) {
 }
 

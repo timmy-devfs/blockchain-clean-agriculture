@@ -696,6 +696,8 @@ export type PendingConfirmedOrderRow = {
   shipmentId: number | null;
   farmId: number | null;
   retailerId: number | null;
+  farmExternalId?: string | null;
+  retailerExternalId?: string | null;
 };
 
 export const getConfirmedOrdersForShipping = () =>
@@ -709,6 +711,8 @@ export type ShippingDriverRow = {
   fullName: string;
   phone: string | null;
   licenseNo: string | null;
+  email?: string | null;
+  isLinked?: boolean;
   /** UUID identity-service (JWT sub) — FCM / app Driver */
   identityUserId?: string | null;
   identity_user_id?: string | null;
@@ -722,22 +726,71 @@ export type ShippingVehicleRow = {
 };
 
 export const getShippingDrivers = () =>
-  axiosInstance.get<unknown>("/api/shipping/drivers").then((r) => {
-    const inner = unwrapBody<unknown>(r.data);
-    const arr = Array.isArray(inner) ? inner : [];
-    return (arr as Record<string, unknown>[]).map((row): ShippingDriverRow => {
+  Promise.allSettled([
+    axiosInstance.get<unknown>("/api/auth/shippers"),
+    axiosInstance.get<unknown>("/api/shipping/drivers"),
+  ]).then(([shippersRes, driversRes]) => {
+    const shippersRaw =
+      shippersRes.status === "fulfilled"
+        ? unwrapBody<unknown>(shippersRes.value.data)
+        : [];
+    const driversRaw =
+      driversRes.status === "fulfilled"
+        ? unwrapBody<unknown>(driversRes.value.data)
+        : [];
+
+    const drivers = (Array.isArray(driversRaw) ? driversRaw : []) as Record<string, unknown>[];
+    const byIdentity = new Map<string, Record<string, unknown>>();
+    for (const d of drivers) {
+      const uid =
+        d.identityUserId != null
+          ? String(d.identityUserId)
+          : d.identity_user_id != null
+            ? String(d.identity_user_id)
+            : "";
+      if (uid) byIdentity.set(uid, d);
+    }
+
+    const shippers = (Array.isArray(shippersRaw) ? shippersRaw : []) as Record<string, unknown>[];
+    if (shippers.length > 0) {
+      return shippers.map((u): ShippingDriverRow => {
+        const uid = String(u.id ?? "");
+        const linked = uid ? byIdentity.get(uid) : undefined;
+        const idNum = linked?.id;
+        return {
+          id: typeof idNum === "number" ? idNum : Number(idNum ?? 0),
+          fullName: String(u.fullName ?? linked?.fullName ?? ""),
+          email: u.email == null ? null : String(u.email),
+          phone:
+            linked?.phone != null
+              ? String(linked.phone)
+              : u.phone != null
+                ? String(u.phone)
+                : null,
+          licenseNo: linked?.licenseNo == null ? null : String(linked.licenseNo),
+          identityUserId: uid || null,
+          identity_user_id: uid || null,
+          isLinked: Boolean(linked),
+        };
+      });
+    }
+
+    return drivers.map((row): ShippingDriverRow => {
       const idNum = row.id;
+      const uid =
+        row.identityUserId != null
+          ? String(row.identityUserId)
+          : row.identity_user_id != null
+            ? String(row.identity_user_id)
+            : null;
       return {
         id: typeof idNum === "number" ? idNum : Number(idNum ?? 0),
         fullName: String(row.fullName ?? ""),
         phone: row.phone == null ? null : String(row.phone),
         licenseNo: row.licenseNo == null ? null : String(row.licenseNo),
-        identityUserId:
-          row.identityUserId != null
-            ? String(row.identityUserId)
-            : row.identity_user_id != null
-              ? String(row.identity_user_id)
-              : null,
+        identityUserId: uid,
+        identity_user_id: uid,
+        isLinked: Boolean(uid),
       };
     });
   });

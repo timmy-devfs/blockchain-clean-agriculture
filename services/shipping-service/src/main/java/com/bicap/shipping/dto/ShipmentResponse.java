@@ -25,7 +25,11 @@ public record ShipmentResponse(
         @Schema(description = "Địa chỉ giao hàng", example = "Siêu thị Retail, TP.HCM")
         String deliveryAddress,
         @Schema(description = "Ngày giao dự kiến", example = "2026-05-01")
-        LocalDate scheduledDate
+        LocalDate scheduledDate,
+        @Schema(description = "Tên nông trại (hiển thị)", nullable = true)
+        String farmName,
+        @Schema(description = "Tên nhà bán lẻ (hiển thị)", nullable = true)
+        String retailerName
 ) {
 }
 

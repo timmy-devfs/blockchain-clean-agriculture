@@ -4,6 +4,7 @@ import com.bicap.shipping.constant.VehicleType;
 import com.bicap.shipping.dto.CreateDriverRequest;
 import com.bicap.shipping.dto.CreateVehicleRequest;
 import com.bicap.shipping.dto.DriverResponse;
+import com.bicap.shipping.dto.ProvisionDriverRequest;
 import com.bicap.shipping.dto.VehicleResponse;
 import com.bicap.shipping.entity.Driver;
 import com.bicap.shipping.entity.Vehicle;
@@ -19,10 +20,15 @@ public class DriverFleetService {
 
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
+    private final IdentityProvisionClient identityProvisionClient;
 
-    public DriverFleetService(DriverRepository driverRepository, VehicleRepository vehicleRepository) {
+    public DriverFleetService(
+            DriverRepository driverRepository,
+            VehicleRepository vehicleRepository,
+            IdentityProvisionClient identityProvisionClient) {
         this.driverRepository = driverRepository;
         this.vehicleRepository = vehicleRepository;
+        this.identityProvisionClient = identityProvisionClient;
     }
 
     public List<DriverResponse> listDrivers() {
@@ -35,17 +41,75 @@ public class DriverFleetService {
 
     @Transactional
     public DriverResponse createDriver(CreateDriverRequest req) {
+        String identityUserId = req.identityUserId();
+        if (identityUserId == null || identityUserId.isBlank()) {
+            identityUserId = identityProvisionClient.registerShipper(
+                    req.fullName(),
+                    req.phone()
+            );
+        }
+
+        if (identityUserId != null && !identityUserId.isBlank()) {
+            Driver linked = driverRepository.findByIdentityUserId(identityUserId.trim()).orElse(null);
+            if (linked != null) {
+                // Identity service có thể callback nội bộ tạo driver trước khi request này save.
+                // Cập nhật các trường nhập từ dashboard thay vì insert trùng identity_user_id.
+                if (req.fullName() != null && !req.fullName().isBlank()) {
+                    linked.setFullName(req.fullName().trim());
+                }
+                if (req.phone() != null && !req.phone().isBlank()) {
+                    linked.setPhone(req.phone().trim());
+                }
+                if (req.licenseNumber() != null && !req.licenseNumber().isBlank()) {
+                    linked.setLicenseNo(req.licenseNumber().trim());
+                }
+                if (linked.getIsActive() == null || !linked.getIsActive()) {
+                    linked.setIsActive(true);
+                }
+                Driver saved = driverRepository.save(linked);
+                return toDriverResponse(saved);
+            }
+        }
+
         var builder = Driver.builder()
                 .fullName(req.fullName())
                 .phone(req.phone())
                 .licenseNo(req.licenseNumber())
                 .licenseClass("B2")
                 .isActive(true);
-        if (req.identityUserId() != null && !req.identityUserId().isBlank()) {
-            builder.identityUserId(req.identityUserId().trim());
+        if (identityUserId != null && !identityUserId.isBlank()) {
+            builder.identityUserId(identityUserId.trim());
         }
         Driver d = driverRepository.save(builder.build());
         return toDriverResponse(d);
+    }
+
+    @Transactional
+    public DriverResponse upsertDriverFromIdentity(ProvisionDriverRequest req) {
+        Driver existing = driverRepository.findByIdentityUserId(req.identityUserId()).orElse(null);
+        if (existing != null) {
+            if (req.fullName() != null && !req.fullName().isBlank()) {
+                existing.setFullName(req.fullName().trim());
+            }
+            if (req.phone() != null) {
+                existing.setPhone(req.phone().trim());
+            }
+            if (existing.getIsActive() == null || !existing.getIsActive()) {
+                existing.setIsActive(true);
+            }
+            Driver saved = driverRepository.save(existing);
+            return toDriverResponse(saved);
+        }
+
+        Driver created = driverRepository.save(Driver.builder()
+                .identityUserId(req.identityUserId().trim())
+                .fullName(req.fullName())
+                .phone(req.phone())
+                .licenseNo("PENDING")
+                .licenseClass("B2")
+                .isActive(true)
+                .build());
+        return toDriverResponse(created);
     }
 
     @Transactional

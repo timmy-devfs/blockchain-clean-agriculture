@@ -1,4 +1,4 @@
-// Đồng bộ snapshot đơn/lô + shipments API → route Next.js `POST /api/sync-orders`
+// Đồng bộ snapshot đơn/lô + shipments API → route Next.js `POST /sync-orders`
 
 import { useEffect, useRef } from "react";
 
@@ -7,7 +7,7 @@ export type SyncOrdersExtras = {
   onSynced?: () => void;
 };
 
-/** POST tương đối `/api/sync-orders` (Next.js), không qua gateway. */
+/** POST tương đối `/sync-orders` (Next.js), tránh đụng prefix `/api` của gateway. */
 export function useSyncOrders(orders: unknown[], extras?: SyncOrdersExtras) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSyncedRef = useRef(extras?.onSynced);
@@ -22,7 +22,7 @@ export function useSyncOrders(orders: unknown[], extras?: SyncOrdersExtras) {
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      fetch("/api/sync-orders", {
+      fetch("/sync-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

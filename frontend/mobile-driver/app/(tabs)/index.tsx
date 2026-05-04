@@ -131,7 +131,7 @@ export default function HomeScreen() {
             Chuyến hàng sắp tới
           </Text>
           <TouchableOpacity onPress={() => router.push("/(tabs)/shipments")}>
-            <Text className="text-green-600 text-sm font-medium">Xem tất cả →</Text>
+            <Text className="text-green-600 text-sm font-medium">Xem tất cả {">"}</Text>
           </TouchableOpacity>
         </View>
 

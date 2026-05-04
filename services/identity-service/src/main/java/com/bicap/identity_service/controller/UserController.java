@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -104,6 +106,21 @@ public class UserController {
     }
 
     /**
+     * GET /api/auth/shippers
+     * Dùng cho shipping dashboard dropdown tài xế (nguồn identity users role SHIPPER).
+     */
+    @GetMapping("/shippers")
+    @Operation(summary = "Danh sách tài khoản SHIPPER đang hoạt động")
+    public ApiResponse<List<UserResponse>> getShippers(
+            @RequestHeader("X-User-Role") String callerRole,
+            @RequestParam(defaultValue = "200") int size) {
+
+        checkAllowedRole(callerRole, "ADMIN", "SHIPPER", "SHIPPING_MANAGER");
+        PageResponse<UserResponse> page = userService.getUsers("SHIPPER", true, 0, Math.max(size, 1));
+        return ApiResponse.success(page.getContent());
+    }
+
+    /**
      * POST /api/auth/admin/users
      * Tạo tài khoản ADMIN mới
      */
@@ -174,5 +191,19 @@ public class UserController {
             throw new com.bicap.identity_service.exception.AppException(
                     com.bicap.identity_service.exception.ErrorCode.INSUFFICIENT_PERM);
         }
+    }
+
+    private void checkAllowedRole(String callerRole, String... allowedRoles) {
+        if (callerRole == null) {
+            throw new com.bicap.identity_service.exception.AppException(
+                    com.bicap.identity_service.exception.ErrorCode.INSUFFICIENT_PERM);
+        }
+        for (String allowed : allowedRoles) {
+            if (allowed.equalsIgnoreCase(callerRole)) {
+                return;
+            }
+        }
+        throw new com.bicap.identity_service.exception.AppException(
+                com.bicap.identity_service.exception.ErrorCode.INSUFFICIENT_PERM);
     }
 }
