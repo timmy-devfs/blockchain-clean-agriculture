@@ -24,8 +24,6 @@ interface Order {
   shipmentId?: number;
   status: string; note: string; createdAt: string;
   productImage?: string;
-  /** ID shipment trên shipping-service — có khi dòng được map từ API. */
-  shipmentId?: number;
   timeline: { time: string; label: string; desc: string }[];
 }
 interface Driver {
