@@ -1,0 +1,94 @@
+[
+  {
+    "cargo": "Gạo",
+    "weight": "1000",
+    "qty": "12",
+    "farm": "BCV",
+    "from": "HCM",
+    "to": "Cao Bằng",
+    "date": "2026-12-12",
+    "time": "07:20",
+    "driver": "mt",
+    "status": "Đang vận chuyển",
+    "note": "",
+    "id": "LH0001-F32L",
+    "createdAt": "18/4/2026",
+    "timeline": [
+      {
+        "time": "13:26:35 18/4/2026",
+        "label": "Đã tạo lô hàng",
+        "desc": "Lô hàng vừa được tạo"
+      },
+      {
+        "time": "13:26:39 18/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "08:44:29 21/4/2026",
+        "label": "Hủy",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "08:44:32 21/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "08:44:36 21/4/2026",
+        "label": "Đã giao",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "08:54:24 21/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:07:47 21/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:07:48 21/4/2026",
+        "label": "Đã giao",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:07:50 21/4/2026",
+        "label": "Hủy",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:14:47 21/4/2026",
+        "label": "Chờ xử lý",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:15:02 21/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:17:18 21/4/2026",
+        "label": "Hủy",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "10:23:19 21/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "13:48:43 24/4/2026",
+        "label": "Đã giao",
+        "desc": "Cập nhật trạng thái"
+      },
+      {
+        "time": "00:35:51 25/4/2026",
+        "label": "Đang vận chuyển",
+        "desc": "Cập nhật trạng thái"
+      }
+    ]
+  }
+]

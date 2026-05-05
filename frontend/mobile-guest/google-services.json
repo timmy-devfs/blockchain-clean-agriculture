@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "307650253482",
+    "project_id": "bicap-b4230",
+    "storage_bucket": "bicap-b4230.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307650253482:android:929e0515a2c3bbaf06f6d3",
+        "android_client_info": {
+          "package_name": "com.bicap.guest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTMEWlcCj9aoNwcg8sbmysYC_mTL8f8Ig"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:307650253482:android:a613e0566f2bdfc606f6d3",
+        "android_client_info": {
+          "package_name": "com.bicap.mobiledriver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTMEWlcCj9aoNwcg8sbmysYC_mTL8f8Ig"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

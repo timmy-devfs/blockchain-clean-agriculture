@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: #0f172a;
+  background: radial-gradient(circle at top, #f0fdfa 0%, #ecfeff 35%, #f8fafc 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.app-layout {
+  min-height: 100vh;
+}
+
+.sider {
+  border-right: 1px solid #e5e7eb;
+}
+
+.logo {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.header {
+  background: transparent;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.content {
+  margin: 0 16px 16px;
+}
+
+.section-gap {
+  margin-top: 12px;
+}
+
+.pdf-preview {
+  width: 100%;
+  height: 360px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.market-image {
+  height: 160px;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ecfeff;
+  overflow: hidden;
+}
+
+.market-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

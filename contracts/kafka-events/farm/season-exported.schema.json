@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/farm/season-exported",
+  "title": "SeasonExportedEvent",
+  "description": "Phát sinh khi vụ mùa chuyển sang EXPORTED. blockchain-service gọi ProductCertification.certifyExport() và tạo QR Code PNG.",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "const": "SEASON_EXPORTED" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["seasonId", "farmId", "cropType", "exportedAt", "totalYield"],
+      "properties": {
+        "seasonId":    { "type": "string" },
+        "farmId":      { "type": "string" },
+        "cropType":    { "type": "string" },
+        "exportedAt":  { "type": "string", "format": "date-time" },
+        "totalYield":  { "type": "number", "description": "Sản lượng (kg)" },
+        "unit":        { "type": "string", "default": "kg" },
+        "certifiedBy": { "type": "string", "description": "userId Admin phê duyệt" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

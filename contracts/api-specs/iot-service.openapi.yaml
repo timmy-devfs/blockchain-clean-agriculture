@@ -1,0 +1,53 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — IoT Service API
+  version: "1.0.0"
+  description: |
+    Nhận dữ liệu sensor, lưu Redis time-series (24h = 288 readings), cảnh báo Kafka.
+    Ngưỡng: TEMP < 10 | > 40°C  |  HUMIDITY < 30 | > 90%  |  PH < 5.5 | > 8.5
+
+servers:
+  - url: http://localhost:8087
+
+paths:
+  /api/iot/sensors/data:
+    post:
+      summary: Nhận batch sensor readings (gọi bởi NiFi Flow mỗi 5 phút)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [farmId, sensorId, type, value, unit]
+                properties:
+                  farmId:   { type: string }
+                  sensorId: { type: string }
+                  type:     { type: string, enum: [TEMPERATURE, HUMIDITY, PH] }
+                  value:    { type: number }
+                  unit:     { type: string }
+      responses:
+        "200": { description: "Đã lưu DB + Redis LPUSH/LTRIM" }
+
+  /api/iot/sensors/{farmId}/latest:
+    get:
+      summary: Giá trị mới nhất từng loại sensor của farm
+      parameters:
+        - { name: farmId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "Map<sensorType, SensorReading>" }
+
+  /api/iot/sensors/{farmId}/history:
+    get:
+      summary: Lịch sử sensor 24h từ Redis (tối đa 288 readings)
+      parameters:
+        - { name: farmId, in: path, required: true, schema: { type: string } }
+        - { name: type,   in: query, schema: { type: string, enum: [TEMPERATURE, HUMIDITY, PH] } }
+        - { name: hours,  in: query, schema: { type: integer, default: 24, maximum: 24 } }
+      responses:
+        "200": { description: "List<SensorReading> từ Redis" }
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

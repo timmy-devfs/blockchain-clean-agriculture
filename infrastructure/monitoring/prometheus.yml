@@ -1,0 +1,46 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP Prometheus — Scrape Spring Boot Actuator /actuator/metrics
+# ════════════════════════════════════════════════════════════════
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: "bicap-monitor"
+
+scrape_configs:
+  # ── Infrastructure ────────────────────────────────────────
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["prometheus:9090"]
+
+  # ── Spring Boot Services ─────────────────────────────────
+  - job_name: "api-gateway"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["api-gateway:8080"]
+
+  - job_name: "identity-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["identity-service:8081"]
+
+  - job_name: "shipping-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["shipping-service:8084"]
+
+  - job_name: "notification-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["notification-service:8085"]
+
+  - job_name: "report-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["report-service:8088"]
+
+  - job_name: "guest-service"
+    metrics_path: "/actuator/prometheus"
+    static_configs:
+      - targets: ["guest-service:8089"]

@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bicap.io/events/farm/season-updated",
+  "title": "SeasonUpdatedEvent",
+  "description": "Phát sinh khi Farm Manager cập nhật tiến độ vụ mùa. blockchain-service ghi thêm vào updateHistory[].",
+  "type": "object",
+  "required": ["eventId", "eventType", "timestamp", "version", "payload"],
+  "properties": {
+    "eventId":   { "type": "string", "format": "uuid" },
+    "eventType": { "type": "string", "const": "SEASON_UPDATED" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "version":   { "type": "string", "const": "1.0" },
+    "payload": {
+      "type": "object",
+      "required": ["seasonId", "farmId", "status", "updatedAt", "updatedBy"],
+      "properties": {
+        "seasonId":   { "type": "string" },
+        "farmId":     { "type": "string" },
+        "status":     { "type": "string", "enum": ["PREPARING", "ACTIVE", "HARVESTED"] },
+        "note":       { "type": "string", "description": "Nhật ký tiến độ" },
+        "imageUrls":  { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "updatedAt":  { "type": "string", "format": "date-time" },
+        "updatedBy":  { "type": "string", "description": "userId của người cập nhật" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

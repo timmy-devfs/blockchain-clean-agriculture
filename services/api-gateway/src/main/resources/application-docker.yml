@@ -1,0 +1,196 @@
+spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 120s
+      server:
+        webflux:
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              "[/**]":
+                allowed-origins:
+                  - "http://admin.localhost"
+                  - "http://farm.localhost"
+                  - "http://retail.localhost"
+                  - "http://shipping.localhost"
+                  - "http://localhost"
+                  - "http://127.0.0.1"
+                  - "http://localhost:3000"
+                  - "http://127.0.0.1:3000"
+                  - "http://localhost:3001"
+                  - "http://localhost:3002"
+                  - "http://localhost:3003"
+                  - "http://localhost:3004"
+                allowed-methods: ["GET","POST","PUT","DELETE","OPTIONS","PATCH"]
+                allowed-headers: ["*"]
+                allow-credentials: true
+                max-age: 3600
+          routes:
+            - id: identity-service
+              uri: http://identity-service:8081
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: identity-cb
+                    fallbackUri: forward:/fallback/identity
+
+            - id: farm-service
+              uri: http://farm-service:8082
+              predicates:
+                - Path=/api/farm/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: farm-cb
+                    fallbackUri: forward:/fallback/farm
+                - AddRequestHeader=X-Gateway-Source, bicap-gateway
+
+            - id: retailer-service
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/api/retail/**
+
+            - id: retailer-service-v1
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/api/v1/**
+
+            - id: retailer-service-order-admin
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/api/order/**
+              filters:
+                - RewritePath=/api/order/(?<seg>.*), /api/retail/${seg}
+
+            - id: shipping-service
+              uri: http://shipping-service:8084
+              predicates:
+                - Path=/api/shipping/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: shipping-cb
+                    fallbackUri: forward:/fallback/shipping
+
+            - id: notification-service
+              uri: http://notification-service:8085
+              predicates:
+                - Path=/api/notify/**
+              filters:
+                - RewritePath=/api/notify/(?<segment>.*), /${segment}
+                - name: CircuitBreaker
+                  args:
+                    name: notification-cb
+                    fallbackUri: forward:/fallback/notification
+
+            - id: payment-service
+              uri: http://payment-service:8086
+              predicates:
+                - Path=/api/pay/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: payment-cb
+                    fallbackUri: forward:/fallback/payment
+
+            - id: iot-service
+              uri: http://iot-service:8087
+              predicates:
+                - Path=/api/iot/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: iot-cb
+                    fallbackUri: forward:/fallback/iot
+
+            - id: report-service
+              uri: http://report-service:8088
+              predicates:
+                - Path=/api/reports/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: report-cb
+                    fallbackUri: forward:/fallback/report
+
+            - id: guest-service
+              uri: http://guest-service:8089
+              predicates:
+                - Path=/api/public/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: guest-cb
+                    fallbackUri: forward:/fallback/guest
+
+            - id: blockchain-service
+              uri: http://blockchain-service:8090
+              predicates:
+                - Path=/api/chain/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: blockchain-cb
+                    fallbackUri: forward:/fallback/blockchain
+
+            - id: docs-identity
+              uri: http://identity-service:8081
+              predicates:
+                - Path=/docs/identity/**
+              filters:
+                - RewritePath=/docs/identity/(?<seg>.*), /${seg}
+
+            - id: docs-shipping
+              uri: http://shipping-service:8084
+              predicates:
+                - Path=/docs/shipping/**
+              filters:
+                - RewritePath=/docs/shipping/(?<seg>.*), /${seg}
+
+            - id: docs-notification
+              uri: http://notification-service:8085
+              predicates:
+                - Path=/docs/notification/**
+              filters:
+                - RewritePath=/docs/notification/(?<seg>.*), /${seg}
+
+            - id: docs-farm-swagger-ui
+              uri: http://farm-service:8082
+              predicates:
+                - Path=/docs/farm/swagger-ui,/docs/farm/swagger-ui/**
+              filters:
+                - RewritePath=/docs/farm/swagger-ui/?(?<seg>.*), /api-docs/${seg}
+
+            - id: docs-farm-openapi
+              uri: http://farm-service:8082
+              predicates:
+                - Path=/docs/farm/api-docs,/docs/farm/v3/api-docs
+              filters:
+                - SetPath=/api-docs.json
+
+            - id: docs-retailer-swagger-ui
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/docs/retailer/swagger-ui,/docs/retailer/swagger-ui/**
+              filters:
+                - RewritePath=/docs/retailer/swagger-ui/?(?<seg>.*), /api-docs/${seg}
+
+            - id: docs-retailer-openapi
+              uri: http://retailer-service:8083
+              predicates:
+                - Path=/docs/retailer/api-docs,/docs/retailer/v3/api-docs
+              filters:
+                - SetPath=/api-docs.json
+
+identity:
+  service:
+    url: http://identity-service:8081

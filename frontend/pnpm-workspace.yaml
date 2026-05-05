@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+  - "web-app"
+  - "mobile-*"
+allowBuilds:
+  canvas: true
+  sharp: true
+  unrs-resolver: true

@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  BICAP NiFi template: db-sync.xml
+  Goal: Daily sync at 01:00 from farm_db.farming_seasons to report_db.season_report_sync.
+
+  Expected chain:
+  GenerateFlowFile(cron) -> ExecuteSQL(farm_db) -> ConvertRecord -> PutDatabaseRecord(report_db) -> LogAttribute
+-->
+<template encoding-version="1.0">
+  <description>Flow 3 - Daily DB sync at 01:00 AM from farm_db to report_db.</description>
+  <name>BICAP_DB_SYNC_DAILY</name>
+  <snippet>
+    <processors>
+      <id>db-trigger-001</id>
+      <name>GenerateFlowFile_0100AM</name>
+      <type>org.apache.nifi.processors.standard.GenerateFlowFile</type>
+      <config>
+        <property>
+          <name>scheduling-strategy</name>
+          <value>CRON_DRIVEN</value>
+        </property>
+        <property>
+          <name>scheduling-period</name>
+          <value>0 0 1 * * ?</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>db-execsql-001</id>
+      <name>ExecuteSQL_FarmYesterday</name>
+      <type>org.apache.nifi.processors.standard.ExecuteSQL</type>
+      <config>
+        <property>
+          <name>Database Connection Pooling Service</name>
+          <value>DBCP_FARM_DB</value>
+        </property>
+        <property>
+          <name>SQL select query</name>
+          <value>SELECT * FROM farming_seasons WHERE DATE(created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY);</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>db-convert-001</id>
+      <name>ConvertRecord_SQLToJSON</name>
+      <type>org.apache.nifi.processors.standard.ConvertRecord</type>
+      <config>
+        <property>
+          <name>Record Reader</name>
+          <value>AvroReader</value>
+        </property>
+        <property>
+          <name>Record Writer</name>
+          <value>JsonRecordSetWriter</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>db-put-001</id>
+      <name>PutDatabaseRecord_ReportDB</name>
+      <type>org.apache.nifi.processors.standard.PutDatabaseRecord</type>
+      <config>
+        <property>
+          <name>Database Connection Pooling Service</name>
+          <value>DBCP_REPORT_DB</value>
+        </property>
+        <property>
+          <name>Table Name</name>
+          <value>season_report_sync</value>
+        </property>
+        <property>
+          <name>Statement Type</name>
+          <value>INSERT</value>
+        </property>
+      </config>
+    </processors>
+
+    <processors>
+      <id>db-log-001</id>
+      <name>LogAttribute_DBSyncResult</name>
+      <type>org.apache.nifi.processors.standard.LogAttribute</type>
+      <config>
+        <property>
+          <name>Log Level</name>
+          <value>info</value>
+        </property>
+      </config>
+    </processors>
+
+    <connections>
+      <name>Trigger_to_SQL</name>
+      <source-id>db-trigger-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>db-execsql-001</destination-id>
+    </connections>
+    <connections>
+      <name>SQL_to_Convert</name>
+      <source-id>db-execsql-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>db-convert-001</destination-id>
+    </connections>
+    <connections>
+      <name>Convert_to_PutDB</name>
+      <source-id>db-convert-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>db-put-001</destination-id>
+    </connections>
+    <connections>
+      <name>PutDB_to_Log</name>
+      <source-id>db-put-001</source-id>
+      <source-relationship-name>success</source-relationship-name>
+      <destination-id>db-log-001</destination-id>
+    </connections>
+  </snippet>
+</template>

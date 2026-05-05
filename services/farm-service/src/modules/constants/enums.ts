@@ -1,0 +1,13 @@
+export enum SeasonStatus {
+  PREPARING = "PREPARING",
+  ACTIVE = "ACTIVE",
+  HARVESTED = "HARVESTED",
+  EXPORTED = "EXPORTED"
+}
+
+export enum OrderStatus {
+  PENDING = "PENDING",
+  CONFIRMED = "CONFIRMED",
+  CANCELLED = "CANCELLED",
+  COMPLETED = "COMPLETED"
+}

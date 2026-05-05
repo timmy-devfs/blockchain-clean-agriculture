@@ -1,0 +1,155 @@
+1) ĐỊA CHỈ DÙNG WEB / API
+========================
+  Trình duyệt (Next qua Nginx — cookie đồng nhất với host "localhost"):
+    http://localhost
+    http://localhost/login
+    http://localhost/register
+    http://localhost/setup          (tạo tài khoản demo + nút seed dữ liệu mẫu)
+
+  Trình duyệt trực tiếp app Next (port 3000 — seed API, dev):
+    http://localhost:3000
+    http://localhost:3000/setup
+    POST http://localhost:3000/api/seed     (một lệnh seed toàn hệ thống)
+
+  API qua Nginx → Gateway (JWT Bearer):
+    http://localhost/api/...
+
+  Gateway trực tiếp (health / debug):
+    http://localhost:8080/actuator/health
+
+  Dashboard theo vai (sau đăng nhập):
+    http://localhost/admin/dashboard
+    http://localhost/farm/dashboard
+    http://localhost/retailer/dashboard
+    http://localhost/shipping/dashboard
+
+  Trang công khai mẫu:
+    http://localhost/public
+
+  Swagger (qua Nginx):
+    http://localhost/docs/identity/swagger-ui/index.html
+    http://localhost/docs/farm/swagger-ui
+    http://localhost/docs/retailer/swagger-ui
+    http://localhost/docs/shipping/swagger-ui/index.html
+
+  Tài khoản demo (mật khẩu 123456):
+    admin@bicap.io      → ADMIN
+    farm1@bicap.io      → FARM_MANAGER
+    retail1@bicap.io    → RETAILER
+    shipper1@bicap.io   → SHIPPER
+
+
+2) XÓA SẠCH DOCKER + DỰNG LẠI
+=============================
+  docker compose down --volumes --remove-orphans
+  docker compose up -d --build
+  docker compose ps
+  curl.exe -s http://localhost/nginx-health
+  curl.exe -s http://localhost:8080/actuator/health
+
+
+3) KAFKA + BLOCKCHAIN (BẮT BUỘC CHO txHash / VECHAIN PIPELINE)
+==============================================================
+  make make-topics
+  docker compose restart blockchain-service
+  docker compose logs --tail=40 blockchain-service
+
+  Phải thấy log kiểu: Subscribed to: bicap.season.created, ...
+  Không được kẹt: Kafka unavailable, starting in degraded mode
+  (Nếu blockchain start trước khi có topic → degraded → restart blockchain sau make-topics.)
+
+
+4) MONGO REPLICA (CHỈ KHI FARM/PRISMA BÁO LỖI REPLICA)
+======================================================
+  docker exec bicap-mongo mongosh --quiet --eval "rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]})"
+  docker compose restart farm-service
+
+
+5) RESET NHẸ USER DEMO + REDIS (HOẶC SCRIPT)
+============================================
+  Cách tay — xóa 4 user demo + flush cache JWT gateway:
+
+  docker exec bicap-mysql mysql -u root -p12123 identity_db -e "DELETE FROM users WHERE email IN ('admin@bicap.io','farm1@bicap.io','retail1@bicap.io','shipper1@bicap.io','shipper@bicap.io');"
+  docker exec bicap-redis redis-cli FLUSHALL
+
+  curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+  curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyen Van A\",\"role\":\"FARM_MANAGER\"}"
+  curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"retail1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Retail Demo\",\"role\":\"RETAILER\"}"
+  curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper1@bicap.io\",\"password\":\"123456\",\"fullName\":\"Shipping Demo\",\"role\":\"SHIPPER\"}"
+  curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"shipper@bicap.io\",\"password\":\"123456\",\"fullName\":\"Nguyễn Trung Hậu\",\"role\":\"SHIPPER\"}"
+
+  Hoặc script (repo root, PowerShell):
+
+  .\scripts\reset-bicap-web-e2e.ps1
+  .\scripts\reset-bicap-web-e2e.ps1 -ClearMongo    (thêm xóa dữ liệu farm Mongo — tùy chọn)
+
+  Sau khi xóa user: đợi 2–5 giây rồi register/seed (lần đầu đôi khi gateway trả 9002 — gọi lại).
+
+
+6) LUỒNG WEB NHANH NHẤT — SEED MỘT LỆNH
+========================================
+
+  CMD:
+    curl.exe -X POST http://localhost:3000/api/seed
+
+  PowerShell:
+    Invoke-RestMethod -Method Post -Uri "http://localhost:3000/api/seed"
+
+  Hoặc UI: http://localhost:3000/setup → Bước 2 "Tạo dữ liệu mẫu".
+
+  Nếu seed trả ok:false / log ⚠ / `ECONNREFUSED` tới api-gateway:8080:
+  - Docker: `web-app` dùng `GATEWAY_INTERNAL_URL=http://nginx` (Nginx cùng network, proxy /api → gateway).
+    Không dùng `http://api-gateway:8080` từ trong web-app nếu Desktop báo refused.
+    Sau khi sửa compose: `docker compose up -d web-app` (hoặc `--build` nếu đổi code seed).
+  - `pnpm dev` trên máy host: cần stack Docker (Nginx :80 + gateway) đang chạy; `frontend/web-app/.env.local`:
+    `NEXT_PUBLIC_API_URL=http://localhost/api`
+  - Gọi lại seed và xem JSON field `details` (adminLogin / farmLogin / gatewayBase).
+
+  Thứ tự seed trong code: đăng ký 4 user → login → farm → admin duyệt farm → season → admin duyệt season
+  (Kafka → blockchain-service → callback txHash) → listing → đơn retailer → driver + xe.
+
+  Mã nguồn payload demo:
+    frontend/web-app/app/api/seed/route.ts
+    frontend/web-app/app/setup/page.tsx   (DEMO_ACCOUNTS + gọi /api/seed)
+
+
+7) LUỒNG WEB TỪNG BƯỚC (KHÔNG DÙNG SEED)
+=========================================
+  7a) Đăng ký (qua gateway), lặp cho từng email ở mục (1):
+
+    curl.exe -X POST http://localhost/api/auth/register -H "Content-Type: application/json" -d "{\"email\":\"admin@bicap.io\",\"password\":\"123456\",\"fullName\":\"BICAP Administrator\",\"role\":\"ADMIN\"}"
+
+  7b) Đăng nhập farm + admin, lấy data.accessToken.
+
+  7c) Farm manager tạo farm (Bearer token farm).
+
+  7d) Admin duyệt farm: PUT http://localhost/api/farm/admin/farms/<FARM_ID>/approve
+
+  7e) Farm manager tạo season POST /api/farm/seasons (farmId, cropType, startDate, ...).
+
+  7f) Admin duyệt season: PUT /api/farm/admin/seasons/<SEASON_ID>/approve  → publish Kafka.
+
+  7g) Đợi 5–30 giây; GET /api/farm/seasons/<SEASON_ID> với Bearer farm → kiểm tra txHash.
+      Tra cứu: https://explore.vechain.org/
+
+  Qua UI: đăng nhập farm1 → tạo farm/season trên app; đăng nhập admin → duyệt farm/season trên admin.
+
+
+8) KIỂM TRA NHANH SAU ĐĂNG NHẬP
+================================
+  curl.exe -X POST http://localhost/api/auth/login -H "Content-Type: application/json" -d "{\"email\":\"farm1@bicap.io\",\"password\":\"123456\"}"
+  curl.exe -i http://localhost/api/farm/farms -H "Authorization: Bearer <accessToken>"
+
+
+9) SỰ CỐ THƯỜNG GẶP (RÚT GỌN)
+==============================
+  Port 3000 bận:  netstat -ano | findstr :3000  rồi taskkill /PID <pid> /F
+  Đổi NEXT_PUBLIC_API_URL:  docker compose build --no-cache web-app && docker compose up -d web-app
+  Register 9002: đợi vài giây, kiểm tra http://localhost:8081/actuator/health, gọi lại.
+  txHash null lâu: lại mục (3) + log farm-service / blockchain-service.
+
+
+10) DỪNG STACK
+==============
+  Giữ dữ liệu:     docker compose down
+  Xóa volume:      docker compose down --volumes --remove-orphans

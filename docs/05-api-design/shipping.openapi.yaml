@@ -1,0 +1,451 @@
+﻿openapi: 3.0.1
+info:
+  title: BICAP ??? Shipping Service API
+  description: 'Qu???n l?? v???n chuy???n: Shipment, Driver, Vehicle. API Gateway forward X-User-Id/Role headers.'
+  version: 1.0.0
+servers:
+  - url: http://shipping-service:8084
+    description: Generated server url
+security:
+  - bearerAuth: []
+tags:
+  - name: Shipment
+    description: Shipment lifecycle and driver operations
+paths:
+  /api/shipping/shipments:
+    get:
+      tags:
+        - Shipment
+      summary: L???y danh s??ch shipment
+      operationId: listAll
+      responses:
+        "200":
+          description: L???y danh s??ch th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentResponse'
+        "401":
+          description: Ch??a x??c th???c
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentResponse'
+    post:
+      tags:
+        - Shipment
+      summary: T???o shipment m???i
+      operationId: createShipment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShipmentRequest'
+        required: true
+      responses:
+        "400":
+          description: Payload kh??ng h???p l???
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "401":
+          description: Ch??a x??c th???c
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "201":
+          description: T???o th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+  /api/shipping/driver/shipments/{id}/status:
+    post:
+      tags:
+        - Shipment
+      summary: Driver c???p nh???t tr???ng th??i shipment
+      operationId: updateStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShipmentStatusRequest'
+        required: true
+      responses:
+        "404":
+          description: Shipment kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "200":
+          description: C???p nh???t tr???ng th??i th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "403":
+          description: Kh??ng c?? quy???n SHIPPER
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+  /api/shipping/driver/shipments/{id}/pickup:
+    post:
+      tags:
+        - Shipment
+      summary: Driver x??c nh???n ???? l???y h??ng
+      operationId: pickup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShipmentStatusRequest'
+      responses:
+        "200":
+          description: C???p nh???t pickup th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "404":
+          description: Shipment kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "403":
+          description: Kh??ng c?? quy???n SHIPPER
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+  /api/shipping/shipments/{id}:
+    get:
+      tags:
+        - Shipment
+      summary: L???y chi ti???t shipment theo ID
+      operationId: getById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "404":
+          description: Shipment kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+        "200":
+          description: L???y chi ti???t th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseShipmentResponse'
+    delete:
+      tags:
+        - Shipment
+      summary: X??a shipment
+      operationId: delete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: X??a th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+        "404":
+          description: Shipment kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseVoid'
+  /api/shipping/shipments/{id}/history:
+    get:
+      tags:
+        - Shipment
+      summary: L???y l???ch s??? tr???ng th??i shipment
+      operationId: history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "404":
+          description: Shipment kh??ng t???n t???i
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentStatusHistoryResponse'
+        "200":
+          description: L???y l???ch s??? th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentStatusHistoryResponse'
+  /api/shipping/driver/shipments:
+    get:
+      tags:
+        - Shipment
+      summary: Driver l???y danh s??ch shipment c???a m??nh
+      operationId: listDriverShipments
+      responses:
+        "200":
+          description: L???y danh s??ch th??nh c??ng
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentResponse'
+        "403":
+          description: Kh??ng c?? quy???n SHIPPER
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ApiResponseListShipmentResponse'
+components:
+  schemas:
+    CreateShipmentRequest:
+      type: object
+      properties:
+        orderId:
+          type: integer
+          description: ID ????n h??ng
+          format: int64
+          example: 12001
+        farmId:
+          type: integer
+          description: ID farm ngu???n
+          format: int64
+          example: 101
+        retailerId:
+          type: integer
+          description: ID retailer ????ch
+          format: int64
+          example: 305
+        driverId:
+          type: integer
+          description: ID t??i x??? ph??? tr??ch
+          format: int64
+          example: 12
+        vehicleId:
+          type: integer
+          description: ID ph????ng ti???n v???n chuy???n
+          format: int64
+          example: 7
+        pickupAddress:
+          type: string
+          description: ?????a ch??? nh???n h??ng
+          example: Kho Farm, Long An
+        deliveryAddress:
+          type: string
+          description: ?????a ch??? giao h??ng
+          example: Si??u th??? Retail, TP.HCM
+        scheduledDate:
+          type: string
+          description: Ng??y giao d??? ki???n
+          format: date
+          example: "2026-05-01"
+    ApiResponseShipmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/ShipmentResponse'
+    ShipmentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID shipment
+          format: int64
+          example: 5001
+        orderId:
+          type: integer
+          description: ID order
+          format: int64
+          example: 12001
+        farmId:
+          type: integer
+          description: ID farm
+          format: int64
+          example: 101
+        retailerId:
+          type: integer
+          description: ID retailer
+          format: int64
+          example: 305
+        driverId:
+          type: integer
+          description: ID driver
+          format: int64
+          example: 12
+        vehicleId:
+          type: integer
+          description: ID vehicle
+          format: int64
+          example: 7
+        status:
+          type: string
+          description: Tr???ng th??i hi???n t???i
+          example: ASSIGNED
+          enum:
+            - CREATED
+            - ASSIGNED
+            - PICKED_UP
+            - IN_TRANSIT
+            - DELAYED
+            - DELIVERED
+            - CANCELLED
+        pickupAddress:
+          type: string
+          description: ?????a ch??? l???y h??ng
+          example: Kho Farm, Long An
+        deliveryAddress:
+          type: string
+          description: ?????a ch??? giao h??ng
+          example: Si??u th??? Retail, TP.HCM
+        scheduledDate:
+          type: string
+          description: Ng??y giao d??? ki???n
+          format: date
+          example: "2026-05-01"
+    UpdateShipmentStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Tr???ng th??i m???i c???a shipment
+          example: IN_TRANSIT
+          enum:
+            - CREATED
+            - ASSIGNED
+            - PICKED_UP
+            - IN_TRANSIT
+            - DELAYED
+            - DELIVERED
+            - CANCELLED
+        note:
+          type: string
+          description: Ghi ch?? v???n chuy???n
+          example: ???? r???i kho trung chuy???n
+        imageUrl:
+          type: string
+          description: ???nh minh ch???ng
+          example: https://cdn.bicap.vn/shipping/proof-01.jpg
+        location:
+          type: string
+          description: V??? tr?? c???p nh???t
+          example: Binh Duong
+    ApiResponseListShipmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShipmentResponse'
+    ApiResponseListShipmentStatusHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShipmentStatusHistoryResponse'
+    ShipmentStatusHistoryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID history record
+          format: int64
+          example: 9001
+        shipmentId:
+          type: integer
+          description: ID shipment
+          format: int64
+          example: 5001
+        status:
+          type: string
+          description: Tr???ng th??i t???i th???i ??i???m c???p nh???t
+          example: DELIVERED
+          enum:
+            - CREATED
+            - ASSIGNED
+            - PICKED_UP
+            - IN_TRANSIT
+            - DELAYED
+            - DELIVERED
+            - CANCELLED
+        changedAt:
+          type: string
+          description: Th???i ??i???m c???p nh???t
+          format: date-time
+        changedBy:
+          type: string
+          description: Ng?????i c???p nh???t tr???ng th??i
+          example: driver-12
+        note:
+          type: string
+          description: Ghi ch?? tr???ng th??i
+          example: Giao h??ng th??nh c??ng
+        imageUrls:
+          type: string
+          description: Danh s??ch ???nh (serialized string/JSON)
+    ApiResponseVoid:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+        data:
+          type: object
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

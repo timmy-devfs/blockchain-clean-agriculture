@@ -1,0 +1,57 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Report Service API
+  version: "1.0.0"
+  description: Tập trung báo cáo từ mọi Actor. Admin xem, phân loại và resolve.
+
+servers:
+  - url: http://localhost:8088
+
+paths:
+  /api/reports:
+    post:
+      summary: Gửi báo cáo (bất kỳ Actor nào)
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, content]
+              properties:
+                type:      { type: string, enum: [PRODUCT_QUALITY, DELIVERY, FRAUD, OTHER] }
+                content:   { type: string }
+                imageUrls: { type: array, items: { type: string } }
+      responses:
+        "201": { description: "Báo cáo tạo thành công — status = PENDING" }
+
+  /api/reports/admin:
+    get:
+      summary: "[ADMIN] Xem tất cả báo cáo với filter"
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, RESOLVED] } }
+        - { name: role,   in: query, schema: { type: string } }
+      responses:
+        "200": { description: "PageResponse<Report>" }
+        "403": { description: "Không phải ADMIN" }
+
+  /api/reports/{id}/resolve:
+    put:
+      summary: "[ADMIN] Resolve báo cáo với ghi chú"
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminNote: { type: string }
+      responses:
+        "200": { description: "status = RESOLVED, resolvedAt set" }
+
+components:
+  securitySchemes:
+    BearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }

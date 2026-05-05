@@ -1,0 +1,61 @@
+server:
+  port: ${SHIPPING_PORT:8084}  # Cổng chạy service này
+
+spring:
+  application:
+    name: shipping-service
+
+  # Kết nối MySQL
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/shipping_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:bicap_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:12123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # Không tự tạo bảng, để Flyway lo
+    show-sql: true         # In câu SQL ra console khi debug
+    database-platform: org.hibernate.dialect.MySQLDialect
+
+  # Flyway tự chạy các file V1__..sql → V5__..sql khi khởi động
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  # Kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: shipping-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+# Cho phép gọi /actuator/health để kiểm tra service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Gọi farm / retailer (Docker DNS)
+bicap:
+  farm:
+    base-url: ${FARM_SERVICE_BASE_URL:http://localhost:8082}
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    default-driver-password: ${BICAP_DEFAULT_DRIVER_PASSWORD:123456}
+  retailer:
+    base-url: ${RETAILER_SERVICE_BASE_URL:http://localhost:8083}
+  internal:
+    # identity-service gửi kèm header X-Bicap-Internal-Token khi đăng ký SHIPPER
+    provision-token: ${BICAP_INTERNAL_PROVISION_TOKEN:bicap-dev-internal}
+  shipping:
+    auto-create:
+      enabled: ${SHIPPING_AUTO_CREATE_ENABLED:true}
+      fixed-delay-ms: ${SHIPPING_AUTO_CREATE_DELAY_MS:10000}
+      scheduled-days-ahead: ${SHIPPING_AUTO_CREATE_DAYS_AHEAD:1}

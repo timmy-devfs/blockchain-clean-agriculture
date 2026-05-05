@@ -1,0 +1,53 @@
+openapi: "3.0.3"
+info:
+  title: BICAP — Guest Service API
+  version: "1.0.0"
+  description: |
+    Public APIs — KHÔNG cần Authorization header.
+    Phục vụ public routes trong web-app (SSR) và người tiêu dùng scan QR.
+    Cache Redis TTL 10 phút cho tất cả GET endpoints.
+
+servers:
+  - url: http://localhost:8089
+
+paths:
+  /api/public/products:
+    get:
+      summary: Danh sách sản phẩm công khai — cache Redis 10 phút
+      parameters:
+        - { name: keyword,  in: query, schema: { type: string } }
+        - { name: province, in: query, schema: { type: string } }
+        - { name: page,     in: query, schema: { type: integer } }
+      responses:
+        "200": { description: "PageResponse<ProductSummary>" }
+
+  /api/public/trace/{qrCode}:
+    get:
+      summary: Truy xuất nguồn gốc qua QR Code — gọi blockchain-service
+      parameters:
+        - name: qrCode
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: TraceResult đầy đủ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  farmName:     { type: string }
+                  cropType:     { type: string }
+                  province:     { type: string }
+                  seasonId:     { type: string }
+                  txHash:       { type: string }
+                  history:      { type: array }
+                  certifiedAt:  { type: string, format: date-time }
+        "404": { description: "QR không tồn tại" }
+
+  /api/public/articles:
+    get:
+      summary: Danh sách bài viết/tin tức công khai
+      responses:
+        "200": { description: "List<Article>" }

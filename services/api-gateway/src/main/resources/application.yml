@@ -1,0 +1,288 @@
+# ════════════════════════════════════════════════════════════════
+# BICAP — API Gateway (Spring Boot 3.5 / Spring Cloud 2024)
+# ════════════════════════════════════════════════════════════════
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: 6379
+      timeout: 2000ms
+
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 120s
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
+
+          # ── Forwarded headers ─────────────────────────────────
+          forwarded:
+            enabled: true
+
+          # ── Global CORS ───────────────────────────────────────
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              "[/**]":
+                allowed-origins:
+                  - "http://localhost:3000"
+                  - "http://127.0.0.1:3000"
+                  - "http://localhost:3001"
+                  - "http://localhost:3002"
+                  - "http://localhost:3003"
+                  - "http://localhost:3004"
+                  - "http://127.0.0.1"
+                  - "http://localhost"
+                allowed-methods: ["GET","POST","PUT","DELETE","OPTIONS","PATCH"]
+                allowed-headers: ["*"]
+                allow-credentials: true
+                max-age: 3600
+
+          # ── Routes ───────────────────────────────────────────
+          routes:
+
+            # identity-service :8081
+            - id: identity-service
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: identity-cb
+                    fallbackUri: forward:/fallback/identity
+
+            # farm-service :8082
+            - id: farm-service
+              uri: ${FARM_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/farm/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: farm-cb
+                    fallbackUri: forward:/fallback/farm
+                - AddRequestHeader=X-Gateway-Source, bicap-gateway
+
+            # retailer-service :8083
+            - id: retailer-service
+              uri: ${RETAILER_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/retail/**
+
+            - id: retailer-service-v1
+              uri: ${RETAILER_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/v1/**
+
+            # retailer-service alias for admin UI order APIs
+            - id: retailer-service-order-admin
+              uri: ${RETAILER_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/order/**
+              filters:
+                - RewritePath=/api/order/(?<segment>.*), /api/retail/${segment}
+
+            # shipping-service :8084
+            - id: shipping-service
+              uri: ${SHIPPING_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/shipping/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: shipping-cb
+                    fallbackUri: forward:/fallback/shipping
+
+            # notification-service :8085
+            - id: notification-service
+              uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/notify/**
+              filters:
+                # /api/notify/tokens → /tokens ; /api/notify/notifications/... → /notifications/...
+                - RewritePath=/api/notify/(?<segment>.*), /${segment}
+                - name: CircuitBreaker
+                  args:
+                    name: notification-cb
+                    fallbackUri: forward:/fallback/notification
+
+            # payment-service :8086
+            - id: payment-service
+              uri: ${PAYMENT_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/pay/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: payment-cb
+                    fallbackUri: forward:/fallback/payment
+
+            # iot-service :8087
+            - id: iot-service
+              uri: ${IOT_SERVICE_URL:http://localhost:8087}
+              predicates:
+                - Path=/api/iot/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: iot-cb
+                    fallbackUri: forward:/fallback/iot
+
+            # report-service :8088
+            - id: report-service
+              uri: ${REPORT_SERVICE_URL:http://localhost:8088}
+              predicates:
+                - Path=/api/reports/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: report-cb
+                    fallbackUri: forward:/fallback/report
+
+            # guest-service :8089
+            - id: guest-service
+              uri: ${GUEST_SERVICE_URL:http://localhost:8089}
+              predicates:
+                - Path=/api/public/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: guest-cb
+                    fallbackUri: forward:/fallback/guest
+
+            # blockchain-service :8090 (NodeJS)
+            - id: blockchain-service
+              uri: ${BLOCKCHAIN_SERVICE_URL:http://localhost:8090}
+              predicates:
+                - Path=/api/chain/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: blockchain-cb
+                    fallbackUri: forward:/fallback/blockchain
+
+            # ── Swagger docs routes (BIC-043) ─────────────────
+            - id: docs-identity
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/docs/identity/**
+              filters:
+                - RewritePath=/docs/identity/(?<seg>.*), /${seg}
+
+            - id: docs-shipping
+              uri: http://localhost:8084
+              predicates:
+                - Path=/docs/shipping/**
+              filters:
+                - RewritePath=/docs/shipping/(?<seg>.*), /${seg}
+
+            - id: docs-notification
+              uri: http://localhost:8085
+              predicates:
+                - Path=/docs/notification/**
+              filters:
+                - RewritePath=/docs/notification/(?<seg>.*), /${seg}
+
+            - id: docs-farm-swagger-ui
+              uri: http://localhost:8082
+              predicates:
+                - Path=/docs/farm/swagger-ui,/docs/farm/swagger-ui/**
+              filters:
+                - RewritePath=/docs/farm/swagger-ui/?(?<seg>.*), /api-docs/${seg}
+
+            - id: docs-farm-openapi
+              uri: http://localhost:8082
+              predicates:
+                - Path=/docs/farm/api-docs,/docs/farm/v3/api-docs
+              filters:
+                - SetPath=/api-docs.json
+
+            - id: docs-retailer-swagger-ui
+              uri: http://localhost:8083
+              predicates:
+                - Path=/docs/retailer/swagger-ui,/docs/retailer/swagger-ui/**
+              filters:
+                - RewritePath=/docs/retailer/swagger-ui/?(?<seg>.*), /api-docs/${seg}
+
+            - id: docs-retailer-openapi
+              uri: http://localhost:8083
+              predicates:
+                - Path=/docs/retailer/api-docs,/docs/retailer/v3/api-docs
+              filters:
+                - SetPath=/api-docs.json
+
+# ── Resilience4j Circuit Breaker ──────────────────────────────
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+    instances:
+      identity-cb:
+        base-config: default
+      farm-cb:
+        base-config: default
+      retailer-cb:
+        base-config: default
+      shipping-cb:
+        base-config: default
+      notification-cb:
+        base-config: default
+      payment-cb:
+        base-config: default
+      iot-cb:
+        base-config: default
+      report-cb:
+        base-config: default
+      guest-cb:
+        base-config: default
+      blockchain-cb:
+        sliding-window-size: 10
+        failure-rate-threshold: 60
+        wait-duration-in-open-state: 20s
+
+# ── Identity Service URL ───────────────────────────────────────
+identity:
+  service:
+    url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    introspect-path: /api/auth/introspect
+
+# ── Gateway config ─────────────────────────────────────────────
+gateway:
+  jwt-cache-ttl-seconds: 300
+  rate-limit:
+    anonymous-per-minute: 100      # 101+ req/phút → 429
+    authenticated-per-minute: 500
+    # exclude-paths: /actuator/health, /actuator/info   # Tùy chọn: bỏ qua rate limit cho path
+
+# ── Actuator ──────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      access: unrestricted    # ← đổi từ enabled: true (đã bị xóa ở 3.5)
+
+# ── Logging ───────────────────────────────────────────────────
+logging:
+  level:
+    com.bicap.api_gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
